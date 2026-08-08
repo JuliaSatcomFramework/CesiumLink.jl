@@ -1,0 +1,6 @@
+# `golden-frame.bin` is asserted byte for byte by two tests. A blanket `text=auto`
+# would normalise line endings inside it.
+*.bin                    binary
+*.jsonl                  -text -diff linguist-generated
+lib/package-lock.json    linguist-generated -diff
+docs/package-lock.json   linguist-generated -diff

@@ -1,0 +1,24 @@
+CesiumLink
+Copyright (c) 2026 Alberto Mengali
+
+This product is licensed under the MIT License. See LICENSE.
+
+--------------------------------------------------------------------------------
+Third-party software
+--------------------------------------------------------------------------------
+
+CesiumJS
+Copyright 2011-2026 CesiumJS Contributors
+Licensed under the Apache License, Version 2.0.
+https://github.com/CesiumGS/cesium
+
+The built viewer bundles `@cesium/engine` and `@cesium/widgets`, and it carries the
+Cesium runtime asset tree — `Assets`, `Workers` and `ThirdParty` — as files. That
+whole tree ships inside the `viewer` release artifact.
+
+`build.mjs` copies the two upstream license files into the built tree, as
+`dist/cesium/LICENSE-engine.md` and `dist/cesium/LICENSE-widgets.md`, so the license
+text travels with the files it covers.
+
+You may obtain a copy of the Apache License, Version 2.0 at:
+    http://www.apache.org/licenses/LICENSE-2.0
