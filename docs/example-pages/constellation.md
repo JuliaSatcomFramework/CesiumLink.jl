@@ -5,7 +5,13 @@ feed through, and the links between them — three hundred keyframes of thirty s
 sixty at a time.
 
 ```sh
-julia --project=docs -e 'using Constellation; Constellation.run_example()'
+julia examples/Constellation/run.jl
+```
+
+Or start it from a session that already has CesiumLink — see [Run an example](@ref "Run an example"):
+
+```julia
+server = include(joinpath(pkgdir(CesiumLink), "examples", "Constellation", "run.jl"))
 ```
 
 The scene below is a recording of that program, played in the browser.

@@ -4,7 +4,7 @@
 A Walker constellation over Europe and North Africa, as a CesiumLink scene: satellites, ground
 cells, gateways, and the three link families their geometry implies.
 
-    julia --project=docs -e 'using Constellation; Constellation.run_example()'
+    julia examples/Constellation/run.jl
 
 The package holds the one method of [`CesiumLink.serve_scene!`](@ref) in this repository. Everything
 it draws is geometry — a link stands while its far end is above `MASK_DEG` degrees of elevation, and
@@ -378,20 +378,6 @@ function CesiumLink.serve_scene!(server, scene::ConstellationScene)
     # What takes down the scene the server drove before. Re-run the example on a live server and it
     # replaces the scene, rather than leaving two of them to answer every event between them.
     return install_scene!(server, scene, listeners)
-end
-
-"""
-    run_example()
-
-Serve the scene on the default port, then wait for Enter and stop.
-"""
-function run_example()
-    server = start_server()
-    serve_scene!(server, ConstellationScene())
-    println("open ", viewer_url(server), " — then press Enter to stop")
-    readline()
-    stop_server(server)
-    return nothing
 end
 
 end # module Constellation

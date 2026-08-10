@@ -63,6 +63,10 @@ include(joinpath(REPO_ROOT, "tools", "make-demo-recording.jl"))
 
 # Every example runs during this build, so an example that throws fails it. A one-file example is
 # included into a module of its own, so that two examples may use the same names.
+#
+# This build wants the functions of an example, not the program: it has an environment already and
+# it drives its own server. `examples/setup.jl` reads this name and stands aside.
+CESIUMLINK_LIBRARY_ONLY = true
 const SOLAR = Module(:SolarElevation)
 Base.include(SOLAR, joinpath(EXAMPLES, "solar_elevation.jl"))
 const SATELLITES = Module(:Satellites)
@@ -154,12 +158,16 @@ function source_listing(path)
         end
         println(io, "```\n")
     end
+    hidden = false
     for f in files
+        body = listing_body(f)
+        hidden |= any(endswith(rstrip(l), HIDE_MARKER) for l in eachline(f))
         println(io, "#### `", relpath(f, root), "`\n")
         println(io, "```", get(FENCE, lowercase(lstrip(last(splitext(f)), '.')), ""))
-        println(io, listing_body(f))
+        println(io, body)
         println(io, "```\n")
     end
+    hidden && println(io, HIDE_NOTE)
     return String(take!(io))
 end
 
@@ -168,8 +176,24 @@ end
 const DATA_EXTENSIONS = (".tle",)
 const DATA_HEAD_LINES = 6
 
+# A line an example runs but the page leaves out, marked as Documenter marks one. The three lines
+# every `run.jl` marks are what makes it run on its own — see `examples/setup.jl` — and they say
+# nothing about the scene the page is there to show.
+const HIDE_MARKER = "# hide"
+const HIDE_NOTE = """
+    !!! info "The listing leaves out three lines"
+        `run.jl` also includes `examples/setup.jl`, activates the environment beside it, and calls
+        `run_example()`. That is what makes the file run on its own — see
+        [Run an example](@ref "Run an example").
+    """
+
 function listing_body(path)
-    last(splitext(path)) in DATA_EXTENSIONS || return rstrip(read(path, String))
+    if !(last(splitext(path)) in DATA_EXTENSIONS)
+        kept = filter(l -> !endswith(rstrip(l), HIDE_MARKER), readlines(path))
+        # A removed line leaves the blank line beside it, and two of them leave a gap the file does
+        # not have.
+        return rstrip(replace(join(kept, "\n"), r"\n{3,}" => "\n\n"))
+    end
     lines = readlines(path)
     length(lines) > DATA_HEAD_LINES || return join(lines, "\n")
     return join(lines[1:DATA_HEAD_LINES], "\n") *

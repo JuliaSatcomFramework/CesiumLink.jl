@@ -2,6 +2,10 @@
 #
 #     julia examples/Satellites/run.jl
 #
+# From a session that already has CesiumLink, one line starts the same scene and returns the server:
+#
+#     include(joinpath(pkgdir(CesiumLink), "examples", "Satellites", "run.jl"))
+#
 # The orbital elements are real: `leo-20200122.tle` is 60 low, near-circular orbits out of a
 # CelesTrak catalogue snapshot, and SGP4 propagates each one. The mission runs at the snapshot's own
 # epoch, because SGP4 drifts by kilometres a day away from the epoch its elements were fitted at.
@@ -22,15 +26,8 @@
 # - a tour of two stops — a declared camera track that opens on the whole sky and then rides one
 #   satellite. A drag while it rides steers around the satellite and keeps riding it.
 
-# The environment beside this file, set up only when the file is run as a program. Something that
-# includes it — the documentation build does — brings its own environment, which already holds these
-# packages.
-if abspath(PROGRAM_FILE) == @__FILE__
-    using Pkg
-    Pkg.activate(@__DIR__)
-    Pkg.develop(path = normpath(joinpath(@__DIR__, "..", "..")))
-    Pkg.instantiate()
-end
+Base.include(@__MODULE__, joinpath(@__DIR__, "..", "setup.jl"))   # hide
+AUTORUN && activate_example(@__DIR__)   # hide
 
 using CesiumLink
 using Dates
@@ -215,10 +212,16 @@ function install_satellite_scene!(server, scene = SatelliteScene())
     return install_scene!(server, scene, listeners)
 end
 
-if abspath(PROGRAM_FILE) == @__FILE__
+"""
+    run_example()
+
+Start a server for this scene and print the address of the viewer. A session gets the server back,
+to stop with `stop_server`.
+"""
+function run_example()
     server = start_server(; imagery = IMAGERY, lighting = true, stars = true)
     install_satellite_scene!(server)
-    println("open ", viewer_url(server), " — then press Enter to stop")
-    readline()
-    stop_server(server)
+    return hold(server)
 end
+
+AUTORUN && run_example()   # hide

@@ -1,6 +1,10 @@
 # Solar elevation over the whole globe, at one instant.
 #
-#     julia --project=. examples/solar_elevation.jl
+#     julia examples/solar_elevation.jl
+#
+# From a session that already has CesiumLink, one line starts the same scene and returns the server:
+#
+#     include(joinpath(pkgdir(CesiumLink), "examples", "solar_elevation.jl"))
 #
 # The whole program is this file and its only dependency is CesiumLink. The sun's position is a
 # closed-form expression, the field is a comprehension, and the regions are hand-written rings.
@@ -8,6 +12,11 @@
 # The scene shows a statistic on the globe, not a state at a time, so it declares no time furniture
 # and the viewer draws no clock. Nothing in the scene moves, so the camera moves instead: the scene
 # declares a camera track paced by the clock on the wall.
+
+# This example has no environment of its own. CesiumLink and Dates are its only dependencies, and
+# the package's own environment holds both.
+Base.include(@__MODULE__, joinpath(@__DIR__, "setup.jl"))   # hide
+AUTORUN && activate_example(REPO_ROOT)   # hide
 
 using CesiumLink
 using Dates
@@ -110,11 +119,16 @@ function install_solar_scene!(server; epoch = EPOCH)
     return (; values, regions = REGIONS, sun)
 end
 
-# Only the command line runs it. The documentation build calls the function.
-if abspath(PROGRAM_FILE) == @__FILE__
+"""
+    run_example()
+
+Start a server for this scene and print the address of the viewer. A session gets the server back,
+to stop with `stop_server`.
+"""
+function run_example()
     server = start_server()
     install_solar_scene!(server)
-    println("open ", viewer_url(server), " — then press Enter to stop")
-    readline()
-    stop_server(server)
+    return hold(server)
 end
+
+AUTORUN && run_example()   # hide

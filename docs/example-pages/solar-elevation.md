@@ -4,7 +4,13 @@ How high the sun stands over every point of the globe, at one instant, as colour
 with five coarse regions drawn over it, each filled by its own mean.
 
 ```sh
-julia --project=. examples/solar_elevation.jl
+julia examples/solar_elevation.jl
+```
+
+Or start it from a session that already has CesiumLink — see [Run an example](@ref "Run an example"):
+
+```julia
+server = include(joinpath(pkgdir(CesiumLink), "examples", "solar_elevation.jl"))
 ```
 
 The scene below is a recording of that program, played in the browser.

@@ -7,6 +7,12 @@ region and the chart draws how many satellites stand above it, filling in as the
 julia examples/RegionCount/run.jl
 ```
 
+Or start it from a session that already has CesiumLink — see [Run an example](@ref "Run an example"):
+
+```julia
+server = include(joinpath(pkgdir(CesiumLink), "examples", "RegionCount", "run.jl"))
+```
+
 The scene below is a recording of that program, played in the browser.
 
 ```@raw html

@@ -1,15 +1,15 @@
-# A hundred and forty-four satellites over Europe and Africa, with a chart beside the globe.
+# Forty satellites over Europe and North Africa, with their ground cells, gateways and links.
 #
-#     julia examples/RegionCount/run.jl
+#     julia examples/Constellation/run.jl
 #
 # From a session that already has CesiumLink, one line starts the same scene and returns the server:
 #
-#     include(joinpath(pkgdir(CesiumLink), "examples", "RegionCount", "run.jl"))
+#     include(joinpath(pkgdir(CesiumLink), "examples", "Constellation", "run.jl"))
 
 Base.include(@__MODULE__, joinpath(@__DIR__, "..", "setup.jl"))   # hide
 AUTORUN && activate_example(@__DIR__)   # hide
 
-using CesiumLink, RegionCount
+using CesiumLink, Constellation
 
 """
     run_example()
@@ -19,8 +19,7 @@ to stop with `stop_server`.
 """
 function run_example()
     server = start_server()
-    serve_scene!(server, Satellites())
-    println("the chart fills in when you click Europe or Africa")
+    serve_scene!(server, ConstellationScene())
     return hold(server)
 end
 

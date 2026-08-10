@@ -7,6 +7,12 @@ by the sun and under a star field. The camera opens on the whole sky and then ri
 julia examples/Satellites/run.jl
 ```
 
+Or start it from a session that already has CesiumLink — see [Run an example](@ref "Run an example"):
+
+```julia
+server = include(joinpath(pkgdir(CesiumLink), "examples", "Satellites", "run.jl"))
+```
+
 The scene below is a recording of that program, played in the browser.
 
 ```@raw html
