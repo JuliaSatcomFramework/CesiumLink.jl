@@ -27,7 +27,10 @@ const EPOCH = DateTime(2026, 6, 21, 12, 0, 0)
 const PLANES = 5                # a Walker delta pattern of 40 satellites: 40/5/1
 const PER_PLANE = 8
 const PHASING = 1
-const ALTITUDE_M = 8.0e5
+# Keep this above 1900 km. The widest pair of the inter-satellite mesh stands 77.7° apart, and
+# below that altitude the chord between the two passes through the Earth: the scene then draws a
+# link where there is no line of sight.
+const ALTITUDE_M = 2.0e6
 const INCLINATION_DEG = 53.0
 const DT_SECONDS = 30.0         # mission time between two keyframes
 const TOTAL_FRAMES = 300        # the whole mission, two and a half hours at that step
