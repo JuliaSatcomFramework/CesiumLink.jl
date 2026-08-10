@@ -130,7 +130,8 @@ export interface CameraAuthority {
    *
    * A stop keyed `at` a keyframe moves the clock there, and the crossing rule carries the scene with
    * it. A stop paced `after` wall seconds re-arms the later ones from now, so the tour carries on
-   * from there rather than ending.
+   * from there rather than ending. A stop scheduled by neither re-arms the whole wall-paced tour
+   * from its start, because that stop is where the tour opens.
    */
   goToStop(i: number): void;
   /**
@@ -488,14 +489,21 @@ export function createCameraAuthority(
   /**
    * Apply the latest entry the clock reaches at absolute keyframe `index` — the greatest `at` at or
    * below it — unless that entry is the applied one already.
+   *
+   * An entry scheduled by neither `at` nor `after` is the viewpoint the track opens on, and it
+   * counts as keyed before every keyframe. So a clock that wraps at the end of a looping range, or
+   * that scrubs back past the first keyed stop, returns to the opening viewpoint instead of holding
+   * the last stop the tour reached.
    */
   const applyAt = (index: number) => {
     let pick = -1;
     let latest = -Infinity;
     track.forEach((v, i) => {
-      if (v.at === undefined || v.at > index) return;
-      if (v.at >= latest) {
-        latest = v.at;
+      if (v.after !== undefined) return;
+      const at = v.at ?? -Infinity;
+      if (at > index) return;
+      if (at >= latest) {
+        latest = at;
         pick = i;
       }
     });
@@ -656,9 +664,11 @@ export function createCameraAuthority(
       // navigating to a stop is not touring.
       go({ ...v, duration: REJOIN_SECONDS });
       // The clock move raises a crossing, and `applyAt` then finds this entry applied already, so
-      // the scene follows the camera and nothing flies twice.
+      // the scene follows the camera and nothing flies twice. A stop scheduled by neither is where
+      // the tour opens, so the wall-paced stops are armed from offset zero: arming nothing there
+      // would end the tour on the one click that asks to start it again.
       if (v.at !== undefined) clock.goToKeyframe(v.at);
-      else if (v.after !== undefined) arm(v.after, i);
+      else arm(v.after ?? 0, i);
       changed();
     },
     deadlineAt(i) {
