@@ -1,0 +1,19 @@
+name = "Constellation"
+uuid = "6e120adb-177b-4e06-8f8c-644206b35d48"
+authors = ["Alberto Mengali <disberd@gmail.com>"]
+version = "0.1.0"
+
+[deps]
+CesiumLink = "fe4ddbe3-63a4-4ce0-8a5b-46bb22807cc2"
+Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+SatelliteToolboxPropagators = "c2b69894-ea78-4e2b-9ba6-cedbbc3d14d7"
+SatelliteToolboxTransformations = "6b019ec1-7a1e-4f04-96c7-a9db1ca5514d"
+
+[compat]
+CesiumLink = "0.1"
+Dates = "1"
+LinearAlgebra = "1"
+SatelliteToolboxPropagators = "1"
+SatelliteToolboxTransformations = "1"
+julia = "1.10"

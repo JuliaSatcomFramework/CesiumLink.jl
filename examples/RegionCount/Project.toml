@@ -1,0 +1,15 @@
+name = "RegionCount"
+uuid = "b6a1b441-818c-4efc-8ed7-ae461013d940"
+authors = ["Alberto Mengali <disberd@gmail.com>"]
+version = "0.1.0"
+
+[deps]
+CesiumLink = "fe4ddbe3-63a4-4ce0-8a5b-46bb22807cc2"
+Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
+LazyArtifacts = "4af54fe1-eca0-43a8-85a7-787d91b784e3"
+
+[compat]
+CesiumLink = "0.1"
+Dates = "1"
+LazyArtifacts = "1"
+julia = "1.10"
