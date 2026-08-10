@@ -1005,6 +1005,18 @@ end
             @test CesiumLink.push_to_editor(50006, :auto) == "the environment names no VSCode terminal"
         end
 
+        # VSCode's command line on Windows is `code.cmd`, which is a script for the command
+        # interpreter: started directly it fails as a program that is not a valid application. The
+        # name is checked on every platform, because the machine that meets this is not the one that
+        # runs the tests.
+        uri = CesiumLink.scene_uri(50008)
+        @test CesiumLink.editor_command("C:\\VSCode\\bin\\code.cmd", uri).exec ==
+              ["cmd", "/c", "C:\\VSCode\\bin\\code.cmd", "--openExternal", uri]
+        @test CesiumLink.editor_command("/usr/bin/code", uri).exec ==
+              ["/usr/bin/code", "--openExternal", uri]
+        @test CesiumLink.editor_cli_names() ==
+              (Sys.iswindows() ? ("code.cmd", "code.exe", "code") : ("code",))
+
         # Another program named `code`, earlier on PATH, must not take the push. A window reaches
         # its editor through a `remote-cli` directory, and only that program accepts the flag.
         if Sys.isunix()

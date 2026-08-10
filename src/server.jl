@@ -610,6 +610,12 @@ scene_uri(port::Integer) = "vscode://disberd.cesiumlink/open/$(Int(port))"
 in_vscode_terminal() =
     haskey(ENV, "VSCODE_IPC_HOOK_CLI") || get(ENV, "TERM_PROGRAM", "") == "vscode"
 
+# What VSCode calls its command line, in the order to try. Windows gets `code.cmd`: that is the name
+# VSCode puts in the directory it adds to PATH, and `Sys.which` there looks for `code.exe` and
+# `code.com` and for no other name, so a search for `code` alone finds nothing on every Windows
+# machine that has VSCode installed.
+editor_cli_names() = Sys.iswindows() ? ("code.cmd", "code.exe", "code") : ("code",)
+
 # The `code` program VSCode put on PATH, and not another program of that name.
 #
 # A remote window reaches its editor through a command line in a `remote-cli` directory, and VSCode
@@ -618,13 +624,33 @@ in_vscode_terminal() =
 # push runs detached and discards its output, so the wrong program reads as a tab that never opens.
 # Prefer the directory that names itself.
 function editor_cli()
+    names = editor_cli_names()
     for dir in split(get(ENV, "PATH", ""), Sys.iswindows() ? ';' : ':')
         endswith(dir, "remote-cli") || continue
-        path = joinpath(dir, "code")
-        Sys.isexecutable(path) && return path
+        for name in names
+            path = joinpath(dir, name)
+            Sys.isexecutable(path) && return path
+        end
     end
-    return Sys.which("code")
+    for name in names
+        found = Sys.which(name)
+        found === nothing || return found
+    end
+    return nothing
 end
+
+# The command that asks the program at `path` to open `uri`.
+#
+# `--openExternal` and not `--open-url`: a remote command line takes an allowlist of options, and it
+# drops `--open-url` with a message on stderr and an exit status of 0, so the wrong flag looks
+# exactly like success.
+#
+# A `.cmd` is a script for the command interpreter rather than an executable image, and VSCode's
+# command line on Windows is `code.cmd`. Starting it directly fails with a message about a program
+# that is not a valid application, so the interpreter runs it.
+editor_command(path, uri) =
+    endswith(lowercase(path), ".cmd") ? `cmd /c $path --openExternal $uri` :
+                                        `$path --openExternal $uri`
 
 # Ask a VSCode window to show the scene on `port` in an editor tab. Returns `nothing` when the
 # request went out, or one line that says why it did not. `mode` is the `open` keyword of
@@ -637,14 +663,10 @@ function push_to_editor(port::Integer, mode)
     code = editor_cli()
     code === nothing && return "no `code` program on PATH"
     try
-        # Use `--openExternal`. A remote command line takes an allowlist of options, and it drops
-        # `--open-url` with a message on stderr and an exit status of 0, so the wrong flag looks
-        # exactly like success.
-        #
         # This does not wait for the process. VSCode asks the user for permission before it hands
         # the URI to the extension, and it asks again for every scene until the user stops it. A
         # server that waits here waits on a human.
-        run(pipeline(`$code --openExternal $(scene_uri(port))`; stdout = devnull,
+        run(pipeline(editor_command(code, scene_uri(port)); stdout = devnull,
                      stderr = devnull); wait = false)
     catch e
         return "the `code` program failed: $(sprint(showerror, e))"
