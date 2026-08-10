@@ -447,9 +447,21 @@ export function createWindows(deps: WindowsDeps): Windows {
     // it entire, so the bound governs what the buffer grows to rather than what it was given.
     const cap = Math.max(BUFFER_FRAMES, wasSpan);
     if (extended && coverage.last - coverage.first + 1 > cap) {
-      coverage = clock.multiplier >= 0
+      const trimmed = clock.multiplier >= 0
         ? { first: coverage.last - cap + 1, last: coverage.last }
         : { first: coverage.first, last: coverage.first + cap - 1 };
+      // The bound must never drop the frame the clock stands on. The continuation is asked for
+      // `LOOKAHEAD_FRAMES` before the edge, so it lands while the clock is still short of it, and a
+      // bound of one window's length would otherwise leave coverage holding the new window alone.
+      // The clock would then be outside the buffer it just grew: it stalls, asks for a window it
+      // was already given, and crosses the seam a second time. Keep the frames it has yet to play
+      // through, and a streaming advance costs one window's work at the seam rather than three.
+      const i = frame?.index;
+      if (i !== undefined) {
+        if (clock.multiplier >= 0) trimmed.first = Math.min(trimmed.first, i);
+        else trimmed.last = Math.max(trimmed.last, i + 1);
+      }
+      coverage = trimmed;
     }
     // A window answers whatever was pending; the next tick decides what to ask for next.
     asked = -1;
