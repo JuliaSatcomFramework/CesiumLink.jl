@@ -980,10 +980,11 @@ end
             @test !isfile(seen)
 
             if Sys.isunix()
-                # `true` asks wherever it runs.
+                # `true` asks wherever it runs, and a terminal that names no socket is answered by
+                # the desktop command line.
                 @test CesiumLink.push_to_editor(50004, true) === nothing
                 # The port is a path segment: a query reaches the handler percent-encoded.
-                @test ran() == "--openExternal vscode://disberd.cesiumlink/open/50004"
+                @test ran() == "--open-url vscode://disberd.cesiumlink/open/50004"
             end
         end
 
@@ -997,14 +998,14 @@ end
             @test ran() == "--openExternal vscode://disberd.cesiumlink/open/50005"
         end
 
-        # A VSCode terminal that names no socket is one whose window the command line cannot reach.
-        # Asking anyway opens a VSCode of its own, which is a window nobody asked for.
+        # A terminal of a local window names no socket, and the command line that answers there is
+        # the desktop one, which knows `--open-url` and not `--openExternal`.
         rm(seen; force = true)
         withenv("PATH" => dir * ":" * get(ENV, "PATH", ""),
                 "VSCODE_IPC_HOOK_CLI" => nothing, "TERM_PROGRAM" => "vscode") do
-            @test CesiumLink.push_to_editor(50005, :auto) ==
-                  "this terminal names no VSCode window to ask; `code` would open one of its own"
-            @test !isfile(seen)
+            Sys.isunix() || return
+            @test CesiumLink.push_to_editor(50009, :auto) === nothing
+            @test ran() == "--open-url vscode://disberd.cesiumlink/open/50009"
         end
 
         # A terminal of another editor is not one of ours.
@@ -1018,10 +1019,15 @@ end
         # name is checked on every platform, because the machine that meets this is not the one that
         # runs the tests.
         uri = CesiumLink.scene_uri(50008)
-        @test CesiumLink.editor_command("C:\\VSCode\\bin\\code.cmd", uri).exec ==
-              ["cmd", "/c", "C:\\VSCode\\bin\\code.cmd", "--openExternal", uri]
-        @test CesiumLink.editor_command("/usr/bin/code", uri).exec ==
-              ["/usr/bin/code", "--openExternal", uri]
+        @test CesiumLink.editor_command("C:\\VSCode\\bin\\code.cmd", uri, "--open-url").exec ==
+              ["cmd", "/c", "C:\\VSCode\\bin\\code.cmd", "--open-url", uri]
+        @test CesiumLink.editor_command("/usr/bin/code", uri, "--open-url").exec ==
+              ["/usr/bin/code", "--open-url", uri]
+        # The socket is what says which command line answers, and so which option it takes.
+        @test withenv(() -> CesiumLink.editor_flag(), "VSCODE_IPC_HOOK_CLI" => "/run/x.sock") ==
+              "--openExternal"
+        @test withenv(() -> CesiumLink.editor_flag(), "VSCODE_IPC_HOOK_CLI" => nothing) ==
+              "--open-url"
         @test CesiumLink.editor_cli_names() ==
               (Sys.iswindows() ? ("code.cmd", "code.exe", "code") : ("code",))
 

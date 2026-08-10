@@ -639,18 +639,26 @@ function editor_cli()
     return nothing
 end
 
-# The command that asks the program at `path` to open `uri`.
+# Which option opens a URI, for the command line that is going to answer.
 #
-# `--openExternal` and not `--open-url`: a remote command line takes an allowlist of options, and it
-# drops `--open-url` with a message on stderr and an exit status of 0, so the wrong flag looks
-# exactly like success.
+# The two command lines take different options, and each ignores the other's. `--openExternal`
+# belongs to the remote one alone: the desktop one does not know it, and reads the URI behind it as
+# a file to open, which is a window that opens on nothing. `--open-url` belongs to the desktop one:
+# the remote one drops it with a message on stderr and an exit status of 0, so the wrong flag there
+# looks exactly like success.
+#
+# `VSCODE_IPC_HOOK_CLI` tells the two apart. VSCode sets it for a terminal of a **remote** window and
+# never for a terminal of a local one, on every platform — so its absence does not mean "no editor",
+# it means "the desktop command line".
+editor_flag() = haskey(ENV, "VSCODE_IPC_HOOK_CLI") ? "--openExternal" : "--open-url"
+
+# The command that asks the program at `path` to open `uri` through `flag`.
 #
 # A `.cmd` is a script for the command interpreter rather than an executable image, and VSCode's
 # command line on Windows is `code.cmd`. Starting it directly fails with a message about a program
 # that is not a valid application, so the interpreter runs it.
-editor_command(path, uri) =
-    endswith(lowercase(path), ".cmd") ? `cmd /c $path --openExternal $uri` :
-                                        `$path --openExternal $uri`
+editor_command(path, uri, flag = editor_flag()) =
+    endswith(lowercase(path), ".cmd") ? `cmd /c $path $flag $uri` : `$path $flag $uri`
 
 # Ask a VSCode window to show the scene on `port` in an editor tab. Returns `nothing` when the
 # request went out, or one line that says why it did not. `mode` is the `open` keyword of
@@ -659,13 +667,6 @@ editor_command(path, uri) =
 function push_to_editor(port::Integer, mode)
     if mode !== true
         in_vscode_terminal() || return "the environment names no VSCode terminal"
-        # `TERM_PROGRAM` says a VSCode terminal started this process. The socket says which window,
-        # and the command line reaches a running window through that socket alone: without it `code`
-        # starts a VSCode of its own, which opens a window nobody asked for and answers the URI
-        # there. A window that appears out of nowhere is worse than no window, so `:auto` stops here
-        # and the reader opens the tab from the URI that `show` prints. `open = true` still asks.
-        haskey(ENV, "VSCODE_IPC_HOOK_CLI") ||
-            return "this terminal names no VSCode window to ask; `code` would open one of its own"
     end
     code = editor_cli()
     code === nothing && return "no `code` program on PATH"
