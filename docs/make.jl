@@ -240,7 +240,9 @@ makedocs(;
         repo = "github.com/JuliaSatcomFramework/CesiumLink.jl",
         devbranch = "main",
         devurl = "dev",
-        build_vitepress = false,
+        # Vitepress runs from here in CI only, because the deploy at the end of this file needs the
+        # generated site. A local build stops at the Markdown, which `npm run docs:dev` serves.
+        build_vitepress = get(ENV, "CI", "false") == "true",
     ),
     clean = get(ENV, "DOCS_CLEAN", "true") == "true",
     pages = [
@@ -310,4 +312,15 @@ makedocs(;
             "3 · Satellites over a region" => "examples/region-count.md",
         ],
     ],
+)
+
+# `forcepush` amends the last commit on `gh-pages` instead of adding one, so the branch keeps one
+# snapshot of the site. `gh-pages` is generated output, and it grows fast: `record_frame!` stamps
+# every frame from the wall clock, so each build writes about 1.2 MB of recordings that differ from
+# the last set byte for byte. A plain `git clone` fetches every branch, so that weight is paid by
+# everyone who clones. This branch is the one place where a force push is correct.
+deploydocs(;
+    repo = "github.com/JuliaSatcomFramework/CesiumLink.jl",
+    devbranch = "main",
+    forcepush = true,
 )
