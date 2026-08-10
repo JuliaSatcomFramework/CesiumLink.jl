@@ -1,0 +1,1345 @@
+# One server, one port: static assets AND the `/ws` upgrade, so the page and its live connection are
+# same-origin. Binds the loopback `127.0.0.1` by default, because this package runs on shared
+# multi-user machines and `::` offers the scene to everyone who can route to the host. An SSH
+# forward whose target `localhost` resolves to `::1` first needs `host = "::"` or `host = "::1"`:
+# a lone IPv4 bind does not answer it.
+
+"""
+    ModuleEntry(id, path; api_version=$MODULE_API_VERSION)
+
+One ES module the viewer is to load: its `id`, the `path` of its entry file on disk, and the module
+API version it was written against. The server mounts the file's **containing directory** under
+`/modules/<id>/`, so sibling files (chunks, worker bundles, images) resolve normally, and declares
+the resulting URL. Register one with [`register_module!`](@ref).
+"""
+struct ModuleEntry
+    id::String
+    path::String
+    api_version::Int
+    # An INNER constructor so validation runs for every call form: a module whose file is missing
+    # would otherwise be declared to the viewer and fail as a 404 in the browser instead of here.
+    function ModuleEntry(id, path, api_version)
+        i = String(id)
+        # The id is a path segment of the URL the viewer imports, so it must survive being one
+        # verbatim: no separators, no escaping, nothing the browser would resolve elsewhere.
+        occursin(r"^[A-Za-z0-9._-]+$", i) && i ∉ (".", "..") ||
+            throw(ArgumentError("a module id must match [A-Za-z0-9._-]+ (got $(repr(i)))"))
+        p = normpath(abspath(String(path)))
+        isfile(p) || throw(ArgumentError("no module entry file at $p"))
+        return new(i, p, Int(api_version))
+    end
+end
+
+ModuleEntry(id, path; api_version = MODULE_API_VERSION) = ModuleEntry(id, path, api_version)
+
+"""
+    module_url(entry::ModuleEntry) -> String
+
+The same-origin URL the viewer imports `entry` from, under the mount its directory is served at.
+"""
+module_url(entry::ModuleEntry) = "/modules/$(entry.id)/$(basename(entry.path))"
+
+"""
+    Server
+
+A running viewer server: the HTTP+WebSocket listener, the connected client set, the registered
+module set, the retained scene state (the current window and the latest command per module and
+topic, replayed to a client that connects later), the registered event listeners and the installed
+scene. Create one with [`start_server`](@ref); do not construct it directly.
+"""
+mutable struct Server
+    listener::Any
+    clients::Set{Any}
+    clients_lock::ReentrantLock
+    # The modules to declare, in registration order — which is the order the viewer draws and stacks
+    # them in; reaching another module through `ctx.modules` is not subject to it. Doubles as the
+    # mount table for `/modules/<id>/`. Established per connection: a client is told this set once,
+    # on `ready`.
+    # Guarded by `clients_lock`.
+    modules::Vector{ModuleEntry}
+    # Latest broadcast message per (module, topic), in recency order of last update (oldest first),
+    # so a late client is replayed each retained topic and the most recently updated one is applied
+    # last. The current window is retained here too, under ("core", "window"). Guarded by
+    # `clients_lock`.
+    retained::Vector{Pair{Tuple{String,String},Frame}}
+    # Every registered event listener, in registration order — the order they run in, and the order
+    # the subscription declared to the viewer is derived from. Guarded by `clients_lock`.
+    listeners::Vector{EventListener}
+    # The installed scene and the listeners it registered, or `nothing` and empty before one is
+    # installed. A server drives at most one scene: two of them answer the same events and each
+    # re-declares the overlay with its own state, so installing one takes the previous one down.
+    # CesiumLink never interprets `scene` — it is whatever built it. Guarded by `clients_lock`.
+    scene::Any
+    scene_listeners::Vector{EventListener}
+    # Where the user has put each adjustable float, keyed by float id, and the last set
+    # `declare_floating` was given. A rect belongs to the user rather than to the scene, so the
+    # server holds it: it is stamped onto every later declaration of that float, and the set is
+    # re-sent stamped whenever the viewer reports one. Both are `Any` because `Floating` is defined
+    # after this file. Guarded by `clients_lock`.
+    float_rects::Dict{String,Any}
+    declared_floats::Vector{Any}
+    # Identity of the window the scene currently shows (ADR-0008), bumped by every push that may
+    # re-index entities. Stamped on every window and echoed by every event, so a listener holding an
+    # index can tell which scene it was read from. Guarded by `clients_lock`.
+    window_id::Int
+    # What the retained window covers and how it was pushed, as `(; start_frame, count, mode)`, or
+    # `nothing` before the first push. An `:append` does not stand on its own — it may omit anything
+    # the `:replace` it extends established — so a client that has received neither is asked for a
+    # replacement over these frames instead of being replayed it. Guarded by `clients_lock`.
+    window_span::Any
+    dist_dir::Union{String,Nothing}
+    # The ellipsoid this session's coordinates are on, declared to every client, or `nothing` to
+    # leave the viewer on its WGS84 default. Fixed at `start_server`: the viewer builds its globe
+    # from the declaration, so changing it mid-session would leave the scene on the old shape.
+    ellipsoid::Union{Nothing,NamedTuple{(:a, :b),Tuple{Float64,Float64}}}
+    # What the globe is textured with, as the field the declaration carries: `nothing` to declare
+    # none and leave the viewer on its bundled texture, `false` for a globe with no base layer, or
+    # one resolved source. Fixed at `start_server`, for the reason the ellipsoid is.
+    imagery::Any
+    # Every directory this server serves, by mount name: `/assets/<name>/` answers out of
+    # `asset_dirs[name]`. A directory of basemap tiles is the reserved name `imagery`, so a tile
+    # directory and a folder of models are one mechanism (ADR-0021). Fixed at `start_server`, because
+    # a VSCode webview is given its roots when its panel is created and cannot be given more later.
+    asset_dirs::Dict{String,String}
+    # Every origin the page may reach off-site, widening both `img-src` and `connect-src`. A basemap
+    # declared as a URL adds its own origin here.
+    trusted_origins::Vector{String}
+    # Whether the globe is lit from the sun at the clock's time. Fixed at `start_server`, for the
+    # reason the imagery is.
+    lighting::Bool
+    # Whether the sky around the globe is drawn. Fixed at `start_server`, for the same reason.
+    stars::Bool
+    # The open session recording, or `nothing`, and the wall-clock instant it was opened at — every
+    # broadcast frame is stamped with its offset from that. Guarded by `clients_lock`.
+    record::Union{IO,Nothing}
+    record_t0::Float64
+    # The host the listener was asked to bind, kept verbatim. `viewer_url` builds the page URL from
+    # it, because a wildcard bind answers on every interface and is not an address a browser can be
+    # sent to.
+    host::String
+    # This server's file in the discovery directory, or `nothing` when none was written.
+    # `stop_server` removes it.
+    discovery_file::Union{String,Nothing}
+end
+
+# A browser applies strict MIME checking to an ES module and refuses to execute one that does not
+# arrive as JavaScript, so `.mjs` — the extension a module commonly ships its entry file under —
+# resolves to the same type as `.js`. An extension absent from here falls back to
+# `application/octet-stream`, which also decides against compressing the body (`COMPRESSIBLE` below).
+const MIME_TYPES = Dict(
+    ".html" => "text/html", ".css" => "text/css",
+    ".js" => "text/javascript", ".mjs" => "text/javascript",
+    ".json" => "application/json", ".jpg" => "image/jpeg", ".jpeg" => "image/jpeg",
+    ".png" => "image/png", ".gif" => "image/gif", ".svg" => "image/svg+xml",
+    ".wasm" => "application/wasm", ".xml" => "application/xml", ".map" => "application/json",
+    ".ktx2" => "image/ktx2", ".bin" => "application/octet-stream")
+
+# Which directory a request path is served from: `/modules/<id>/<rest>` comes from the registered
+# module's own directory, `/assets/<name>/<rest>` from the mount of that name, everything else from
+# the viewer dist. Returns `(root, relative_path)`, or `nothing` for a root that is not configured.
+function mount_for(server::Server, path::AbstractString)
+    parts = split(path, '/'; limit = 4)                    # ["", "modules", id, rest]
+    if length(parts) == 4 && parts[2] == "modules"
+        entry = lock(server.clients_lock) do
+            i = findfirst(m -> m.id == parts[3], server.modules)
+            i === nothing ? nothing : server.modules[i]
+        end
+        entry === nothing && return nothing
+        return (dirname(entry.path), parts[4])
+    end
+    if length(parts) == 4 && parts[2] == "assets"
+        root = get(server.asset_dirs, parts[3], nothing)
+        root === nothing && return nothing
+        # The limit of 4 above leaves the rest whole, which a tile path needs: it is `<z>/<x>/<y>.png`
+        # and names three levels of its own. The traversal guard in `serve_static` is what refuses a
+        # path that climbs out of the mount.
+        return (root, parts[4])
+    end
+    server.dist_dir === nothing && return nothing
+    return (server.dist_dir, lstrip(path, '/'))
+end
+
+# Content types worth gzipping: text and wasm shrink several-fold, while the image and archive
+# formats above are already compressed, so gzipping one spends CPU to grow the body.
+const COMPRESSIBLE = Set(("text/html", "text/javascript", "text/css", "application/json",
+                          "image/svg+xml", "application/xml", "application/wasm"))
+
+# Under this, the gzip header and trailer are most of what would be sent.
+const GZIP_MIN_BYTES = 1024
+
+# Gzipped bodies keyed by absolute path, each held with the modification time and size the file had
+# when it was compressed. The viewer dist is rebuilt while a server runs, so an entry whose stamp no
+# longer matches the file on disk is recompressed rather than served.
+# Unbounded and process-global — one entry per compressible file ever requested, a few
+# dozen for a viewer dist. Bound it if a mount ever serves generated paths.
+const GZIP_CACHE = Dict{String,Tuple{Tuple{Float64,Int},Vector{UInt8}}}()
+const GZIP_CACHE_LOCK = ReentrantLock()
+
+# A file's identity for cache purposes: its modification time and its size.
+file_stamp(file::AbstractString) = (mtime(file), Int(filesize(file)))
+
+# The validator a client revalidates against, derived from the stamp rather than from the content:
+# the viewer bundle is ~11 MB and hashing it per request would cost more than the transfer it saves.
+# The modification time goes in as its exact bits, so a rebuild landing in the same second as the
+# previous one still changes the tag.
+file_tag(stamp::Tuple{Float64,Int}) =
+    string('"', string(reinterpret(UInt64, stamp[1]); base = 16), '-',
+           string(stamp[2]; base = 16), '"')
+
+# The gzip of `file`, compressed once per `stamp` it is seen at.
+function gzipped(file::AbstractString, stamp::Tuple{Float64,Int})
+    lock(GZIP_CACHE_LOCK) do
+        hit = get(GZIP_CACHE, file, nothing)
+        hit !== nothing && first(hit) == stamp && return last(hit)
+        # Compresses under the lock, so two first-time requests for different files
+        # serialize. Paid once per file per build, which is cheaper than the machinery to avoid it.
+        gz = transcode(GzipCompressor, read(file))
+        GZIP_CACHE[file] = (stamp, gz)
+        return gz
+    end
+end
+
+function serve_static(server::Server, stream)
+    path = split(stream.message.target, '?')[1]
+    path == "/" && (path = "/index.html")
+    mount = mount_for(server, path)
+    if mount === nothing
+        HTTP.setstatus(stream, 404); HTTP.startwrite(stream); return
+    end
+    root, rel = mount
+    file = normpath(joinpath(root, rel))
+    # Path-traversal guard: the resolved path must stay strictly under its mount root. Compare
+    # against `root * "/"`, not `root`, so a sibling like `<root>Evil/...` can't slip past a
+    # prefix match.
+    under = startswith(file, root * "/")
+    if !under || !isfile(file)
+        HTTP.setstatus(stream, under ? 404 : 403)
+        HTTP.startwrite(stream); return
+    end
+    stamp = file_stamp(file)
+    tag = file_tag(stamp)
+    ctype = get(MIME_TYPES, lowercase(splitext(file)[2]), "application/octet-stream")
+    HTTP.setheader(stream, "Content-Type" => ctype)
+    HTTP.setheader(stream, "ETag" => tag)
+    # Revalidate every time rather than expire: nothing here is served under a versioned URL, so a
+    # client allowed to skip the ask would keep one build until its own cache turned over. The ask
+    # costs a round trip, and only a file that has actually changed costs its bytes.
+    HTTP.setheader(stream, "Cache-Control" => "no-cache")
+    # The body depends on what the client accepts, so anything caching in front of this must say so.
+    HTTP.setheader(stream, "Vary" => "Accept-Encoding")
+    # `If-None-Match` carries a list, and may carry `*`; a tag is a quoted token, so finding ours
+    # anywhere in the list is the match. HTTP.jl writes no body for a 304.
+    inm = HTTP.header(stream.message, "If-None-Match")
+    if inm == "*" || occursin(tag, inm)
+        HTTP.setstatus(stream, 304); HTTP.startwrite(stream); return
+    end
+    compress = ctype in COMPRESSIBLE && stamp[2] >= GZIP_MIN_BYTES &&
+               occursin("gzip", HTTP.header(stream.message, "Accept-Encoding"))
+    body = compress ? gzipped(file, stamp) : read(file)
+    compress && HTTP.setheader(stream, "Content-Encoding" => "gzip")
+    HTTP.setstatus(stream, 200)
+    HTTP.setheader(stream, "Content-Length" => string(length(body)))
+    HTTP.startwrite(stream)
+    write(stream, body)
+end
+
+"""
+    viewer_dist() -> String
+
+The built viewer the package ships: the directory `start_server` serves the page, the Cesium runtime
+and the vendored modules from. Pass a path of your own when developing the viewer itself.
+
+The viewer sources are in `lib/`, beside the Julia sources. `npm run build` writes the bundle to
+`lib/dist`.
+"""
+viewer_dist() = normpath(joinpath(pkgdir(CesiumLink), "lib", "dist"))
+
+"""
+    vendored(id; dist_dir=viewer_dist()) -> ModuleEntry
+
+The declaration entry for a module shipped inside the viewer dist: `:primitives`, the generic
+renderer, `:ui`, the overlay panel and the tooltip, `:heatmap`, which drapes a grid of finished
+colour over a box of degrees, and `:models`, which draws a glTF model per entity of a node family.
+There is no privileged loading path: the entry it returns is
+registered exactly like anyone else's, and the module runs only because it was declared.
+
+A module is vendored when its vocabulary is domain-free. Each of these is told a shape, a value or a
+colour and never a domain concept, so no package owns one of them more than another does. A module
+that must be told about elevation angles or rain fade ships from the package that owns those words —
+see [`register_module!`](@ref).
+
+Registration order is the order the viewer draws and stacks these in, and nothing else: a module a
+float mounts may be registered either side of the `:ui` that mounts it, because `ctx.modules` reaches
+the whole declared set whatever the order.
+
+```julia
+register_module!(server, vendored(:primitives))
+register_module!(server, vendored(:heatmap))
+register_module!(server, vendored(:ui))
+```
+"""
+function vendored(id; dist_dir = viewer_dist())
+    path = joinpath(dist_dir, "modules", String(id), "$id.js")
+    isfile(path) ||
+        throw(ArgumentError("no vendored module $(repr(id)) at $path — build the viewer dist"))
+    return ModuleEntry(id, path)
+end
+
+# How far the camera is taken to travel from the equatorial plane, in semi-major axes: a shape whose
+# drawing limit falls inside this is warned about, one whose limit is beyond it is left alone.
+const CAMERA_REACH = 4
+
+# The two radii as `(; a, b)` of `Float64`, or an error naming what was wrong. A shape no globe can
+# be built on fails here rather than in the browser, where it arrives as a blank page. A shape that
+# draws only up to a certain camera height is warned about instead of refused — that height may sit
+# beyond anywhere this session's camera goes.
+function ellipsoid_radii(e)
+    a, b = Float64(e.a), Float64(e.b)
+    isfinite(a) && a > 0 && isfinite(b) && b > 0 ||
+        throw(ArgumentError("an ellipsoid's radii must be positive and finite (got a=$a, b=$b)"))
+    k = abs(a^2 / b^2 - 1)
+    z_limit = k == 0 ? Inf : b / k
+    z_limit < CAMERA_REACH * a && @warn "this ellipsoid is flattened enough to stop the viewer's \
+        render loop: Cesium's per-frame local-curvature computation has no solution once the camera \
+        is |z| ≥ b / |a²/b² − 1| from the equatorial plane" a b ratio = a / b camera_limit_m = z_limit
+    return (; a, b)
+end
+
+"""
+    bound_port(server::Server) -> Int
+
+The port `server` listens on. With the default `port = 0` the operating system picks the number, and
+this is how to read which one it picked.
+
+Do not print a [`Server`](@ref) to find the port. A server holds every frame it retains, so one
+`show` of it writes hundreds of thousands of characters.
+"""
+bound_port(server::Server) = server.listener.bound_port
+
+# The host half of a URL that reaches a server bound to `host`. A wildcard bind answers on every
+# interface, so the URL names the loopback instead; an IPv6 literal takes the brackets a URL needs.
+url_host(host::AbstractString) =
+    host in ("::", "0.0.0.0") ? "127.0.0.1" : occursin(':', host) ? "[$host]" : host
+
+"""
+    viewer_url(server::Server) -> String
+
+The URL to open this server's viewer page at, port and all — `http://127.0.0.1:<port>/?ws=auto` for
+the default loopback bind. A wildcard bind answers on every interface, which is not an address to
+send a browser to, so the URL names the loopback for that case as well.
+
+Print this rather than a [`Server`](@ref), and rather than a port number you chose — with the
+default `port = 0` there is no number to choose.
+
+The `ws` query parameter is what tells the page to connect, and `auto` points it at the same-origin
+`/ws`. A page opened without it builds an empty globe and asks this server for nothing, which reads
+as a server that never sent anything.
+
+```julia
+server = start_server()
+println("open ", viewer_url(server))
+```
+"""
+function viewer_url(server::Server)
+    server.listener === nothing && throw(ArgumentError("this server is stopped"))
+    return "http://$(url_host(server.host)):$(bound_port(server))/?ws=auto"
+end
+
+"""
+    discovery_dir() -> String
+
+The per-user directory every running server writes one file into, so that a picker can list the
+scenes this user serves. The location comes from the first of these that applies:
+
+| where | when |
+|---|---|
+| `\$XDG_RUNTIME_DIR/cesiumlink` | the environment sets it — `/run/user/<uid>`, mode 700 and cleared at logout, which is where VSCode keeps its own sockets |
+| `%LOCALAPPDATA%\\cesiumlink` | on Windows |
+| `~/.cache/cesiumlink` | otherwise |
+
+Only the first of those is cleared at logout. Under either of the others a server that is killed
+leaves its file behind for good, so a reader has to obey the stale rule below rather than treat it
+as a nicety.
+
+Each file is JSON and describes one server:
+
+| field | what it holds |
+|---|---|
+| `port` | the port the server listens on |
+| `pid` | the process that serves it |
+| `title` | the `title` given to [`start_server`](@ref) |
+| `started` | when the server started, as an ISO 8601 instant in UTC |
+| `dist` | the built viewer this package resolved, [`viewer_dist()`](@ref viewer_dist) |
+| `imagery` | where the basemap tiles are: the mounted directory, or the declared URL. Absent when the scene declares no basemap |
+| `assets` | every directory the server serves, by mount name |
+| `modules` | every registered module's own directory, by module id |
+| `trustedOrigins` | the origins the page may reach off-site |
+
+A reader that hosts the page itself mounts the `dist` directory rather than fetching it over HTTP,
+so the reader and the server must share a filesystem. The field records the tree the package
+resolved whatever `dist_dir` says: a server started with `dist_dir = nothing` serves no assets over
+HTTP and still names the same directory here. A reader on another machine finds a path that does
+not exist, and reports it.
+
+`imagery`, `assets`, `modules` and `trustedOrigins` are there for the same reader, and for the same
+reason: it builds the page before it opens a socket, so it cannot wait for the declaration. A
+directory is one more tree to mount, and an origin is one more host the page may load from. A reader
+that serves the page over HTTP needs none of them, and ignores the fields.
+
+`modules` is written again by every [`register_module!`](@ref), because modules are registered after
+`start_server` returns. A reader that took its copy before then finds a module missing, and must
+re-read the file rather than cache it.
+
+The file name is the pid and the port, so two servers in one process each get their own.
+[`stop_server`](@ref) removes the file.
+
+A file whose `pid` no longer runs is stale, and a reader skips it. Nothing removes a stale file: a
+process that was killed never reached `stop_server`, and one leftover file costs a reader one line.
+"""
+function discovery_dir()
+    runtime = get(ENV, "XDG_RUNTIME_DIR", "")
+    isempty(runtime) || return joinpath(runtime, "cesiumlink")
+    local_app = Sys.iswindows() ? get(ENV, "LOCALAPPDATA", "") : ""
+    isempty(local_app) || return joinpath(local_app, "cesiumlink")
+    return joinpath(homedir(), ".cache", "cesiumlink")
+end
+
+# Tighten the modes, and let the file stand if the filesystem will not take them. A directory the
+# user does not own — a shared cache, an exported home — refuses the chmod, and a discovery file
+# nobody can lock down is still a discovery file that works.
+function chmod_quietly(dir, dir_mode, file, file_mode)
+    try
+        chmod(dir, dir_mode)
+        chmod(file, file_mode)
+    catch e
+        @debug "could not tighten the discovery file's mode" exception = e
+    end
+end
+
+# Write the discovery file for a server on `port` and return its path, or `nothing` if the directory
+# refused it. A directory that cannot be written costs a warning rather than the server: the scene
+# still serves, and a picker that cannot find it is a smaller loss than a session that never starts.
+function write_discovery(port::Integer, title::AbstractString, imagery = nothing;
+                         assets = Dict{String,String}(), trusted_origins = String[],
+                         modules = Dict{String,String}())
+    pid = Int(Base.Libc.getpid())
+    try
+        dir = discovery_dir()
+        mkpath(dir)
+        file = joinpath(dir, "$pid-$port.json")
+        entry = Dict("port" => Int(port), "pid" => pid, "title" => String(title),
+                     "started" => Dates.format(Dates.now(Dates.UTC), "yyyy-mm-ddTHH:MM:SSZ"),
+                     # A reader that hosts the page itself needs the directory before it opens a
+                     # socket, so the path travels here rather than on the wire.
+                     "dist" => viewer_dist(),
+                     # Both of these reach the editor extension before it builds the page: a webview
+                     # is given its resource roots and its policy when its panel is created, and
+                     # neither can be changed afterwards without dropping the scene.
+                     "assets" => assets,
+                     # A host that serves the page itself must reach each module's own directory,
+                     # and a module may be registered after this file is written — so
+                     # `register_module!` writes this key again.
+                     "modules" => modules,
+                     "trustedOrigins" => trusted_origins)
+        imagery === nothing || (entry["imagery"] = imagery)
+        open(file, "w") do io
+            JSON.print(io, entry)
+        end
+        # `/run/user/<uid>` is already 700, but the two fallbacks sit under directories that are
+        # usually world-readable. A scene binds to loopback, and on a shared machine loopback is
+        # shared: naming the port to every other user is worth a chmod. This does not make the
+        # scene private — a port scan finds it anyway — it only stops the file from handing it over.
+        Sys.isunix() && chmod_quietly(dir, 0o700, file, 0o600)
+        return file
+    catch e
+        @warn "could not write the discovery file; a picker will not list this server" exception = e
+        return nothing
+    end
+end
+
+# Each registered module's own directory, by id — the directory `/modules/<id>/` answers out of. A
+# host that does not serve the page from this server needs every one of them, exactly as it needs
+# every assets mount.
+module_dirs(server) = Dict(m.id => dirname(m.path) for m in server.modules)
+
+# Write the module set into the discovery file again. `start_server` writes that file, and modules
+# are registered after it returns, so the set in the file is otherwise always empty. A file that
+# cannot be updated costs a debug line: the scene serves either way, and only a host that hosts the
+# page itself reads this.
+function refresh_discovery(server::Server)
+    server.discovery_file === nothing && return nothing
+    try
+        entry = JSON.parsefile(server.discovery_file)
+        entry["modules"] = module_dirs(server)
+        open(server.discovery_file, "w") do io
+            JSON.print(io, entry)
+        end
+    catch e
+        @debug "could not write the module set into the discovery file" exception = e
+    end
+    return nothing
+end
+
+# The URI the editor extension answers on. The port travels in the path, and not in a query: the
+# VSCode command line percent-encodes a query on its way to the handler, so `?port=50005` arrives
+# there as `port%3D50005`.
+scene_uri(port::Integer) = "vscode://disberd.cesiumlink/open/$(Int(port))"
+
+# The `code` program VSCode put on PATH, and not another program of that name.
+#
+# A remote window reaches its editor through a command line in a `remote-cli` directory, and VSCode
+# puts that directory on PATH for its own terminals. Another `code` can still come first — a user's
+# own `~/bin/code`, or the standalone tunnel program, which rejects `--openExternal` outright. The
+# push runs detached and discards its output, so the wrong program reads as a tab that never opens.
+# Prefer the directory that names itself.
+function editor_cli()
+    for dir in split(get(ENV, "PATH", ""), Sys.iswindows() ? ';' : ':')
+        endswith(dir, "remote-cli") || continue
+        path = joinpath(dir, "code")
+        Sys.isexecutable(path) && return path
+    end
+    return Sys.which("code")
+end
+
+# Ask a VSCode window to show the scene on `port` in an editor tab. Returns `nothing` when the
+# request went out, or one line that says why it did not. `mode` is the `open` keyword of
+# `start_server`: `true` asks wherever it runs, and anything else asks from a VSCode terminal
+# alone.
+function push_to_editor(port::Integer, mode)
+    if mode !== true
+        # `TERM_PROGRAM` survives into a subshell and into `tmux`, where it names a window this
+        # process is no longer attached to. The socket the command line needs is the stronger
+        # signal, so ask for it first.
+        haskey(ENV, "VSCODE_IPC_HOOK_CLI") || get(ENV, "TERM_PROGRAM", "") == "vscode" ||
+            return "the environment names no VSCode terminal"
+    end
+    code = editor_cli()
+    code === nothing && return "no `code` program on PATH"
+    try
+        # Use `--openExternal`. A remote command line takes an allowlist of options, and it drops
+        # `--open-url` with a message on stderr and an exit status of 0, so the wrong flag looks
+        # exactly like success.
+        #
+        # This does not wait for the process. VSCode asks the user for permission before it hands
+        # the URI to the extension, and it asks again for every scene until the user stops it. A
+        # server that waits here waits on a human.
+        run(pipeline(`$code --openExternal $(scene_uri(port))`; stdout = devnull,
+                     stderr = devnull); wait = false)
+    catch e
+        return "the `code` program failed: $(sprint(showerror, e))"
+    end
+    return nothing
+end
+
+"""
+    Imagery(url; tiling=:mercator, max_level=nothing, credit=nothing)
+
+What the globe is textured with, in place of the viewer's bundled Earth texture. `url` names one of
+two backings, and the string itself decides which:
+
+| `url` | what the server does |
+|---|---|
+| a directory on disk | mounts it under `/assets/imagery/` and declares a relative URL into it |
+| anything else | declares it verbatim, as a `{z}/{x}/{y}` template |
+
+A directory tells the server its own layout, so there is nothing to state: a `tilemapresource.xml`
+in it makes it TMS, and a numeric level directory makes it XYZ. gdal2tiles writes TMS by default,
+and XYZ under `--xyz`.
+
+The layout decides what the directory declares. A TMS pyramid declares the mount base, because
+Cesium reads the template out of `tilemapresource.xml`. An XYZ pyramid declares the template itself,
+`assets/imagery/{z}/{x}/{y}.png`, with the extension read from a tile on disk.
+
+`tiling` is the projection an XYZ pyramid is cut in. `:mercator` is the default, because that is
+what `{z}/{x}/{y}` means on the web and what the ready-made Moon and Mars basemaps use;
+`:geographic` states the other one. A TMS directory carries its scheme in `tilemapresource.xml`, so
+`:geographic` given with one warns and is dropped.
+
+`max_level` is the deepest level the source holds. The server probes it from an XYZ directory, so
+give it for a URL alone — a remote host cannot be probed, and an unset maximum asks a deep zoom for
+tiles that are not there.
+
+`credit` is one line of attribution, drawn over the globe at the bottom right. The string is yours
+to make legally correct; the viewer only gives it somewhere to appear.
+
+```julia
+start_server(; imagery = "/data/moon_tiles")
+start_server(; imagery = "https://host/tiles/{z}/{x}/{y}.png")
+start_server(; imagery = Imagery(url; tiling = :geographic, max_level = 7, credit = "USGS"))
+```
+"""
+struct Imagery
+    url::String
+    tiling::Symbol
+    max_level::Union{Int,Nothing}
+    credit::Union{String,Nothing}
+    # An INNER constructor so validation runs for every call form: an unreadable tiling scheme would
+    # otherwise be declared to the viewer and build a provider that draws nothing.
+    function Imagery(url, tiling, max_level, credit)
+        t = Symbol(tiling)
+        t in (:mercator, :geographic) ||
+            throw(ArgumentError("`tiling` is `:mercator` or `:geographic` (got $(repr(tiling)))"))
+        max_level === nothing || max_level > 0 ||
+            throw(ArgumentError("`max_level` is the deepest level of the pyramid, so it is a " *
+                                "positive integer (got $(repr(max_level)))"))
+        return new(String(url), t, max_level === nothing ? nothing : Int(max_level),
+                   credit === nothing ? nothing : String(credit))
+    end
+end
+
+Imagery(url; tiling = :mercator, max_level = nothing, credit = nothing) =
+    Imagery(url, tiling, max_level, credit)
+
+# The easy case is one string, and it reaches every method that takes an `Imagery`.
+Base.convert(::Type{Imagery}, url::AbstractString) = Imagery(url)
+
+# The levels of a tile pyramid: every subdirectory whose name is an integer.
+level_dirs(dir) = [lvl for lvl in (tryparse(Int, e) for e in readdir(dir)
+                                   if isdir(joinpath(dir, e)))
+                   if lvl !== nothing]
+
+# The file extension of the tiles in an XYZ pyramid, read from a tile that is there. The declared
+# URL is a template the browser requests verbatim, so the name must be right: gdal2tiles writes
+# `.png`, and `.jpg` for a pyramid with no transparency.
+function tile_extension(dir, levels)
+    z = minimum(levels)
+    for x in readdir(joinpath(dir, string(z)); join = true)
+        isdir(x) || continue
+        for tile in readdir(x)
+            ext = last(splitext(tile))
+            isempty(ext) || return lstrip(ext, '.')
+        end
+    end
+    throw(ArgumentError("$dir holds a level $z with no tile in it, so the name the browser must " *
+                        "ask a tile by cannot be read. An XYZ pyramid holds `<z>/<x>/<y>.png`."))
+end
+
+# The mount a directory of basemap tiles is served under. Reserved: `assets` may not claim it, or the
+# globe would silently wear a pyramid the author never named.
+const IMAGERY_MOUNT = "imagery"
+
+# A directory as a mount root: absolute, normalised, and with no trailing slash. `normpath` keeps one
+# where it was written, and the traversal guard in `serve_static` compares against `root * "/"` — so a
+# root ending in a slash matches nothing at all and the mount serves none of its own files.
+function mount_dir(path)
+    dir = rstrip(normpath(abspath(String(path))), '/')
+    return isempty(dir) ? "/" : dir
+end
+
+# The mounts `start_server` was given, as name => absolute directory. A bare string is one mount,
+# named after the last element of its path, so `/data/glb` answers `/assets/glb/`. Every name is part
+# of a URL the scene declares, so it is checked here rather than in the browser: a reader can see
+# which folder a file comes from without reading the server call.
+function resolve_assets(assets)
+    assets === nothing && return Dict{String,String}()
+    pairs = assets isa AbstractString ? [basename(mount_dir(assets)) => assets] : collect(assets)
+    dirs = Dict{String,String}()
+    for (name, path) in pairs
+        n = String(name)
+        isempty(n) && throw(ArgumentError("an assets mount needs a name, and one is empty"))
+        occursin('/', n) &&
+            throw(ArgumentError("an assets mount name is one path element, so it holds no `/` " *
+                                "(got $(repr(n)))"))
+        n == IMAGERY_MOUNT &&
+            throw(ArgumentError("`$IMAGERY_MOUNT` is the mount a basemap directory is served " *
+                                "under, so `assets` may not claim it. Pass the directory as " *
+                                "`imagery = $(repr(String(path)))` instead."))
+        dir = mount_dir(path)
+        isdir(dir) || throw(ArgumentError("the assets mount $(repr(n)) names $dir, which is not a " *
+                                          "directory"))
+        dirs[n] = dir
+    end
+    return dirs
+end
+
+# The declaration for a source that is not on disk. It is declared as it stands and never fetched:
+# there is no network call at `start_server`, and a URL that answers nothing is found by the
+# browser, which says so and falls back to the bundled texture.
+function url_declaration(im::Imagery)
+    d = (; im.url, layout = "xyz", tiling = String(im.tiling))
+    im.max_level === nothing || (d = (; d..., maxLevel = im.max_level))
+    im.credit === nothing || (d = (; d..., credit = im.credit))
+    return d
+end
+
+# The declaration for a directory of tiles, and the directory the mount serves it from. Read once,
+# at `start_server`: the layout is sniffed from what the directory holds, and the depth is probed
+# from the level names. The URL declared is relative, so the page reaches the mount same-origin and
+# no CORS header is needed anywhere.
+function dir_declaration(im::Imagery)
+    dir = mount_dir(im.url)
+    tms = isfile(joinpath(dir, "tilemapresource.xml"))
+    levels = level_dirs(dir)
+    tms || !isempty(levels) ||
+        throw(ArgumentError("$dir holds neither a `tilemapresource.xml` nor a numeric level " *
+                            "directory, so it is neither a TMS nor an XYZ pyramid. gdal2tiles " *
+                            "writes TMS by default, and XYZ under `--xyz`."))
+    # A TMS pyramid is declared as a base, and an XYZ one as a template. Cesium reads the base with
+    # `TileMapServiceImageryProvider` and builds a template of its own, but it hands an XYZ URL to
+    # `UrlTemplateImageryProvider`, whose `url` *is* the template. A URL with no `{z}`, `{x}` or
+    # `{y}` in it is then requested unchanged for every tile, and that request is the mount root —
+    # a directory, which answers 404 and leaves the globe bare.
+    d = (; url = tms ? "assets/$(IMAGERY_MOUNT)/" :
+                 "assets/$(IMAGERY_MOUNT)/{z}/{x}/{y}.$(tile_extension(dir, levels))",
+         layout = tms ? "tms" : "xyz")
+    if tms
+        # `tilemapresource.xml` carries the tiling scheme and the depth, and Cesium reads both out
+        # of it, so neither travels on the declaration.
+        im.tiling === :mercator ||
+            @warn "`tilemapresource.xml` decides the tiling scheme of a TMS directory, so the \
+                declared one is dropped" dir tiling = im.tiling
+    else
+        d = (; d..., tiling = String(im.tiling),
+             maxLevel = im.max_level === nothing ? maximum(levels) : im.max_level)
+    end
+    im.credit === nothing || (d = (; d..., credit = im.credit))
+    return (d, dir)
+end
+
+# What `start_server` was given for `imagery`, as the wire declaration and the directory to mount:
+# `nothing` declares no field at all and leaves the viewer on its bundled texture, `false` asks for
+# a globe with no base layer, and anything else names one source.
+function resolve_imagery(imagery)
+    imagery === nothing && return (nothing, nothing)
+    imagery === :none && return (false, nothing)
+    imagery isa Symbol &&
+        throw(ArgumentError("`imagery` takes a directory, a URL template, an `Imagery`, or " *
+                            "`:none` for a globe with no base layer (got $(repr(imagery)))"))
+    im = convert(Imagery, imagery)
+    isdir(im.url) || return (url_declaration(im), nothing)
+    return dir_declaration(im)
+end
+
+# Where the basemap tiles are, for the discovery file: the mounted directory, or the declared URL.
+# `nothing` for a scene that declares no basemap, and for one that declares `false` — a globe with
+# no base layer needs no tiles from anywhere.
+imagery_source(server) = get(server.asset_dirs, IMAGERY_MOUNT,
+                             server.imagery isa NamedTuple ? server.imagery.url : nothing)
+
+# What each mount answers on the wire: the same-origin base, not the directory behind it. A host
+# whose page sits on another origin builds its own URL per mount out of this.
+declared_assets(server) =
+    Dict(name => "assets/$name/" for name in keys(server.asset_dirs))
+
+# The origin of a declared URL — scheme, host and port — or `nothing` for anything that is not an
+# absolute URL. A CSP names origins and not paths, so a tile template reaches the list as its origin.
+function url_origin(url::AbstractString)
+    m = match(r"^([a-zA-Z][a-zA-Z0-9+.\-]*://[^/?#]+)", url)
+    return m === nothing ? nothing : m.captures[1]
+end
+
+# Why a listen failed, as one line. HTTP.jl binds inside a task, so the cause arrives wrapped in a
+# `TaskFailedException` under a stack trace that names nothing the caller can act on.
+bind_reason(e) = e isa TaskFailedException && e.task.result isa Exception ?
+                 bind_reason(e.task.result) : sprint(showerror, e)
+
+"""
+    start_server(; dist_dir=viewer_dist(), host="127.0.0.1", port=0, title=basename(pwd()),
+                 ellipsoid=nothing, imagery=nothing, assets=nothing, trusted_origins=String[],
+                 lighting=false, stars=false, open=:auto) -> Server
+
+Start the one-port HTTP+WebSocket listener and return a running [`Server`](@ref). Static files are
+served from `dist_dir` (the built viewer); the WebSocket lives at `/ws`, same-origin with the page.
+Stop it with [`stop_server`](@ref).
+
+Open the page at [`viewer_url(server)`](@ref viewer_url).
+
+`port` defaults to `0`, which asks the operating system for a free port. Two people on one machine
+therefore never collide, and nobody has to pick a number. Read the port back with
+[`bound_port`](@ref). Pass an explicit port only when something outside this process must reach a
+number it already knows, such as an SSH forward. **An explicit port that is already taken throws.**
+
+`host` defaults to the loopback `127.0.0.1`, so the scene is reachable from this machine alone. This
+package runs on shared multi-user machines, where `"::"` offers the scene to everyone who can route
+to the host.
+
+`title` names this server in the file it writes for a picker to find — see [`discovery_dir`](@ref).
+
+`open` asks a VSCode window to show this scene in an editor tab, through the CesiumLink extension.
+`:auto`, the default, asks from a terminal inside VSCode and does nothing anywhere else. `false`
+never asks. `true` asks wherever it runs, and reports why it could not.
+
+**VSCode asks the user for permission before the tab opens.** It asks again for every scene, until
+the user ticks "do not ask again for this extension" in that dialog. The server does not wait for
+the answer, so the scene serves while the dialog stands. Pass `open = false` to avoid the dialog.
+
+The tab needs the CesiumLink extension. Without it, nothing opens, and the scene serves as usual.
+
+`ellipsoid` is the shape this session's coordinates are on, as anything with the fields `a`
+(semi-major) and `b` (semi-minor) in metres. [`Ellipsoids`](@ref CesiumLink.Ellipsoids) names a few
+bodies. It is declared to every client, which builds its globe on it before decoding any payload, so
+a scene computed against one shape is never drawn on another. Left `nothing`, nothing is declared
+and the viewer keeps its own WGS84 default.
+
+```julia
+start_server(; ellipsoid = Ellipsoids.MARS)
+start_server(; ellipsoid = (a = 3396190.0, b = 3376200.0))    # the same shape, stated
+```
+
+A strongly flattened shape has a drawing limit. The viewer draws through Cesium, which recomputes
+the globe's local curvature at the camera on every frame, and that computation has no solution once
+the camera stands
+
+```
+|z| ≥ b / |a²/b² − 1|
+```
+
+from the equatorial plane — beyond it the render loop throws and the scene stops. With
+`a = 6378137.0` that limit is 2.6×10⁶ m at `b = 4.0×10⁶` (reached immediately), 8.0×10⁶ m at
+`b = 5.0×10⁶` (reached on zoom-out) and 46×10⁶ m at `b = 6.0×10⁶`, which is visibly oblate and holds
+at any usual range. Declaring a shape whose limit is within reach warns; it is not refused, since
+the camera may never travel that far.
+
+`imagery` is what the globe is textured with, and takes four kinds of value:
+
+| value | the globe wears |
+|---|---|
+| `nothing`, the default | the viewer's bundled Earth texture |
+| a path to a directory | the tile pyramid in it, served from this server under `/assets/imagery/` |
+| any other string, or an [`Imagery`](@ref) | the source it names, declared as it stands |
+| `:none` | nothing: no base layer, and a flat colour |
+
+A directory is read once, here: the layout is sniffed from what it holds, the depth is probed from
+its level names, and a directory that is neither pyramid throws. A URL is never fetched — a source
+that answers nothing is found by the browser, which says so and draws the bundled texture instead.
+
+```julia
+start_server(; ellipsoid = Ellipsoids.MOON, imagery = "/data/moon_tiles")
+start_server(; imagery = :none)                     # a bare globe, deliberately
+```
+
+`assets` names folders of your own for the server to serve, so a payload can point at a file in one.
+Each mount has a name, and `/assets/<name>/<file>` is the path a scene declares — so a reader sees
+which folder a file comes from without reading this call. Pass a `Dict` of name to directory, or one
+bare string, which mounts under the last element of its path.
+
+```julia
+start_server(; assets = Dict("models" => "/data/glb", "textures" => "/data/png"))
+start_server(; assets = "/data/glb")                # one mount, answering `assets/glb/`
+```
+
+A directory of basemap tiles is the reserved mount `imagery`, so `imagery = "/data/moon_tiles"` is
+unchanged and answers `assets/imagery/`. An `assets` key of `"imagery"` throws rather than shadowing
+it. Every directory must exist, and a name is one path element.
+
+Mounts are fixed here. A VSCode webview is given the directories it may read when its panel is
+created, and taking a new one needs a new panel — which drops the scene and the socket.
+
+`trusted_origins` lists the origins the page may reach off-site, and widens both the image and the
+connection policy the editor's webview runs under. Both, because one asset needs both: Cesium fetches
+a tile as bytes and makes an image of them, so a tile is a connection and not an image load. A
+basemap named as a URL adds its own origin to this list, so a session that names a remote basemap and
+nothing else declares nothing here.
+
+`lighting` lights the globe from the sun at the clock's time, so a terminator runs across it and the
+night side goes dark. It is off by default: a scene whose colours carry its data wants an evenly lit
+globe, since a shaded one dims a value by where it sits rather than by what it says. Turn it on for
+a scene about where the sun is — an orbit view above all, where the terminator is the picture.
+
+The sun's position follows the clock, so it is only where the scene's own time puts it when the
+window carries a real `start_time` (see [`push_window`](@ref)). Without one the viewer picks a
+synthetic epoch and the terminator stands somewhere arbitrary.
+
+`stars` draws the sky around the globe: the star field, the sun and the moon, at that same time. It
+is off by default, because black behind the globe is what keeps the eye on the scene. The star field
+is Cesium's own, and Cesium draws it on a WGS84 globe only — a session on another body gets black
+whatever this says.
+"""
+function start_server(; dist_dir = viewer_dist(), host = "127.0.0.1", port = 0,
+                      title = basename(pwd()), ellipsoid = nothing, imagery = nothing,
+                      assets = nothing, trusted_origins = String[],
+                      lighting = false, stars = false, open = :auto)
+    open === :auto || open === true || open === false ||
+        throw(ArgumentError("`open` takes `:auto`, `true` or `false`, and got $(repr(open))"))
+    declared_imagery, imagery_dir = resolve_imagery(imagery)
+    asset_dirs = resolve_assets(assets)
+    imagery_dir === nothing || (asset_dirs[IMAGERY_MOUNT] = imagery_dir)
+    origins = collect(String, trusted_origins)
+    # A basemap named as a URL is an origin the page must reach, so the session declares it rather
+    # than making the author list it twice.
+    if declared_imagery isa NamedTuple
+        o = url_origin(declared_imagery.url)
+        o === nothing || o in origins || push!(origins, o)
+    end
+    server = Server(nothing, Set{Any}(), ReentrantLock(), ModuleEntry[],
+                    Pair{Tuple{String,String},Frame}[], EventListener[], nothing,
+                    EventListener[], Dict{String,Any}(), Any[], 0, nothing,
+                    dist_dir === nothing ? nothing : normpath(String(dist_dir)),
+                    ellipsoid === nothing ? nothing : ellipsoid_radii(ellipsoid),
+                    declared_imagery, asset_dirs, origins, lighting, stars, nothing, 0.0,
+                    String(host), nothing)
+    # A bind that did not happen must never return a `Server`. HTTP.jl binds inside a task and
+    # reports a failure two ways: the task's error reaches here, or the task's ready notification
+    # wins the race and `listen!` returns with `bound_port` left at zero. The second one is the
+    # dangerous one — it hands back a server that answers nothing and says nothing.
+    listener = try
+        HTTP.listen!(host, port) do stream
+            if HTTP.WebSockets.isupgrade(stream.message)
+                HTTP.WebSockets.upgrade(stream) do ws
+                    lock(server.clients_lock) do; push!(server.clients, ws); end
+                    try
+                        for msg in ws
+                            handle_msg(server, ws, msg)
+                        end
+                    catch e
+                        e isa HTTP.WebSockets.WebSocketError ||
+                            @warn "ws handler error" exception = e
+                    finally
+                        lock(server.clients_lock) do; delete!(server.clients, ws); end
+                    end
+                end
+            else
+                serve_static(server, stream)
+            end
+        end
+    catch e
+        throw(ArgumentError("could not listen on $host:$port — $(bind_reason(e))"))
+    end
+    if listener.bound_port == 0
+        close(listener)
+        throw(ArgumentError("could not listen on $host:$port — the address is already in use"))
+    end
+    server.listener = listener
+    # The push goes out after the discovery file, and never before it: the extension reads that
+    # file to find the scene the push names.
+    server.discovery_file = write_discovery(bound_port(server), title, imagery_source(server);
+                                            assets = server.asset_dirs,
+                                            trusted_origins = server.trusted_origins,
+                                            modules = module_dirs(server))
+    if open !== false
+        why = push_to_editor(bound_port(server), open)
+        # A tab that does not open costs one line, and never the scene. `open = true` asks for the
+        # tab, so it says what happened; `:auto` stays quiet everywhere it does not apply.
+        why === nothing || (open === true ? @warn("no editor tab for this scene: $why") : @debug why)
+    end
+    watch_float_rects!(server)
+    return server
+end
+
+"""
+    register_module!(server::Server, id, path; api_version=$MODULE_API_VERSION) -> Server
+    register_module!(server::Server, entry::ModuleEntry) -> Server
+
+Add an ES module to the set the viewer loads. `path` names the module's entry file on disk; the
+server mounts its containing directory under `/modules/<id>/` and declares that URL, so the module
+and its siblings are served same-origin with the page. There is no privileged loading path: a
+module shipped inside the viewer dist is registered exactly like anyone else's.
+
+**Registration order is the order the viewer draws and stacks the modules in**, and decides nothing
+else: a module reaching another through `ctx.modules` may be registered either side of it. The set
+is established per connection — it is declared once, on `ready` — so registering after a client has
+connected has no effect on that client until it reconnects.
+
+An id registered twice keeps its place in that order and takes the last entry given for it, so a
+scene installed again on one server registers its modules again without error. Two packages that
+claim one id therefore overwrite each other: give a module the name of what it draws.
+
+A module ships from its own package when its vocabulary names a domain concept. A module that is
+told only a shape, a value or a colour is vendored instead — see [`vendored`](@ref).
+
+```julia
+register_module!(server, :primitives, joinpath(dist, "modules", "primitives", "entry.js"))
+register_module!(server, :rainfade, joinpath(pkgdir(RainFade), "assets", "rainfade.js"))
+```
+"""
+register_module!(server::Server, id, path; api_version = MODULE_API_VERSION) =
+    register_module!(server, ModuleEntry(id, path, api_version))
+
+function register_module!(server::Server, entry::ModuleEntry)
+    lock(server.clients_lock) do
+        i = findfirst(m -> m.id == entry.id, server.modules)
+        # A known id is replaced in place, because registration order is the draw order. Neither the
+        # path nor the file content decides this: a module staged into a fresh `mktempdir()` gets a
+        # new path every run, and a module edited between two runs gets new content, and both are
+        # the same scene installed again.
+        i === nothing ? push!(server.modules, entry) : (server.modules[i] = entry)
+    end
+    # A host that serves the page itself is given the directories it may read before the page
+    # exists, so the file has to name this module by the time such a host reads it.
+    refresh_discovery(server)
+    return server
+end
+
+"""
+    stop_server(server::Server) -> Server
+
+Remove this server's file from [`discovery_dir`](@ref), so no picker offers a scene that stopped.
+Then close every client socket, then the listener, freeing the port, and close any open recording.
+The file goes first: a picker reads that directory at any moment, and a row for a server that no
+longer answers is what the file exists to prevent. Idempotent.
+"""
+function stop_server(server::Server)
+    # Remove the file BEFORE any socket closes. A picker reads the directory at any moment, and a
+    # row it draws for a server that stopped answering is the one thing a discovery file must never
+    # cause.
+    if server.discovery_file !== nothing
+        try; rm(server.discovery_file; force = true); catch; end
+        server.discovery_file = nothing
+    end
+    # Close client sockets BEFORE the listener: close(listener) waits for each upgraded handler's
+    # `for msg in ws` loop to return, which for a still-open browser tab never happens.
+    lock(server.clients_lock) do
+        for ws in collect(server.clients)
+            try; close(ws); catch; end
+        end
+        empty!(server.clients)
+    end
+    if server.listener !== nothing
+        try; close(server.listener); catch; end
+        server.listener = nothing
+    end
+    stop_recording!(server)
+    return server
+end
+
+# `frame` is one binary frame, or the JSON text a hand-driven client may send instead. The protocol
+# is symmetric, so what arrives upward is split the same way as what goes down: a header and the
+# region its encoded arrays point into. Nothing the viewer sends carries an array today, so the
+# region is normally empty, and a listener that is handed one costs nothing to support.
+function handle_msg(server::Server, ws, frame)
+    # A malformed frame or a throwing user tooltip callback must not tear the connection down.
+    local msg, region
+    try
+        f = frame isa AbstractString ? Frame(frame, UInt8[]) : unpack(frame)
+        msg, region = JSON.parse(f.header), f.blobs
+    catch e
+        @warn "ignoring unparseable ws frame" exception = e
+        return nothing
+    end
+    method = get(msg, "method", nothing)
+    if method == "ready"
+        # The viewer announces its protocol version, and a mismatch closes the socket with a reason.
+        # Proceeding is worse than refusing: every frame below is binary, so a viewer built against
+        # another framing parses none of them and says nothing about it — the session looks to the
+        # user like a server that never sent anything.
+        params = get(msg, "params", Dict{String,Any}())
+        proto = get(params, "protocol", PROTOCOL_VERSION)
+        if proto != PROTOCOL_VERSION
+            @warn "refusing a client that announced an unsupported protocol version" proto PROTOCOL_VERSION
+            close(ws, HTTP.WebSockets.CloseFrameBody(1002,
+                "this server speaks protocol $PROTOCOL_VERSION; the client announced $proto"))
+            return nothing
+        end
+        # Declare the module set BEFORE the retained scene: the viewer needs to know what to load
+        # before the state addressed to it arrives. Copy both under the lock, then send unlocked
+        # so a slow socket doesn't stall broadcasts.
+        decl, msgs, rebuild = lock(server.clients_lock) do
+            span = server.window_span
+            # A retained `:append` is not replayed: it extends a `:replace` this client has never
+            # seen, and anything that rode that replace — an area family's footprint centres above
+            # all — is absent from it. The scene is asked for a replacement over the same frames
+            # instead, which is a window that stands on its own.
+            rebuild = span !== nothing && span.mode === :append && window_producer(server) ?
+                      span : nothing
+            # The furniture rides the declaration as well as the replay below: the viewer builds the
+            # declared set before its first paint, and the replayed command that follows says the
+            # same thing, which the viewer applies as a no-op.
+            modules_message(server.modules; server.ellipsoid, server.imagery, server.lighting,
+                            server.stars, furniture = declared_furniture(server),
+                            assets = declared_assets(server)),
+            retained_messages(server; skip = rebuild === nothing ? () : (CORE_WINDOW,)), rebuild
+        end
+        HTTP.WebSockets.send(ws, pack(decl))
+        # Replay the retained scene so a mid-session client catches up: every retained topic, in
+        # recency order, so the most recently updated one is applied last.
+        for m in msgs
+            HTTP.WebSockets.send(ws, pack(m))
+        end
+        rebuild === nothing || rebuild_window(server, ws, rebuild)
+    elseif method == "event"
+        # The viewer reports upward as `event {module, topic, seq, frame, window, payload}`, and the
+        # listener registry answers it: pointer events, buffer needs and a module's own `notify` are
+        # all just `(module, topic)` pairs, with no special case for any of them.
+        params = get(msg, "params", Dict{String,Any}())
+        pair = (get(params, "module", nothing), get(params, "topic", nothing))
+        if pair == CORE_ELLIPSOID
+            check_reported_ellipsoid(server, get(params, "payload", Dict{String,Any}()))
+        elseif pair == CORE_STOP
+            # Schedule the stop; do not run it here. This task is reading the socket that the stop
+            # closes. The listener chain never sees this pair either: a scene must not be able to
+            # refuse a stop by registering a listener on it.
+            @async try
+                stop_server(server)
+            catch e
+                @error "a client asked this server to stop and the stop failed" exception = (e, catch_backtrace())
+            end
+        else
+            answer_event(server, params, region)
+        end
+    end
+    # Unknown methods are ignored (protocol).
+    return nothing
+end
+
+# Once its globe exists, a viewer reports the radii it was actually built on. It was told them, so
+# these can differ only if the declaration never reached the widget — and a scene drawn on a shape
+# other than the one its coordinates were computed against is smoothly plausible, wrong by a
+# kilometre and says nothing. So the two are compared here and a disagreement names both.
+# A micrometre of tolerance — far under any difference between two real ellipsoids, and
+# far over anything the JSON round trip could introduce.
+function check_reported_ellipsoid(server::Server, payload)
+    declared = lock(server.clients_lock) do; server.ellipsoid; end
+    declared === nothing && (declared = Ellipsoids.WGS84)
+    a, b = get(payload, "a", nothing), get(payload, "b", nothing)
+    if !(a isa Real && b isa Real)
+        @error "a client reported an unreadable ellipsoid" payload
+    elseif !(isapprox(a, declared.a; atol = 1e-6) && isapprox(b, declared.b; atol = 1e-6))
+        @error "a client built its globe on an ellipsoid other than the declared one" declared reported = (; a, b)
+    end
+    return nothing
+end
+
+"""
+    window_id!(server::Server, mode) -> Int
+
+The identity to stamp on a window pushed with `mode`: a `:replace` takes one the server has not used
+before, an `:append` repeats the one it extends (an append preserves the index space, so requests
+asked against the window it continues stay valid). Recorded as the server's current window, which is
+the identity every event's `window` field is to be compared against.
+
+[`push_window`](@ref) calls this for you. Call it directly only when building the frame by hand
+through [`window_message`](@ref) — the `window` it returns is a keyword of the latter.
+"""
+window_id!(server::Server, mode) = lock(server.clients_lock) do
+    mode === :replace ? (server.window_id += 1) : server.window_id
+end
+
+# Whether this scene can produce a window on demand: whether a listener is registered for
+# `core/need`. With none, a request would reach nobody and there is nothing to answer a joining
+# client with but what is retained.
+window_producer(server::Server) =
+    any(l -> (l.module_id, l.topic) == CORE_NEED, server.listeners)
+
+# Ask the scene for a window covering `span`'s frames that a client which has received nothing can
+# draw, and send that client what it is holding if none arrives.
+#
+# A producer that throws or answers with nothing costs a warning rather than the session everywhere
+# else, and here that would leave this client with no window at all — and nothing to recover it,
+# since the viewer raises no request of its own until a first window has landed. The retained
+# `:append` is at worst a scene that draws in part and says so; silence is not. A new window identity
+# is what says one arrived: a `:replace` mints one, and a producer that threw, sent nothing, or
+# appended instead leaves it where it was.
+function rebuild_window(server::Server, ws, span)
+    before = lock(server.clients_lock) do; server.window_id; end
+    request_window(server, span.start_frame, span.count, :replace)
+    held = lock(server.clients_lock) do
+        server.window_id == before || return nothing
+        retained(server, CORE_WINDOW)
+    end
+    held === nothing && return nothing
+    @warn "the scene produced no replacing window for a joining client; sending the one it holds" span
+    HTTP.WebSockets.send(ws, pack(held))
+    return nothing
+end
+
+# Ask this scene for `count` keyframes from the **1-based** `start_frame` as a window of `mode`, by
+# the route a viewer's own `core/need` takes: the registered listeners. The chain contributes no
+# commands here — a window is the whole of the answer, and there is no event `seq` for a batch to
+# echo.
+function request_window(server::Server, start_frame::Integer, count::Integer, mode::Symbol)
+    m, t = CORE_NEED
+    dispatch_event(server, Dict{String,Any}("module" => m, "topic" => t,
+        "payload" => Dict{String,Any}("startFrame" => to_wire_index(Int(start_frame)),
+                                      "count" => Int(count), "mode" => String(mode))))
+    return nothing
+end
+
+# Broadcast to every client; drop any that error mid-send. Named so as not to shadow Base.broadcast!.
+# Sends while holding the lock — a slow client stalls all broadcasts; fine for localhost.
+function broadcast_all!(server::Server, msg::Frame)
+    n = 0
+    # Laid out once for every client: the layout is the same for all of them, and a window's region
+    # is the bulk of the message.
+    bytes = pack(msg)
+    lock(server.clients_lock) do
+        record_frame!(server, msg)
+        for ws in collect(server.clients)
+            try
+                HTTP.WebSockets.send(ws, bytes); n += 1
+            catch
+                delete!(server.clients, ws)
+            end
+        end
+    end
+    return n
+end
+
+"""
+    send_command(server::Server, module_id, topic, payload) -> Int
+
+Broadcast a one-command `commands` batch addressed at `(module_id, topic)` and retain it as the
+latest command for that pair, so a client connecting later is replayed it. Arrays anywhere in
+`payload` are encoded on the way out. Returns the number of clients reached.
+
+Retention makes a declaration-shaped topic — `core/subscribe`, `ui/declare` — restore itself on
+reconnect; an event-shaped one is harmless to replay because the next event overwrites it.
+"""
+function send_command(server::Server, module_id::AbstractString, topic::AbstractString, payload)
+    m, t = String(module_id), String(topic)
+    msg = commands_message([Command(m, t, payload)])
+    retain!(server, (m, t), msg)
+    return broadcast_all!(server, msg)
+end
+
+"""
+    send_reply(server::Server, reply::Reply; seq=nothing) -> Int
+
+Broadcast everything a listener chain contributed to `reply` as **one** `commands` batch, applied by
+the viewer in the order the chain built it, and retain each command as the latest for its
+`(module, topic)`. `seq` echoes the sequence number of the event being answered. An empty reply
+sends nothing. Returns the number of clients reached.
+
+One event yields one message however many listeners spoke, so the viewer applies every contribution
+at one instant rather than tearing across several.
+"""
+function send_reply(server::Server, reply::Reply; seq = nothing)
+    isempty(reply.commands) && return 0
+    # Retained one command at a time: the retention table is keyed by (module, topic), so a batch
+    # stored under several keys would replay its every command once per key.
+    # Each command's arrays are encoded twice, once into its own frame and once into the
+    # batch. Reply payloads are small; hand the batch's region to the retained frames if one is not.
+    for c in reply.commands
+        retain!(server, (c.module_id, c.topic), commands_message([c]))
+    end
+    return broadcast_all!(server, commands_message(reply.commands; seq))
+end
+
+"""
+    send_message(server::Server, module_id, topic, msg) -> Int
+
+Retain and broadcast an already-serialized wire frame under the retention key `(module_id, topic)`.
+[`push_window`](@ref) and [`send_command`](@ref) are the usual entry points; this one exists for a
+caller that holds the frame itself — to measure its size, or to time serialization separately from
+the broadcast. `module_id`/`topic` must describe what `msg` carries, since they are the retain key:
+a window goes under `("core", "window")`, a command under the pair it addresses.
+
+`msg` is a [`Frame`](@ref), or a JSON string for a message built by hand — which carries no arrays
+and so travels with an empty region.
+"""
+send_message(server::Server, module_id::AbstractString, topic::AbstractString,
+             msg::AbstractString) = send_message(server, module_id, topic, Frame(msg))
+
+function send_message(server::Server, module_id::AbstractString, topic::AbstractString, msg::Frame)
+    retain!(server, (String(module_id), String(topic)), msg)
+    return broadcast_all!(server, msg)
+end
+
+# Store `msg` as the retained state for `key`, replacing any earlier message for the same
+# (module, topic) and moving it to the most-recent position so replay order tracks last-update order.
+function retain!(server::Server, key::Tuple{String,String}, msg::Frame)
+    lock(server.clients_lock) do
+        i = findfirst(p -> first(p) == key, server.retained)
+        i === nothing || deleteat!(server.retained, i)
+        push!(server.retained, key => msg)
+    end
+    return nothing
+end
+
+# The retained wire frame under `key`, or `nothing`. Reads under the lock; the lock is re-entrant, so
+# a caller already holding it may call this.
+function retained(server::Server, key::Tuple{String,String})
+    lock(server.clients_lock) do
+        i = findfirst(p -> first(p) == key, server.retained)
+        i === nothing ? nothing : last(server.retained[i])
+    end
+end
+
+# Every retained wire frame in replay order — oldest update first, so the most recent one is applied
+# last. `skip` leaves out the keys a caller means to send itself.
+function retained_messages(server::Server; skip = ())
+    lock(server.clients_lock) do
+        [last(p) for p in server.retained if !(first(p) in skip)]
+    end
+end
+
+"""
+    push_window(server, payloads; start_frame, count, dt_seconds, total_frames,
+                interval_seconds=1.5, start_time=nothing, mode=:replace) -> Int
+
+Broadcast one **window** — a contiguous run of `count` keyframes carrying every module's data for
+those frames — and record it as the current scene (replayed to any client that connects later).
+`payloads` is a `module_id => payload` mapping; a module absent from it is not updated by this
+window. `start_frame` is **1-based**. See [`window_message`](@ref) for the timing, window and
+declared-range keywords. Returns the number of clients reached.
+
+The window carries an identity the server assigns: a `:replace` gets a new one, an `:append` keeps
+the one it extends. An event naming an identity that is no longer current is answered with nothing,
+since a `:replace` may renumber the entities its indices addressed.
+
+**Pushing a `:replace` from inside a listener voids that listener's reply.** The chain's whole batch
+is dropped — the tooltip it also contributed included — because its indices describe the scene the
+event was raised on and that scene is gone. A listener that both re-pushes and has something to say
+says it with [`send_command`](@ref) after the push, or splits the two into separate gestures. An
+`:append` renumbers nothing and leaves the reply intact.
+
+Only a `:replace` stands on its own, so a client connecting once the scene is on an `:append` is not
+replayed that window **when the scene answers `core/need`**: the scene is asked for a replacement
+covering the same frames, and that window is broadcast like any other. The clients already watching
+are re-based on it and ask for what they are then missing. A scene that registers no `core/need`
+listener has nothing to ask, so the retained `:append` is replayed as it stands.
+
+```julia
+push_window(server, Dict(:tracks => track_payload(1, 2));
+            start_frame = 1, count = 2, dt_seconds = 60, total_frames = 240, mode = :replace)
+```
+"""
+function push_window(server::Server, payloads; mode = :replace, kw...)
+    window = window_id!(server, mode)
+    msg = window_message(payloads; mode, window, kw...)
+    # Retained under one key, so a client connecting later is replayed the window on screen — unless
+    # it is an `:append`, which the span recorded here is what lets `ready` rebuild instead.
+    lock(server.clients_lock) do
+        server.window_span = (; start_frame = Int(kw[:start_frame]),
+                              count = Int(kw[:count]), mode = Symbol(mode))
+    end
+    retain!(server, CORE_WINDOW, msg)
+    return broadcast_all!(server, msg)
+end
+
+"""
+    serve_scene!(server, source...; kw...) -> scene
+
+Install the scene `source` describes: build whatever drives it, register its listeners and push its
+opening window. Whatever scene the server was already driving is taken down first — see
+[`install_scene!`](@ref).
+
+CesiumLink defines no method. A scene is built by the package that knows the data, which adds a
+method dispatching on its own type; `push_window` stays the verb for broadcasting a window, and is
+what a scene's listeners call every time one is asked for.
+"""
+function serve_scene! end
+
+"""
+    install_scene!(server::Server, scene, listeners) -> scene
+
+Record `scene` and the `listeners` it registered as the one scene this server drives, and take down
+whatever was installed before it: the previous scene's listeners are unregistered, and it is logged
+that they were.
+
+A server drives at most one scene. Two of them answer every event between them, each holding its own
+state and each re-declaring the overlay with its own values, so a control ends up flipping between
+two answers forever. Installing replaces rather than refusing, because re-running a scene after
+editing it is the normal way to work on one — refusing would make a restart the only way to see the
+edit, and doing nothing would silently leave the old scene running in its place.
+
+Every rect the user gave a float is forgotten here. A rect is keyed by float id, and the next scene
+is free to use the same ids for other boxes, so a rect that outlived its scene would put a box
+somewhere the user never put it.
+
+`scene` is opaque: CesiumLink stores it as `server.scene` and never reads it.
+"""
+function install_scene!(server::Server, scene, listeners)
+    previous = lock(server.clients_lock) do
+        gone = server.scene_listeners
+        server.scene = scene
+        server.scene_listeners = collect(EventListener, listeners)
+        empty!(server.float_rects)
+        empty!(server.declared_floats)
+        gone
+    end
+    isempty(previous) ||
+        @info "replacing the scene installed on this server" listeners = length(previous)
+    # Outside the lock: `off_event` takes it, and re-declares the subscription the survivors add up to.
+    foreach(l -> off_event(server, l), previous)
+    return scene
+end

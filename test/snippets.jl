@@ -1,0 +1,112 @@
+# `setup=[Wire]` brings `lowered` and `header` into scope: the two ways a test looks inside a frame.
+# Every frame the server sends is binary, so a test client splits one before it reads anything.
+@testsnippet Wire begin
+    using CesiumLink, JSON
+
+    # A payload as it travels: the JSON value the header carries, and the region behind it. Decode
+    # an array in the first with `decode_arrays(w, region)`.
+    function lowered(payload)
+        region = IOBuffer()
+        return JSON.parse(JSON.json(CesiumLink.encode_arrays(payload, region))), take!(region)
+    end
+
+    # The parsed message of one frame received off a socket.
+    header(bytes) = JSON.parse(CesiumLink.unpack(bytes).header)
+end
+
+# Shared demo window payload for the window and server-push test items. `setup=[DemoWindow]` on a
+# @testitem brings `demo_payloads` into scope. The explicit `using CesiumLink` keeps the snippet
+# self-contained across test runners.
+@testsnippet DemoWindow begin
+    using CesiumLink
+    # One module's payload for `count` keyframes: a 3×2×count position track — two entities moving
+    # over the window, the shape the trailing-keyframe-dimension convention gives.
+    demo_payloads(count = 2; title = "demo") =
+        Dict(:tracks => (; position = reshape(Float32.(1:(6count)), 3, 2, count), title))
+end
+
+# `setup=[Furnished]` brings `declared` into scope: the payload the server retains for one of the
+# Core's own topics, which is what a client connecting later reads.
+@testsnippet Furnished begin
+    using CesiumLink, JSON
+    declared(server, topic) =
+        JSON.parse(CesiumLink.retained(server, ("core", topic)).header)["params"]["commands"][1]["payload"]
+end
+
+# `setup=[Joining]` brings `first_window` into scope: the `params` of the first window a client that
+# has just connected is sent, or `nothing` if none arrives. Reading on a task and waiting on a
+# deadline rather than blocking on `receive` is what makes "this client was sent no window at all" a
+# failure instead of a hang.
+@testsnippet Joining begin
+    using CesiumLink, HTTP, JSON
+
+    function first_window(port; timeout = 10.0)
+        HTTP.WebSockets.open("ws://[::1]:$port/ws") do ws
+            got = Ref{Any}(nothing)
+            reader = @async try
+                for msg in ws
+                    m = JSON.parse(CesiumLink.unpack(msg).header)
+                    if get(m, "method", nothing) == "window"
+                        got[] = m["params"]
+                        break
+                    end
+                end
+            catch
+                # The socket closing under the reader is how this task ends when nothing arrives.
+            end
+            HTTP.WebSockets.send(ws, JSON.json((; method = "ready",
+                                                params = (; protocol = CesiumLink.PROTOCOL_VERSION))))
+            timedwait(() -> got[] !== nothing, timeout)
+            got[]
+        end
+    end
+end
+
+# `setup=[CesiumTable]` brings `REFERENCE` and `TOLERANCE_M` into scope: the geodetic ↔ ECEF table
+# Cesium itself computed, keyed by ellipsoid name, each entry carrying the two radii and the points.
+@testsnippet CesiumTable begin
+    using CesiumLink, JSON
+
+    const REFERENCE = JSON.parsefile(joinpath(pkgdir(CesiumLink), "tools", "baseline",
+                                              "ellipsoid-reference.json"))["ellipsoids"]
+
+    # The two implementations must agree to a millimetre. An angle is compared as the distance it
+    # moves a point on the ellipsoid, which is also what makes the poles comparable: longitude there
+    # is arbitrary, and arbitrary times cos(90°) is nothing.
+    const TOLERANCE_M = 1e-3
+end
+
+# `setup=[Pyramid]` brings `pyramid` into scope: a tile directory on disk, of either layout. The
+# mount never reads a tile, so a tile here is a line of bytes under a `.png` name rather than an
+# image.
+@testsnippet Pyramid begin
+    using CesiumLink
+
+    # Fill `dir` with levels 0 to `depth`, two tiles in each. `layout` is `:xyz`, which is levels
+    # alone, or `:tms`, which adds the `tilemapresource.xml` a TMS pyramid is known by. `ext` is the
+    # name the tiles carry, which an XYZ pyramid declares and so must be read rather than assumed.
+    function pyramid(dir; layout = :xyz, depth = 2, ext = "png")
+        for z in 0:depth, (x, y) in ((0, 0), (1, 1))
+            mkpath(joinpath(dir, string(z), string(x)))
+            write(joinpath(dir, string(z), string(x), "$y.$ext"), "tile $z/$x/$y")
+        end
+        layout === :tms && write(joinpath(dir, "tilemapresource.xml"), "<TileMap/>")
+        return dir
+    end
+end
+
+# `setup=[HeatmapField]` brings the box, its cell centres, a grey colormap and `demand_field` into
+# scope. A field that is symmetric hides a wrong reshape and a wrong flip equally well, so the field
+# is asymmetric in both axes: the latitude term is monotonic, which catches a vertical flip, and the
+# longitudinal lobes catch a horizontal offset.
+@testsnippet HeatmapField begin
+    using CesiumLink
+
+    # The box every grid covers, and the cell centres of a 6 × 5 grid over it.
+    const EXTENT = (-20.0, 10.0, 40.0, 50.0)
+    const LONS = [-15.0, -5.0, 5.0, 15.0, 25.0, 35.0]
+    const LATS = [14.0, 22.0, 30.0, 38.0, 46.0]
+    const GRAY = ["#000000", "#ffffff"]
+
+    demand_field() = [0.4 * sind(3 * lon) + lat / 90 for lon in LONS, lat in LATS]
+end

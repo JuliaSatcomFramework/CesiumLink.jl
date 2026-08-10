@@ -1,0 +1,34 @@
+name = "CesiumLink"
+uuid = "fe4ddbe3-63a4-4ce0-8a5b-46bb22807cc2"
+authors = ["Alberto Mengali <disberd@gmail.com>"]
+version = "0.1.0"
+
+[deps]
+Base64 = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
+CodecZlib = "944b1d66-785c-5afd-91f1-9de20f533193"
+ColorTypes = "3da002f7-5984-5a60-b8a6-cbb66c0b333f"
+Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
+HTTP = "cd3eb016-35fb-5094-929b-558a96fad6f3"
+JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
+
+[compat]
+Base64 = "1"
+CodecZlib = "0.7"
+ColorTypes = "0.11, 0.12"
+Dates = "1"
+HTTP = "1.10, 2"
+JSON = "1"
+Logging = "1"
+Sockets = "1"
+Test = "1"
+TestItemRunner = "1"
+julia = "1.10"
+
+[extras]
+Logging = "56ddb016-857b-54e1-b83d-db4d58db5568"
+Sockets = "6462fe0b-24de-5631-8697-dd941f90decc"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+TestItemRunner = "f8b46487-2199-4994-9208-9a1283c18c0a"
+
+[targets]
+test = ["Test", "TestItemRunner", "Sockets", "Logging"]
