@@ -33,6 +33,8 @@ include(joinpath(REPO_ROOT, "tools", "make-demo-recording.jl"))
 # included into a module of its own, so that two examples may use the same names.
 const SOLAR = Module(:SolarElevation)
 Base.include(SOLAR, joinpath(EXAMPLES, "solar_elevation.jl"))
+const SATELLITES = Module(:Satellites)
+Base.include(SATELLITES, joinpath(EXAMPLES, "Satellites", "run.jl"))
 using Constellation
 import RegionCount
 
@@ -40,6 +42,26 @@ function stage_external()
     stage_viewer()
     stage_examples()
     record_examples()
+    record_tutorials()
+    check_satellites()
+    return nothing
+end
+
+# The Satellites example alone has no recording, so its scene is built and measured here instead.
+# Two hours of 60 satellites, each dragging a trail of 21 vertices, is several megabytes of window,
+# and a recording of the whole mission would be downloaded by every reader of the page.
+function check_satellites()
+    scene = SATELLITES.SatelliteScene()
+    @assert length(scene.names) == 60
+    families = SATELLITES.window_families(scene, 1, SATELLITES.CHUNK_FRAMES)
+    track = only(f for f in families if f isa Nodes && f.kind == "track")
+    trail = only(f for f in families if f isa Edges)
+    # The trail hangs off a node family nothing draws, and its segments join consecutive vertices of
+    # one satellite. A layout that stops agreeing with the segments draws a cat's cradle across the
+    # sky, which no other check here would notice.
+    @assert size(track.position) == (3, 60 * length(SATELLITES.TRACK_OFFSETS),
+                                     SATELLITES.CHUNK_FRAMES)
+    @assert size(trail.pairs, 2) == 60 * (length(SATELLITES.TRACK_OFFSETS) - 1)
     return nothing
 end
 
@@ -86,6 +108,7 @@ end
 # The listing that replaces the line is read off disk on every build, so the code the page shows is
 # the code this build ran. It is the only part of the page that cannot drift from the example.
 const EXAMPLE_SOURCE = Dict("solar-elevation.md" => "solar_elevation.jl",
+                            "satellites.md" => "Satellites",
                             "constellation.md" => "Constellation",
                             "region-count.md" => "RegionCount")
 const FENCE = Dict("jl" => "julia", "js" => "js", "md" => "markdown", "toml" => "toml")
@@ -121,10 +144,23 @@ function source_listing(path)
     for f in files
         println(io, "#### `", relpath(f, root), "`\n")
         println(io, "```", get(FENCE, lowercase(lstrip(last(splitext(f)), '.')), ""))
-        println(io, rstrip(read(f, String)))
+        println(io, listing_body(f))
         println(io, "```\n")
     end
     return String(take!(io))
+end
+
+# A data file goes on the page by its first lines only. The orbital elements of 60 satellites are 180
+# lines that say the same thing sixty times, and the page is there to show the program.
+const DATA_EXTENSIONS = (".tle",)
+const DATA_HEAD_LINES = 6
+
+function listing_body(path)
+    last(splitext(path)) in DATA_EXTENSIONS || return rstrip(read(path, String))
+    lines = readlines(path)
+    length(lines) > DATA_HEAD_LINES || return join(lines, "\n")
+    return join(lines[1:DATA_HEAD_LINES], "\n") *
+           "\n… and $(length(lines) - DATA_HEAD_LINES) more lines"
 end
 
 # The manifest is resolved by the build and says nothing about the example, so it stays off the page.
@@ -184,6 +220,49 @@ function record_examples()
     end
 
     return nothing
+end
+
+# The tutorials whose finished scene a page plays. Tutorials 4 and 5 build a viewer module of their
+# own, which this build does not compile, so they have no player.
+const PLAYED_TUTORIALS = ["first-scene", "moving-scene", "controls"]
+
+# Every played tutorial's own listing, run and then recorded. This is the only thing that runs a line
+# of tutorial code, so a tutorial that stops working fails the build here.
+function record_tutorials()
+    if !isdir(DIST)
+        @warn "no built viewer at $DIST, so the tutorial pages carry no live scene." maxlog = 1
+        return nothing
+    end
+    mkpath(joinpath(SRC, "public", "recordings"))
+    for name in PLAYED_TUTORIALS
+        page = joinpath(SRC, "tutorials", "$name.md")
+        rec = joinpath(SRC, "public", "recordings", "$name.jsonl")
+        # The listing starts a server of its own, on a port the operating system picks, and binds it
+        # to `server`. Each one runs in a module of its own, because all three use the same names.
+        mod = Module(Symbol(name))
+        Base.include_string(mod, whole_script(page), page)
+        # `invokelatest`, because the include is what creates the binding: a plain `mod.server` reads
+        # it from the world this function was compiled in, where it does not exist yet.
+        server = Base.invokelatest(getproperty, mod, :server)
+        try
+            record!(server, rec)
+            stop_recording!(server)
+        finally
+            stop_server(server)
+        end
+        # A recording of a scene that draws nothing is a valid recording, and it passes every other
+        # gate in this build.
+        @assert any(contains("\"method\":\"window\""), eachline(rec))
+    end
+    return nothing
+end
+
+# The listing under a tutorial's "The whole script" heading. The page holds the code, so what this
+# build runs is what the reader copies, down to the character.
+function whole_script(page)
+    m = match(r"## The whole script\s+```julia\n(.*?)\n```"s, read(page, String))
+    m === nothing && error("$(basename(page)) carries no listing under \"The whole script\"")
+    return m[1]
 end
 
 # Ask the constellation for the rest of its mission by the route a viewer's own `core/need` takes, so
@@ -259,6 +338,7 @@ makedocs(;
             "how-to/index.md",
             "Draw points, lines and areas" => "how-to/primitives.md",
             "Show a value on hover" => "how-to/tooltips.md",
+            "Put controls in the overlay" => "how-to/overlay-controls.md",
             "Put a box on screen" => "how-to/floating.md",
             "Choose the on-screen furniture" => "how-to/furniture.md",
             "Drape a scalar field over the globe" => "how-to/heatmap.md",
@@ -308,8 +388,9 @@ makedocs(;
         "Examples" => [
             "examples/index.md",
             "1 · Solar elevation" => "examples/solar-elevation.md",
-            "2 · Constellation" => "examples/constellation.md",
-            "3 · Satellites over a region" => "examples/region-count.md",
+            "2 · Satellite trails" => "examples/satellites.md",
+            "3 · Constellation" => "examples/constellation.md",
+            "4 · Satellites over a region" => "examples/region-count.md",
         ],
     ],
 )

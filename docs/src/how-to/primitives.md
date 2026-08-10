@@ -74,6 +74,39 @@ screen.
     Colour edges by a handful of appearances — active and idle, served and unserved. A continuous
     ramp over a thousand edges draws a correct picture through a thousand draw commands.
 
+## Choose how a line is drawn
+
+An [`Edges`](@ref) family takes a `style`, one of `:solid`, `:dashed` and `:glow`. `:dashed` also
+reads `dash_length`, the pixels of one dash period:
+
+```julia
+Edges(:feeder; from = :gw, to = :sat, pairs = feeders, style = :dashed, dash_length = 16,
+      width = 2.0)
+Edges(:isl; from = :sat, to = :sat, pairs = isl, style = :glow, width = 1.0)
+```
+
+A style is per family or per edge, so one family draws the active links glowing and the idle ones
+solid. Keep the number of appearances small: the style joins the colour and the dash length in the
+batch key, so every distinct `(style, colour, dash_length)` is one more draw command.
+
+## Draw with an image of your own
+
+`marker` takes one of the stock glyphs — `:disc`, `:star`, `:square`, `:triangle` — or an image, which
+[`marker_image`](@ref) reads off disk:
+
+```julia
+Nodes(:sat; position = sats, marker = marker_image("assets/satellite.png"), size = 20)
+```
+
+Two rules the browser imposes:
+
+- Give the image a square canvas. One `size` is the width and the height together, so a wide image is
+  drawn squeezed.
+- Pass the image, not a link to one. `marker_image` returns a `data:` URI, and the viewer runs under a
+  policy that refuses an image fetched from a server. A refused image draws nothing at all.
+
+The per-entity colour multiplies the image, and the default white leaves it as you drew it.
+
 ## Hide entities instead of dropping them
 
 A family's membership is fixed for the life of a window. To vary the drawn set within one window,
@@ -87,6 +120,26 @@ A masked entity keeps its index, so an [`Edges`](@ref) pair or a float anchor th
 valid. It is not pickable while hidden, so no tooltip reports it. Masking is also far cheaper than a
 per-keyframe rebuild: `show` and `width` are written onto lines that stand, while `pairs`, `color`
 and `style` are what a line is built from.
+
+## Hang a line off points nobody sees
+
+An [`Edges`](@ref) family draws from a masked endpoint, so a whole [`Nodes`](@ref) family may carry
+`show = false` and serve only as the vertices of a line mesh:
+
+```julia
+Nodes(:sat; position = sats, size = 6, color = "#00e5ff"),
+Nodes(:track; position = vertices, show = false),
+Edges(:trail; from = :track, to = :track, pairs = segments, style = :glow, color = "#00e5ff80")
+```
+
+`vertices` is `3 × (S · V) × count`, one moving point per satellite per vertex of its trail, and
+`segments` joins consecutive vertices of one satellite. This is how a trail along an orbit is drawn.
+The renderer blends a position between keyframes, so the whole trail slides with the satellite it
+hangs off, rather than jumping at each crossing.
+
+Keep the vertex family's layout stable: entity `s + (j - 1) · S` is satellite `s` at vertex `j` in
+every keyframe, so `segments` is written once and stands for the whole window. The
+[Satellites](../examples/satellites.md) example draws its trails this way.
 
 ## Draw a footprint from its vertices
 

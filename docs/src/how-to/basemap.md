@@ -112,6 +112,27 @@ The globe's own credit is plain text, so the link belongs here: the Moon basemap
 `{z}` in it means an XYZ template, and anything else means a TMS pyramid. A server that declares a
 basemap wins, so these parameters build the globe only where no declaration does.
 
+## 5. Light the globe and put a sky behind it
+
+Two more keywords decide what the globe looks like, and neither one touches the basemap:
+
+```julia
+start_server(; lighting = true, stars = true)
+```
+
+`lighting` lights the globe from the sun at the clock's time, so a terminator runs across it and the
+night side goes dark. `stars` draws the sky around it: the star field, the sun and the moon, at that
+same time. Both are off by default. The [Satellites](../examples/satellites.md) example turns both on.
+
+Three conditions to know:
+
+- **Leave `lighting` off for a scene whose colours carry its data.** A shaded globe dims a value by
+  where it sits rather than by what it says.
+- **The sun stands where the clock says.** Give your windows a real `start_time`, or the viewer picks
+  a synthetic epoch and the terminator lands somewhere arbitrary — see [`push_window`](@ref).
+- **A star field needs Earth.** The field is Cesium's own, and Cesium draws it on a WGS84 globe only.
+  A session on another body gets black whatever `stars` says.
+
 ## Two things that bite
 
 **A template with no `max_level` keeps asking past the end of the pyramid.** The server probes the

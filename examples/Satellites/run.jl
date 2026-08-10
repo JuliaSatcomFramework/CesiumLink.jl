@@ -22,10 +22,15 @@
 # - a tour of two stops — a declared camera track that opens on the whole sky and then rides one
 #   satellite. A drag while it rides steers around the satellite and keeps riding it.
 
-using Pkg
-Pkg.activate(@__DIR__)
-Pkg.develop(path = normpath(joinpath(@__DIR__, "..", "..")))
-Pkg.instantiate()
+# The environment beside this file, set up only when the file is run as a program. Something that
+# includes it — the documentation build does — brings its own environment, which already holds these
+# packages.
+if abspath(PROGRAM_FILE) == @__FILE__
+    using Pkg
+    Pkg.activate(@__DIR__)
+    Pkg.develop(path = normpath(joinpath(@__DIR__, "..", "..")))
+    Pkg.instantiate()
+end
 
 using CesiumLink
 using Dates

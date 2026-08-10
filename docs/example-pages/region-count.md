@@ -1,4 +1,4 @@
-# 3 · Satellites over a region
+# 4 · Satellites over a region
 
 A hundred and forty-four satellites over Europe and Africa, and a chart beside the globe. Click a
 region and the chart draws how many satellites stand above it, filling in as the scene plays.

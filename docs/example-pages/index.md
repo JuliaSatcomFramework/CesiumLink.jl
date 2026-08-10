@@ -8,18 +8,21 @@ working scene needs, and nothing it does not.
 its own. It shows the four sections' material standing together, which is the one thing none of them
 does.
 
-The three examples form a ladder. The rung is not how many files an example has — it is which part
+The four examples form a ladder. The rung is not how many files an example has — it is which part
 of the API its author reaches for.
 
 | Rung | What the author writes | Example |
 |---|---|---|
 | 1 | a script that calls [`push_window`](@ref) | [Solar elevation](solar-elevation.md) |
-| 2 | a package with a scene type and a [`serve_scene!`](@ref) method | [Constellation](constellation.md) |
-| 3 | the same, plus a viewer module and its JavaScript | [Satellites over a region](region-count.md) |
+| 2 | a script that holds a scene and answers for it | [Satellite trails](satellites.md) |
+| 3 | a package with a scene type and a [`serve_scene!`](@ref) method | [Constellation](constellation.md) |
+| 4 | the same, plus a viewer module and its JavaScript | [Satellites over a region](region-count.md) |
 
 The code of each one is on its page, in full. It also sits in the package, under `examples/`, so a
 clone carries it and you can run it where you read it.
 
-Every example runs during the documentation build. The scene on each page is a recording of that
+Every example runs during the documentation build. Three of the four pages carry a recording of that
 run, played in the browser with no Julia behind it — see
-[Record and replay a session](../how-to/record-replay.md).
+[Record and replay a session](../how-to/record-replay.md). [Satellite trails](satellites.md) is the
+exception: its mission is several megabytes of window, so its page shows the program and asks you to
+run it.

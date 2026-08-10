@@ -19,6 +19,8 @@ go to [Reference](../reference/index.md). For why the system is shaped this way,
 
 - [Show a value on hover](tooltips.md) — a hover listener that writes the tooltip for the entity
   under the cursor.
+- [Put controls in the overlay](overlay-controls.md) — the caption, the colour bar, the checkbox, the
+  dropdown, and the box that holds several of them.
 - [Put a box on screen](floating.md) — a box anchored to the screen, to an entity, or to a point on
   the globe.
 

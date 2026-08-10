@@ -1,4 +1,4 @@
-# 2 · Constellation
+# 3 · Constellation
 
 Forty satellites over Europe and North Africa, with the ground cells they serve, the gateways they
 feed through, and the links between them — three hundred keyframes of thirty seconds each, delivered

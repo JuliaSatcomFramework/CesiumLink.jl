@@ -3,6 +3,17 @@
 You build a static scene: five labelled points on the globe, under a caption. Julia decides
 everything on screen, and the browser draws what Julia sends. It takes about fifteen minutes.
 
+The scene you build plays below. It is a recording of the script at the end of this page, and no
+Julia process is behind it.
+
+```@raw html
+<iframe src="../viewer/player.html?rec=../recordings/first-scene.jsonl&modules=modules"
+        title="Five labelled cities on the globe, played in the browser"
+        loading="lazy"
+        style="width:100%;aspect-ratio:16/10;border:1px solid var(--vp-c-divider);border-radius:8px">
+</iframe>
+```
+
 Start a fresh Julia session in a project that has CesiumLink installed.
 
 ```julia
