@@ -334,15 +334,39 @@ function open(context, picked) {
   const bases = {};
   for (const [name, dir] of Object.entries(mounts)) bases[name] = uriOf(dir);
   panel.webview.html = pageHtml(panel.webview, uriOf(picked.dist), bases, origins);
-  relay(context, panel, picked.url);
+  relay(context, panel, picked);
 }
 
-function relay(context, panel, url) {
+// A module the page cannot reach, because it was registered after this panel was created. The roots
+// and the policy of a webview are fixed when it is created, so no message can grant the directory
+// to the page that is running: the panel has to be built again from a freshly read discovery file.
+//
+// A scene installs its modules right after `start_server` returns, and the push that opens this
+// panel goes out before that — so the panel routinely opens one moment too early, and this is what
+// carries it over. Once per panel: a module that fails for any other reason must not loop.
+async function reopenForModule(context, panel, picked, id) {
+  const fresh = (await liveScenes()).find((s) => s.port === picked.port);
+  const dir = fresh && fresh.modules[id];
+  // The same test the mounts are built from. A directory the file names and this host cannot see
+  // would be dropped from the roots again, and the panel it opened would ask for the same reopen.
+  if (!dir || !fs.existsSync(dir)) {
+    log.appendLine(`module ${id} names no directory this host can read; the panel stays as it is`);
+    return;
+  }
+  log.appendLine(`module ${id} was registered after this panel opened; opening the scene again`);
+  panel.dispose();
+  open(context, fresh);
+}
+
+function relay(context, panel, picked) {
+  const url = picked.url;
   // A webview drops a message posted before the page attaches its listener, and this page carries
   // the whole of Cesium. The socket opens long before the parse ends. So nothing goes down until
   // the page says hello. Without the hold the page waits for a socket it never hears about, and
   // the server waits for a `ready` that therefore never comes.
   let listening = false;
+  // One reopen for a module this panel cannot reach, and no more.
+  let reopened = false;
   const held = [];
   const toPage = (m) => {
     if (listening) panel.webview.postMessage(m);
@@ -399,6 +423,9 @@ function relay(context, panel, url) {
       socket.close();
     } else if (msg.type === 'log') {
       log.appendLine(msg.line);
+    } else if (msg.type === 'moduleMissing') {
+      if (reopened) log.appendLine(`module ${msg.id} is still missing after one reopen`);
+      else { reopened = true; reopenForModule(context, panel, picked, msg.id); }
     } else if (msg.type === 'expand') {
       expandPanel();
     }

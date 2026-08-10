@@ -21,7 +21,7 @@ import {
 } from "../core/src/index";
 import { vsApi } from "./api";
 import { rebaseImagery } from "./imagery";
-import { moduleUrl } from "./modules";
+import { MODULE_MOUNT, moduleId, moduleUrl } from "./modules";
 import { VsCodeTransport } from "./transport";
 import { installWorkerShim } from "./workers";
 
@@ -129,6 +129,14 @@ function importModule(url: string): Promise<{ default: ViewerModule }> {
   const target = moduleUrl(url, mounts, assetBase);
   return (import(target) as Promise<{ default: ViewerModule }>).catch((err) => {
     report(`module ${url} did not load from ${target}: ${String(err)}`);
+    // A module registered after this panel was created has no mount here, and a webview takes its
+    // roots when it is created — so this page can never reach that module, however it retries. Name
+    // the module to the host, which can build the panel again with the directory granted. Anything
+    // the map does name failed for another reason, and reopening would not help it.
+    const id = moduleId(url);
+    if (id !== undefined && mounts[MODULE_MOUNT(id)] === undefined) {
+      vsApi().postMessage({ type: "moduleMissing", id });
+    }
     throw err;
   });
 }

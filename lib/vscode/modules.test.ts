@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { moduleUrl, MODULE_MOUNT } from "./modules.ts";
+import { moduleId, moduleUrl, MODULE_MOUNT } from "./modules.ts";
 
 const DIST = "https://x.vscode-webview.test/dist/";
 const MOUNTS = { "modules/rainfade": "https://x.vscode-webview.test/rf/", pics: "https://x/p/" };
@@ -32,4 +32,13 @@ test("an assets mount cannot be reached as a module directory", () => {
   // The map holds both namespaces, and an assets mount name is one path element with no `/` in it.
   assert.equal(MODULE_MOUNT("pics"), "modules/pics");
   assert.equal(moduleUrl("/modules/pics/pics.js", MOUNTS, DIST), `${DIST}modules/pics/pics.js`);
+});
+
+test("a declared module URL names its id, and nothing else does", () => {
+  // The page reports this id to the host when the map does not name the module, and the host grants
+  // the directory by building the panel again. An id it cannot read is a panel that stays broken.
+  assert.equal(moduleId("/modules/rainfade/rainfade.js"), "rainfade");
+  assert.equal(moduleId("modules/rainfade/chunk-ab12.js"), "rainfade");
+  assert.equal(moduleId("/cesium/Workers/w.js"), undefined);
+  assert.equal(moduleId("/modules/rainfade/"), undefined);
 });

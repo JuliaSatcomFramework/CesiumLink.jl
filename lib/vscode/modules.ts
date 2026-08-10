@@ -14,6 +14,11 @@ export const MODULE_MOUNT = (id: string): string => `modules/${id}`;
 
 const DECLARED = /^\/?modules\/([^/]+)\/(.+)$/;
 
+/** The id a declared module URL names, or `undefined` for a URL that declares no module. */
+export function moduleId(url: string): string | undefined {
+  return DECLARED.exec(url)?.[1];
+}
+
 /**
  * The URL this host imports a declared module from.
  *
