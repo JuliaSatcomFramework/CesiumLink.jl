@@ -450,6 +450,28 @@ function discovery_dir()
     return joinpath(homedir(), ".cache", "cesiumlink")
 end
 
+# Put `content` in `file` in one step, replacing whatever was there.
+#
+# A reader opens the discovery file at a moment this process does not choose: the editor extension
+# reads it as soon as the push reaches the editor, and `register_module!` writes it again right
+# after `start_server` returns. `open(file, "w")` truncates in place, so a read between the truncate
+# and the last byte returns a fragment, and the reader drops a scene that is running. A rename
+# inside one directory replaces the file in one step, and every reader sees one version or the other.
+function write_atomically(file, content)
+    tmp = "$(file).$(Base.Libc.getpid()).tmp"
+    try
+        write(tmp, content)
+        # The renamed file brings its own mode, so carry over the mode of the file it replaces.
+        # A write in place keeps the mode, and the discovery file is deliberately 0600.
+        isfile(file) && (try; chmod(tmp, filemode(file) & 0o777); catch; end)
+        mv(tmp, file; force = true)
+    catch
+        rm(tmp; force = true)
+        rethrow()
+    end
+    return file
+end
+
 # Tighten the modes, and let the file stand if the filesystem will not take them. A directory the
 # user does not own — a shared cache, an exported home — refuses the chmod, and a discovery file
 # nobody can lock down is still a discovery file that works.
@@ -543,9 +565,7 @@ function write_discovery(port::Integer, title::AbstractString, imagery = nothing
                      "modules" => modules,
                      "trustedOrigins" => trusted_origins)
         imagery === nothing || (entry["imagery"] = imagery)
-        open(file, "w") do io
-            JSON.print(io, entry)
-        end
+        write_atomically(file, JSON.json(entry))
         # `/run/user/<uid>` is already 700, but the two fallbacks sit under directories that are
         # usually world-readable. A scene binds to loopback, and on a shared machine loopback is
         # shared: naming the port to every other user is worth a chmod. This does not make the
@@ -572,9 +592,7 @@ function refresh_discovery(server::Server)
     try
         entry = JSON.parsefile(server.discovery_file)
         entry["modules"] = module_dirs(server)
-        open(server.discovery_file, "w") do io
-            JSON.print(io, entry)
-        end
+        write_atomically(server.discovery_file, JSON.json(entry))
     catch e
         @debug "could not write the module set into the discovery file" exception = e
     end
