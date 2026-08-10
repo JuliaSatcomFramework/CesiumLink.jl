@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.6" y2="1">
+      <stop offset="0" stop-color="#12263c"/>
+      <stop offset="1" stop-color="#08121e"/>
+    </linearGradient>
+    <radialGradient id="ocean" cx="0.34" cy="0.28" r="0.85">
+      <stop offset="0" stop-color="#3fa3dd"/>
+      <stop offset="0.55" stop-color="#1a6ea6"/>
+      <stop offset="1" stop-color="#0a3a5e"/>
+    </radialGradient>
+    <!-- The near half of the orbit is the half below the major axis of the ellipse, so the clip is
+         a half-plane turned by the same angle. A clip on screen axes would cut the arc where it
+         still crosses the globe, and the line would stop in the middle of the disc. -->
+    <clipPath id="near">
+      <rect x="-80" y="70" width="288" height="140" transform="rotate(-26 60 70)"/>
+    </clipPath>
+    <clipPath id="globe">
+      <circle cx="60" cy="70" r="34"/>
+    </clipPath>
+  </defs>
+
+  <rect x="0" y="0" width="128" height="128" rx="24" fill="url(#bg)"/>
+
+  <!-- orbit, far half: the globe covers the part that passes behind it -->
+  <ellipse cx="60" cy="70" rx="50" ry="20" transform="rotate(-26 60 70)"
+           fill="none" stroke="#67e8f9" stroke-opacity="0.32" stroke-width="2.5"/>
+
+  <!-- atmosphere -->
+  <circle cx="60" cy="70" r="36.5" fill="none" stroke="#7dd3fc" stroke-opacity="0.18" stroke-width="5"/>
+
+  <!-- globe -->
+  <circle cx="60" cy="70" r="34" fill="url(#ocean)"/>
+  <g clip-path="url(#globe)" fill="none" stroke="#dff1ff" stroke-opacity="0.34" stroke-width="1.7">
+    <path d="M26 70 H94"/>
+    <ellipse cx="60" cy="70" rx="34" ry="14"/>
+    <path d="M60 36 V104"/>
+    <ellipse cx="60" cy="70" rx="14" ry="34"/>
+  </g>
+  <circle cx="60" cy="70" r="34" fill="none" stroke="#9fdcff" stroke-opacity="0.55" stroke-width="1.6"/>
+
+  <!-- orbit, near half -->
+  <ellipse cx="60" cy="70" rx="50" ry="20" transform="rotate(-26 60 70)" clip-path="url(#near)"
+           fill="none" stroke="#8ef0ff" stroke-opacity="0.95" stroke-width="2.8"/>
+
+  <!-- Three cells of a hexagonal tiling, and the link that serves each one. The cells are equal
+       circles on the sphere that touch, so in projection they stay equal ellipses that touch: the
+       short axis of each one points away from the centre of the disc, squashed by how far out the
+       group sits. The group goes over the orbit, or the near arc cuts the links in two. -->
+  <g stroke="#a5f3fc" stroke-opacity="0.85" stroke-width="2" stroke-linecap="round">
+    <path d="M104.4 57.7 L69.8 62.0"/>
+    <path d="M104.4 57.7 L69.8 78.0"/>
+    <path d="M104.4 57.7 L82.4 70.0"/>
+  </g>
+  <g fill="#0e4a76" fill-opacity="0.6" stroke="#a5f3fc" stroke-opacity="0.95" stroke-width="2">
+    <ellipse cx="69.8" cy="62.0" rx="7.3" ry="8"/>
+    <ellipse cx="69.8" cy="78.0" rx="7.3" ry="8"/>
+    <ellipse cx="82.4" cy="70.0" rx="7.3" ry="8"/>
+  </g>
+
+  <!-- satellite -->
+  <circle cx="104.4" cy="57.7" r="10" fill="#67e8f9" fill-opacity="0.16"/>
+  <circle cx="104.4" cy="57.7" r="6" fill="#eafcff" stroke="#67e8f9" stroke-width="2"/>
+</svg>

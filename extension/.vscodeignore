@@ -1,3 +1,5 @@
 *.vsix
 # The tests run from the repo, not from the packaged extension.
 *.test.mjs
+# `icon.svg` draws `icon.png`, which is the file the marketplace reads.
+icon.svg

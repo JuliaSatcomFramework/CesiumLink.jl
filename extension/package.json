@@ -1,14 +1,22 @@
 {
   "name": "cesiumlink",
   "displayName": "CesiumLink",
-  "description": "A live CesiumLink scene in an editor tab, over a relayed WebSocket.",
-  "version": "0.1.5",
+  "description": "Companion of the Julia package CesiumLink.jl: a live 3D globe scene in an editor tab, over a relayed WebSocket.",
+  "version": "0.1.8",
   "publisher": "disberd",
+  "icon": "icon.png",
   "engines": {
     "vscode": "^1.102.0"
   },
   "categories": [
     "Visualization"
+  ],
+  "keywords": [
+    "julia",
+    "cesium",
+    "globe",
+    "satellite",
+    "geospatial"
   ],
   "license": "MIT",
   "repository": {
