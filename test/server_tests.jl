@@ -24,6 +24,22 @@
     end
 end
 
+@testitem "the traversal guard reads path elements, not a separator" begin
+    using CesiumLink: under_root
+
+    root = normpath(abspath(joinpath("a", "b", "dist")))
+    @test under_root(joinpath(root, "index.html"), root)
+    @test under_root(joinpath(root, "cesium", "Assets", "tile.png"), root)
+    # Strictly under: neither the root itself nor a sibling whose name starts with it.
+    @test !under_root(root, root)
+    @test !under_root(root * "Evil", root)
+    @test !under_root(joinpath(root * "Evil", "x.js"), root)
+    @test !under_root(normpath(joinpath(root, "..", "secret")), root)
+    # A root written with a trailing separator names the same directory, so it serves the same
+    # files. A guard that compares the two strings answers no to every one of them.
+    @test under_root(joinpath(root, "index.html"), root * "/")
+end
+
 @testitem "server push + ready replay" setup=[DemoWindow] begin
     using HTTP, JSON, Sockets
 

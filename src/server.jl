@@ -199,6 +199,23 @@ function gzipped(file::AbstractString, stamp::Tuple{Float64,Int})
     end
 end
 
+# Whether `file` lies strictly under the mount root `root`. The path-traversal guard: a request may
+# reach a file inside its mount and nothing else.
+#
+# Compare the path elements, and never the two strings. A string comparison has to name a separator,
+# which is `\` on Windows and `/` everywhere else, so `root * "/"` matches nothing at all on Windows
+# and the mount serves none of its own files — with the server reporting no fault. `splitpath` reads
+# either separator and drops a trailing one, so a root written with a slash still agrees with a file
+# `joinpath` built with a backslash.
+#
+# Strictly under: the file must have more elements than the root, so a sibling directory like
+# `<root>Evil` cannot pass, and neither can the root itself.
+function under_root(file, root)
+    r = splitpath(root)
+    f = splitpath(file)
+    return length(f) > length(r) && view(f, eachindex(r)) == r
+end
+
 function serve_static(server::Server, stream)
     path = split(stream.message.target, '?')[1]
     path == "/" && (path = "/index.html")
@@ -208,10 +225,7 @@ function serve_static(server::Server, stream)
     end
     root, rel = mount
     file = normpath(joinpath(root, rel))
-    # Path-traversal guard: the resolved path must stay strictly under its mount root. Compare
-    # against `root * "/"`, not `root`, so a sibling like `<root>Evil/...` can't slip past a
-    # prefix match.
-    under = startswith(file, root * "/")
+    under = under_root(file, root)
     if !under || !isfile(file)
         HTTP.setstatus(stream, under ? 404 : 403)
         HTTP.startwrite(stream); return
@@ -629,9 +643,8 @@ end
 # globe would silently wear a pyramid the author never named.
 const IMAGERY_MOUNT = "imagery"
 
-# A directory as a mount root: absolute, normalised, and with no trailing slash. `normpath` keeps one
-# where it was written, and the traversal guard in `serve_static` compares against `root * "/"` — so a
-# root ending in a slash matches nothing at all and the mount serves none of its own files.
+# A directory as a mount root: absolute, normalised, and with no trailing slash. The slash carries no
+# meaning here, and a root that keeps one reads as a different directory in a message.
 function mount_dir(path)
     dir = rstrip(normpath(abspath(String(path))), '/')
     return isempty(dir) ? "/" : dir
