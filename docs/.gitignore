@@ -1,0 +1,7 @@
+build/
+node_modules/
+final_site/
+Manifest.toml
+src/examples/
+src/public/viewer/
+src/public/recordings/
