@@ -1,5 +1,11 @@
 # CesiumLink
 
+[![CI](https://img.shields.io/github/actions/workflow/status/JuliaSatcomFramework/CesiumLink.jl/CI.yml?style=flat-square&logo=githubactions&logoColor=white&labelColor=475569&label=CI)](https://github.com/JuliaSatcomFramework/CesiumLink.jl/actions/workflows/CI.yml)
+[![Codecov](https://img.shields.io/codecov/c/github/JuliaSatcomFramework/CesiumLink.jl?style=flat-square&logo=codecov&logoColor=white&labelColor=475569)](https://codecov.io/gh/JuliaSatcomFramework/CesiumLink.jl)
+[![docs-stable](https://img.shields.io/badge/docs-stable-16A34A?style=flat-square&logo=gitbook&logoColor=white&labelColor=475569)](https://juliasatcomframework.github.io/CesiumLink.jl/stable/)
+[![docs-dev](https://img.shields.io/badge/docs-dev-D97706?style=flat-square&logo=gitbook&logoColor=white&labelColor=475569)](https://juliasatcomframework.github.io/CesiumLink.jl/dev/)
+[![License](https://img.shields.io/github/license/JuliaSatcomFramework/CesiumLink.jl?style=flat-square&logo=readme&logoColor=white&labelColor=475569&color=0284C7)](https://github.com/JuliaSatcomFramework/CesiumLink.jl/blob/main/LICENSE)
+
 **Show what your Julia code computed, on a 3D globe, without writing a browser application.**
 
 Cesium is an excellent geospatial engine, and reaching it from Julia normally means becoming a web

@@ -62,3 +62,15 @@ jobs:
           version: "1"
       - uses: julia-actions/cache@v2
       - uses: julia-actions/julia-runtest@v1
+      # `src` alone: `tools/` and `examples/` carry Julia the package does not ship, and counting
+      # them would report the package as far less covered than it is. One upload, from one platform,
+      # because three uploads of the same lines say nothing more than one.
+      - uses: julia-actions/julia-processcoverage@v1
+        if: matrix.os == 'ubuntu-latest'
+        with:
+          directories: src
+      - uses: codecov/codecov-action@v5
+        if: matrix.os == 'ubuntu-latest'
+        with:
+          files: lcov.info
+          token: ${{ secrets.CODECOV_TOKEN }}
