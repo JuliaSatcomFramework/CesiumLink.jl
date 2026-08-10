@@ -38,6 +38,38 @@ satellite. `lib/models/` is the example to read. What a borrowed identity costs 
 ADR-0023: a pick says which
 entity was hit, and never which geometry.
 
+## What is vendored, and what is a module away
+
+The four vendored modules were chosen from satellite scenes. Nothing in the wire or in the Core
+knows what a satellite is — a window of keyframes, a node with a position and a payload of bytes
+serve a fleet of buoys or an air-traffic replay as well — but the vocabulary above them is points,
+links, footprints and a draped colour grid because that is what a constellation is made of. What
+follows from that is a real boundary, and it is better stated than discovered: what a satellite
+scene needs is vendored, and the rest of what Cesium is famous for is reachable but not shipped.
+
+Reachable, because a module is handed `ctx.Cesium` — the whole `@cesium/engine` namespace, the same
+instance the Core built the scene with — together with the scene, the widget's entity collection and
+its data sources. So the table below is a list of modules nobody has written yet, and not a list of
+things the architecture refuses.
+
+| Cesium feature | Vendored? | What it takes today |
+|---|---|---|
+| **3D Tiles** — photogrammetry, point clouds, OSM Buildings | no | A module: `Cesium3DTileset.fromUrl` onto `ctx.scene.primitives`. Serve the tileset from an `assets` mount, or name its origin in `trusted_origins` |
+| **Terrain** (quantized-mesh providers) | no | A module can set `scene.globe.terrainProvider`, but the globe is ellipsoid terrain by declaration and `Areas` and `heatmap` are authored on the ellipsoid, so ground geometry does not clamp to it. Session-wide terrain wants a declaration knob beside `imagery` |
+| **Extruded polygons, walls, corridors, cylinders and cones** — sensor volumes, swaths | no: `primitives` draws points, polylines and flat ground footprints | A module, which may stand its geometry on an entity `primitives` owns and borrow its identity, as `models` does |
+| **CZML** | no | A module: `CzmlDataSource.load` into `ctx.viewer.dataSources`. It rides beside the window buffer rather than through it, because CZML carries its own clock, availability and document range, and the Core owns the clock and the declared range |
+| **GeoJSON / KML / KMZ** | no | A module, the same way, and with no clock to argue about for a static overlay |
+| **Cesium ion assets** — World Terrain, Bing imagery, Google Photorealistic 3D Tiles | no, deliberately: the viewer carries no token and works offline | A module that sets `Ion.defaultAccessToken` to your own token, and the ion origins in `trusted_origins` |
+| **Imagery providers** past a `{z}/{x}/{y}` template or a folder of tiles — WMS, WMTS, TMS, ArcGIS | no | A module that pushes an `ImageryProvider` onto `scene.imageryLayers`, or a widened `Imagery` declaration |
+| **Post-processing** — silhouettes, bloom, custom shaders | no | A module: `ctx.scene.postProcessStages` |
+
+None of the rendering above needs the Core changed, which is the point of the boundary the rest of
+this page draws. The Core owns four things a module cannot take over: the clock and the declared
+range, the window buffer and the requests that fill it, pick dispatch, and overlay placement. So the
+work that lands *in* the Core is the work that wants to own time or delivery — streaming CZML as a
+second delivery path, a scene with two clocks, or making terrain and an external tileset part of the
+session declaration rather than something one module knows about privately.
+
 ## A payload vocabulary
 
 `Nodes`, `Edges` and `Areas` are the vocabulary of `primitives`. The controls, the floats and the

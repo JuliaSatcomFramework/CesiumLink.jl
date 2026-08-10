@@ -69,6 +69,44 @@ window buffer, pick dispatch, overlay placement, and the array codec. So a custo
 atlas, or a widget kind of your own is an addition rather than a fork — and the plumbing underneath
 it stays the framework's problem.
 
+## Built from satellite scenes, not restricted to them
+
+Nothing in the wire, the Core or the Julia API knows what a satellite is. A window of keyframes, a
+node with a position, an edge between two of them and a payload of raw bytes are as good for a fleet
+of buoys, an air-traffic replay or a scalar field over a country. No orbit propagator ships here, and
+no message names a spacecraft.
+
+What was decided from satellite scenes is everything below that line. Lazy window delivery exists
+because a propagated mission is long and expensive to compute up front. The vendored vocabulary is
+`Nodes`, `Edges` and `Areas` because a constellation is points, links and footprints. `heatmap`
+drapes a finished colour grid because coverage and link-budget maps are computed in Julia and not in
+a shader. The camera rides an entity because the useful viewpoint is usually a spacecraft. The
+ellipsoid is declarable because the globe is not always Earth.
+
+So the honest statement of scope is this: what a satellite scene needs is vendored and first-class,
+and what Cesium is otherwise famous for is reachable but not shipped. A module gets `ctx.Cesium` —
+the whole `@cesium/engine` namespace, the same instance the Core built the scene with — plus the
+scene, the widget's entity collection and its data sources. Nearly everything in the table below is
+therefore a module away, and none of it is a fork.
+
+| Cesium feature | Vendored? | What it takes today |
+|---|---|---|
+| **3D Tiles** — photogrammetry, point clouds, OSM Buildings | no | A module: `Cesium3DTileset.fromUrl` onto `ctx.scene.primitives`. Serve the tileset from an `assets` mount, or name its origin in `trusted_origins` |
+| **Terrain** (quantized-mesh providers) | no | A module can set `scene.globe.terrainProvider`, but the globe is ellipsoid terrain by declaration and `Areas` and `heatmap` are authored on the ellipsoid, so ground geometry does not clamp to it. Session-wide terrain wants a declaration knob beside `imagery` |
+| **Extruded polygons, walls, corridors, cylinders and cones** — sensor volumes, swaths | no: `primitives` draws points, polylines and flat ground footprints | A module, which may stand its geometry on an entity `primitives` owns and borrow its identity, so a click on the cone answers the satellite. `models` is the worked example |
+| **CZML** | no | A module: `CzmlDataSource.load` into `ctx.viewer.dataSources`. It rides beside the window buffer rather than through it, because CZML carries its own clock, availability and document range, and the Core owns the clock and the declared range |
+| **GeoJSON / KML / KMZ** | no | A module, the same way, and with no clock to argue about for a static overlay |
+| **Cesium ion assets** — World Terrain, Bing imagery, Google Photorealistic 3D Tiles | no, deliberately: the viewer carries no token and works offline | A module that sets `Ion.defaultAccessToken` to your own token, and the ion origins in `trusted_origins` |
+| **Imagery providers** past a `{z}/{x}/{y}` template or a folder of tiles — WMS, WMTS, TMS, ArcGIS | no | A module that pushes an `ImageryProvider` onto `scene.imageryLayers`, or a widened `Imagery` declaration |
+| **Post-processing** — silhouettes, bloom, custom shaders | no | A module: `ctx.scene.postProcessStages` |
+
+None of the rendering above needs the Core changed. The Core owns four things a module cannot take
+over: the clock and the declared range, the window buffer and the requests that fill it, pick
+dispatch, and overlay placement. So the work that lands *in* the Core is the work that wants to own
+time or delivery — streaming CZML as a second delivery path, a scene with two clocks, or making
+terrain and an external tileset part of the session declaration rather than something one module
+knows about privately.
+
 ## What the framework handles for you
 
 - **The transport.** One WebSocket, one message envelope, one reconnect story. You never open a
