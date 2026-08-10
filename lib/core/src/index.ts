@@ -305,21 +305,26 @@ export async function createViewer(
     importModule: opts.importModule,
   });
 
-  // The module set is established once per connection: a second declaration is refused rather than
-  // merged, since a module already running holds scene state that a reload would orphan. Changing
-  // the set means reconnecting.
-  let declared = false;
+  // A declaration adds to the module set and never replaces it. A scene registers its modules just
+  // after its server starts, which can be after this page connected, and the server declares the
+  // set again for each one — so a second declaration is the normal way a module that was late
+  // reaches a page that was early.
+  //
+  // Only ids this host does not already hold are loaded. A module already running holds scene state
+  // that importing it again would orphan (ADR-0009), so a declaration can add a module and can
+  // never reload or drop one.
+  const declared = new Set<string>();
   const loadModules = (d: Declaration | null) => {
-    if (declared) {
-      console.warn("CesiumLink: modules already declared; reconnect to change the set");
-      return;
-    }
-    declared = true;
-    // Before the modules, not after: a module may resolve an asset path in its own `setup`.
-    mounts = (d?.assets ?? {}) as AssetMounts;
+    // Before the modules, not after: a module may resolve an asset path in its own `setup`. Merged
+    // for the same reason the module set is: a mount a running module already resolved against must
+    // not disappear under it.
+    mounts = { ...mounts, ...((d?.assets ?? {}) as AssetMounts) };
+    const fresh = ((d?.modules ?? []) as ModuleEntry[]).filter((m) => !declared.has(m.id));
+    for (const m of fresh) declared.add(m.id);
+    if (fresh.length === 0) return;
     // Loading is async and the retained commands follow this message immediately; the host
     // retains what arrives before a module's setup and replays it, so nothing is lost.
-    void host.loadAll((d?.modules ?? []) as ModuleEntry[]);
+    void host.loadAll(fresh);
   };
 
   return {

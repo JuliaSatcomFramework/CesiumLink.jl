@@ -1158,6 +1158,52 @@ end
     end
 end
 
+@testitem "a module registered while a client is connected is declared to it" begin
+    using HTTP, JSON, Sockets
+
+    freeport() = (s = Sockets.listen(Sockets.IPv6("::1"), 0);
+                  p = Int(Sockets.getsockname(s)[2]); close(s); p)
+
+    # A frame that never comes must fail this test rather than hang it: a server that stops
+    # declaring is exactly the regression here, and `receive` waits for as long as the socket lives.
+    function next_header(ws; seconds = 10)
+        task = @async CesiumLink.unpack(HTTP.WebSockets.receive(ws)).header
+        timedwait(() -> istaskdone(task), seconds) === :ok ||
+            error("no frame arrived within $seconds s")
+        return JSON.parse(fetch(task))
+    end
+
+    mktempdir() do dir
+        entry = joinpath(dir, "rainfade.js")
+        write(entry, "export default {}")
+        port = freeport()
+        server = start_server(; dist_dir = nothing, host = "::1", port)
+        try
+            got = HTTP.WebSockets.open("ws://[::1]:$port/ws") do ws
+                HTTP.WebSockets.send(ws, JSON.json((; method = "ready",
+                                                    params = (; protocol = CesiumLink.PROTOCOL_VERSION))))
+                # A scene registers its modules after its server starts, so a page can be connected
+                # by then. Without a second declaration that page never loads the module.
+                @test isempty(next_header(ws)["params"]["modules"])
+                # Broadcast live, to a viewer that has nothing to route it to and drops it.
+                CesiumLink.send_command(server, "rainfade", "state", Dict("x" => 1))
+                next_header(ws)
+                register_module!(server, :rainfade, entry)
+                (next_header(ws), next_header(ws))
+            end
+            decl, replayed = got
+            @test decl["method"] == "modules"
+            @test [m["id"] for m in decl["params"]["modules"]] == ["rainfade"]
+            # A frame addressed to the module before it was registered reached a viewer with nothing
+            # to route it to, so it goes out again behind the declaration.
+            @test replayed["method"] == "commands"
+            @test only(replayed["params"]["commands"])["module"] == "rainfade"
+        finally
+            stop_server(server)
+        end
+    end
+end
+
 @testitem "showing a server names the page rather than its fields" begin
     server = start_server(; dist_dir = nothing)
     try

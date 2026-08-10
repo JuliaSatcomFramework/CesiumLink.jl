@@ -1070,17 +1070,25 @@ register_module!(server::Server, id, path; api_version = MODULE_API_VERSION) =
     register_module!(server, ModuleEntry(id, path, api_version))
 
 function register_module!(server::Server, entry::ModuleEntry)
-    lock(server.clients_lock) do
+    known = lock(server.clients_lock) do
         i = findfirst(m -> m.id == entry.id, server.modules)
         # A known id is replaced in place, because registration order is the draw order. Neither the
         # path nor the file content decides this: a module staged into a fresh `mktempdir()` gets a
         # new path every run, and a module edited between two runs gets new content, and both are
         # the same scene installed again.
-        i === nothing ? push!(server.modules, entry) : (server.modules[i] = entry)
+        i === nothing ? (push!(server.modules, entry); false) : (server.modules[i] = entry; true)
     end
     # A host that serves the page itself is given the directories it may read before the page
     # exists, so the file has to name this module by the time such a host reads it.
+    #
+    # Before the declaration, and never after it: the declaration is what makes a page reach for
+    # this module, and a page hosted by the editor answers a module it cannot reach by reading this
+    # file again.
     refresh_discovery(server)
+    # A client already connected heard the set as it stood when it said `ready`, and a scene
+    # registers its modules after its server starts — so tell those clients about this one. A viewer
+    # loads the ids it does not already hold, which makes this a no-op for an id it does.
+    known || declare_modules(server, entry.id)
     return server
 end
 
@@ -1268,15 +1276,47 @@ function request_window(server::Server, start_frame::Integer, count::Integer, mo
     return nothing
 end
 
+# Declare the module set to the clients already connected, and replay whatever is retained for the
+# module `id` behind it.
+#
+# The set is otherwise declared once per client, on `ready`. A scene registers its modules just
+# after `start_server` returns, so a page that connected before that heard a set without them, and a
+# module a page never hears of is a module that never draws. The viewer loads the ids it does not
+# already hold: a module already running holds scene state, and importing it again would orphan it.
+#
+# The retained frames go out behind the declaration for the same reason a connecting client is
+# replayed: a frame addressed to this module before it was registered reached a viewer with nothing
+# to route it to, and was dropped there.
+function declare_modules(server::Server, id::AbstractString)
+    decl, msgs = lock(server.clients_lock) do
+        isempty(server.clients) && return nothing, Frame[]
+        return modules_message(server.modules; server.ellipsoid, server.imagery, server.lighting,
+                               server.stars, furniture = declared_furniture(server),
+                               assets = declared_assets(server)),
+               Frame[f for (key, f) in server.retained if first(key) == id]
+    end
+    decl === nothing && return nothing
+    broadcast_all!(server, decl; record = false)
+    for m in msgs
+        broadcast_all!(server, m; record = false)
+    end
+    return nothing
+end
+
 # Broadcast to every client; drop any that error mid-send. Named so as not to shadow Base.broadcast!.
 # Sends while holding the lock — a slow client stalls all broadcasts; fine for localhost.
-function broadcast_all!(server::Server, msg::Frame)
+#
+# `record = false` keeps a frame out of an open recording. A recording names its module set in its
+# header, and a player resolves each module against a base of its own from that header alone — so a
+# declaration replayed from the body of the recording would send the player at a URL that only the
+# live server answers.
+function broadcast_all!(server::Server, msg::Frame; record = true)
     n = 0
     # Laid out once for every client: the layout is the same for all of them, and a window's region
     # is the bulk of the message.
     bytes = pack(msg)
     lock(server.clients_lock) do
-        record_frame!(server, msg)
+        record && record_frame!(server, msg)
         for ws in collect(server.clients)
             try
                 HTTP.WebSockets.send(ws, bytes); n += 1
