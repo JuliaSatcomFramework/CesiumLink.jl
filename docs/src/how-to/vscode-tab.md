@@ -9,24 +9,33 @@ The page in that panel is the same viewer a browser gets, running the same Core.
 
 ## 1. Install the extension
 
-The extension is not on the marketplace. Build it from the repository and install the file:
+Search the Extensions view for **CesiumLink**, or install
+[disberd.cesiumlink](https://marketplace.visualstudio.com/items?itemName=disberd.cesiumlink) from
+the marketplace page. It needs VSCode 1.102 or later.
 
-```sh
-cd extension
-npx @vscode/vsce package --allow-missing-repository
-```
-
-Install the `.vsix` it writes with **Extensions: Install from VSIX…** from the command palette.
-Over Remote-SSH, run that command **in the remote window** — the extension runs beside your Julia
-process, not beside your editor.
-
-**Installing a rebuilt `.vsix` whose version has not changed does nothing, and says nothing.** Raise
-the version in `extension/package.json`, or install from the command line with `--force`, whenever
-you rebuild the extension and want to run what you rebuilt.
+Over Remote-SSH, install it **from the remote window**. The extension runs beside your Julia
+process rather than beside your editor, and VSCode installs it on the host that owns the workspace,
+which is the remote one only when the window is.
 
 The extension ships no Cesium. It reads the built viewer tree that the server records, so the page
 and the server cannot drift apart. **The extension host and the Julia process must share a
 filesystem**; a scene on a third machine reports the path it looked for and opens nothing.
+
+### Building it from this repository instead
+
+To run a build of your own, package the sources and install the file:
+
+```sh
+cd extension
+npx @vscode/vsce package
+```
+
+Install the `.vsix` it writes with **Extensions: Install from VSIX…** from the command palette, run
+in the remote window over Remote-SSH.
+
+**Installing a rebuilt `.vsix` whose version has not changed does nothing, and says nothing.** Raise
+the version in `extension/package.json`, or install from the command line with `--force`, whenever
+you rebuild the extension and want to run what you rebuilt.
 
 ## 2. Open a scene
 
@@ -77,6 +86,11 @@ nothing and prints nothing.
 | `:auto` | Asks for a tab from a VSCode terminal. Silent everywhere else. |
 | `true` | Asks wherever it runs, and says why it could not. |
 | `false` | Never asks. |
+
+**Which window the tab opens in.** A terminal of a remote window names the socket that reaches that
+window, so the tab opens where you started the scene. A terminal of a local window names no such
+socket — VSCode publishes one for remote windows alone — and the request goes to whichever window is
+active. With one window open the two are the same thing.
 
 **VSCode asks you for permission before the tab opens, and asks again for every scene** until you
 tick *"do not ask again for this extension"* in that dialog. The server does not wait for your

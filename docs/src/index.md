@@ -87,7 +87,12 @@ A new reader starts with [Your first scene](tutorials/first-scene.md).
 ## Requirements
 
 - Julia 1.10 or later.
-- A browser with WebGL 2.0.
+- Somewhere to draw the globe, which is either of:
+  - a browser with WebGL 2.0, or
+  - VSCode 1.102 or later with the
+    [CesiumLink extension](https://marketplace.visualstudio.com/items?itemName=disberd.cesiumlink),
+    which draws the scene in an editor tab — see
+    [Show a scene in a VSCode tab](how-to/vscode-tab.md).
 
-The browser needs no extra software and no build step. The server serves the viewer's own
-assets.
+Neither needs extra software and neither needs a build step. The server serves the viewer's own
+assets, and the extension reads the same tree off the disk.
