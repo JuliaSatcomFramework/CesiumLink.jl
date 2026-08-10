@@ -1,9 +1,19 @@
 name: Docs
 
-# The site is built by hand or on a tag, never on every push: the build runs every example, and
-# starts a server for each one, so it takes minutes rather than seconds.
+# The build runs every example and starts a server for each one, so it takes minutes rather than
+# seconds. It runs on every push to `main` all the same: a site that only a human remembers to
+# deploy is a site that describes the state before last.
+#
+# No `paths` filter narrowing that to the pushes that can change a page. A path filter applies to
+# every ref the trigger names, and a tag push carries no file diff for one to read, so adding a
+# filter risks dropping the deploy that matters most and saying nothing about it. A build that had
+# nothing to do costs runner time and deploys the same pages again.
+#
+# A burst of pushes costs two builds and not one per push: the concurrency group below holds one
+# run and one waiting behind it, and GitHub drops the waiting run when a newer one arrives.
 on:
   push:
+    branches: [main]
     # A package version tag, and nothing else that starts with the letter v. `v*` also matches
     # `viewer-v0.1.1`, the tag of a viewer artifact release, which has no reason to rebuild the site.
     tags: ["v[0-9]*"]
