@@ -433,6 +433,16 @@ makedocs(;
     ],
 )
 
+# GitHub Pages runs Jekyll over a branch that carries no `.nojekyll` marker, and Jekyll rewrites
+# every `.md` file it finds into `.html`. The viewer ships the two Cesium licence files as Markdown,
+# so without this marker they answer 404 at the path the built tree puts them — and `NOTICE`
+# promises that path. Nothing else writes the marker: Documenter writes it from its HTML writer
+# alone, which this build does not use. One site per base is built, each in a numbered directory.
+for name in readdir(joinpath(@__DIR__, "build"))
+    dir = joinpath(@__DIR__, "build", name)
+    occursin(r"^\d+$", name) && isdir(dir) && touch(joinpath(dir, ".nojekyll"))
+end
+
 # `forcepush` amends the last commit on `gh-pages` instead of adding one, so the branch keeps one
 # snapshot of the site. `gh-pages` is generated output, and it grows fast: `record_frame!` stamps
 # every frame from the wall clock, so each build writes about 1.2 MB of recordings that differ from
