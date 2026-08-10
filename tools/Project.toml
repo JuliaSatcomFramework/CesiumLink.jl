@@ -1,0 +1,14 @@
+# The environment the regression harness runs in. It is not the package environment: the harness
+# serves the `Constellation` example, so it needs both that package and CesiumLink, each by the path
+# it has in this repository.
+#
+# `[sources]` needs Julia 1.11. The package itself supports 1.10 — this file constrains whoever runs
+# the harness, not whoever installs CesiumLink.
+[deps]
+CesiumLink = "fe4ddbe3-63a4-4ce0-8a5b-46bb22807cc2"
+Constellation = "6e120adb-177b-4e06-8f8c-644206b35d48"
+JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
+
+[sources]
+CesiumLink = { path = ".." }
+Constellation = { path = "../examples/Constellation" }
