@@ -20,6 +20,10 @@ let paths = Dict("CesiumLink" => REPO_ROOT,
     isempty(missing_packages) ||
         Pkg.develop([Pkg.PackageSpec(path = paths[n]) for n in missing_packages])
 end
+# A local package that gains a dependency leaves every manifest that names it stale, and the manifest
+# here is generated and never committed. `resolve` rebuilds the graph from the project files; without
+# it an existing tree fails at the first `using` with "does not have X in its dependencies".
+Pkg.resolve()
 Pkg.instantiate()
 
 using Documenter, DocumenterVitepress

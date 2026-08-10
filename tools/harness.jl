@@ -14,6 +14,13 @@
 #
 # Every option other than those consumed here is passed straight through to the browser half.
 
+# Both packages here are local, and a local package that gains a dependency leaves every manifest
+# that names it stale. The manifest is generated and never committed, so this rebuilds the graph
+# from the project files; without it the run stops at the first `using` with "does not have X in its
+# dependencies".
+using Pkg
+Pkg.resolve()
+
 using CesiumLink
 using Constellation: ConstellationScene, CHUNK_FRAMES
 using JSON
