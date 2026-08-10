@@ -464,7 +464,10 @@ function write_atomically(file, content)
         # The renamed file brings its own mode, so carry over the mode of the file it replaces.
         # A write in place keeps the mode, and the discovery file is deliberately 0600.
         isfile(file) && (try; chmod(tmp, filemode(file) & 0o777); catch; end)
-        mv(tmp, file; force = true)
+        # `rename` and not `mv(; force = true)`: `mv` removes the destination and then renames, and
+        # a reader that opens the file between the two finds nothing there. Which is the whole point
+        # of writing it this way, and the gap is wide enough that Windows lands in it.
+        Base.Filesystem.rename(tmp, file)
     catch
         rm(tmp; force = true)
         rethrow()
