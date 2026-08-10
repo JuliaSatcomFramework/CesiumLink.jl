@@ -104,10 +104,15 @@ cd lib && npm ci && npm run build     # writes lib/dist, which the package prefe
 
 ## Install
 
+CesiumLink is not in the General registry yet. It goes there after a period of use tells us the API
+is stable. Until then, add it from this repository:
+
 ```julia
 using Pkg
-Pkg.add("CesiumLink")
+Pkg.add(url = "https://github.com/JuliaSatcomFramework/CesiumLink.jl")
 ```
+
+`Pkg.update` then follows the `main` branch of the repository.
 
 ## License
 
