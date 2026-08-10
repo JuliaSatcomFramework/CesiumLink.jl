@@ -438,7 +438,12 @@ makedocs(;
 # every frame from the wall clock, so each build writes about 1.2 MB of recordings that differ from
 # the last set byte for byte. A plain `git clone` fetches every branch, so that weight is paid by
 # everyone who clones. This branch is the one place where a force push is correct.
-deploydocs(;
+#
+# `DocumenterVitepress.deploydocs`, and never Documenter's own: a Vitepress site is not relocatable,
+# so one `makedocs` writes a whole site per base into `build/1`, `build/2` and so on, and names them
+# in `build/bases.txt`. Documenter's function knows nothing of that layout. It deploys the build
+# directory whole, which puts the site one level down at `dev/1/` and leaves `dev/` itself a 404.
+DocumenterVitepress.deploydocs(;
     repo = "github.com/JuliaSatcomFramework/CesiumLink.jl",
     devbranch = "main",
     forcepush = true,
