@@ -336,8 +336,8 @@ end
 The port `server` listens on. With the default `port = 0` the operating system picks the number, and
 this is how to read which one it picked.
 
-Do not print a [`Server`](@ref) to find the port. A server holds every frame it retains, so one
-`show` of it writes hundreds of thousands of characters.
+Printing a [`Server`](@ref) shows the viewer URL, which names the port. This is the number itself,
+for a program that has to build something else out of it.
 """
 bound_port(server::Server) = server.listener.bound_port
 
@@ -353,8 +353,8 @@ The URL to open this server's viewer page at, port and all — `http://127.0.0.1
 the default loopback bind. A wildcard bind answers on every interface, which is not an address to
 send a browser to, so the URL names the loopback for that case as well.
 
-Print this rather than a [`Server`](@ref), and rather than a port number you chose — with the
-default `port = 0` there is no number to choose.
+Printing a [`Server`](@ref) shows this URL. Use the function to put it in a message of your own,
+rather than a port number you chose: with the default `port = 0` there is no number to choose.
 
 The `ws` query parameter is what tells the page to connect, and `auto` points it at the same-origin
 `/ws`. A page opened without it builds an empty globe and asks this server for nothing, which reads
@@ -369,6 +369,26 @@ function viewer_url(server::Server)
     server.listener === nothing && throw(ArgumentError("this server is stopped"))
     return "http://$(url_host(server.host)):$(bound_port(server))/?ws=auto"
 end
+
+# A server holds every frame it retains, so its fields are hundreds of thousands of characters of
+# nothing a session wants to read. What a session does want is where to open the page and whether
+# anything is attached to it.
+function Base.show(io::IO, ::MIME"text/plain", server::Server)
+    if server.listener === nothing
+        print(io, "CesiumLink server (stopped)")
+        return nothing
+    end
+    n = lock(() -> length(server.clients), server.clients_lock)
+    print(io, "CesiumLink server at ", viewer_url(server), " (", n, n == 1 ? " client)" : " clients)")
+    # The URI the editor extension answers on, which is how a tab closed after the server started is
+    # opened again. VSCode makes it clickable in its own terminal, and no other terminal can open it.
+    in_vscode_terminal() && print(io, "\n  VSCode tab: ", scene_uri(bound_port(server)))
+    return nothing
+end
+
+# One line, for a server printed inside something else.
+Base.show(io::IO, server::Server) =
+    print(io, "Server(", server.listener === nothing ? "stopped" : viewer_url(server), ")")
 
 """
     discovery_dir() -> String
@@ -566,6 +586,12 @@ end
 # there as `port%3D50005`.
 scene_uri(port::Integer) = "vscode://disberd.cesiumlink/open/$(Int(port))"
 
+# Whether this process was started from a VSCode terminal. `TERM_PROGRAM` survives into a subshell
+# and into `tmux`, where it names a window this process is no longer attached to. The socket the
+# command line needs is the stronger signal, so ask for it first.
+in_vscode_terminal() =
+    haskey(ENV, "VSCODE_IPC_HOOK_CLI") || get(ENV, "TERM_PROGRAM", "") == "vscode"
+
 # The `code` program VSCode put on PATH, and not another program of that name.
 #
 # A remote window reaches its editor through a command line in a `remote-cli` directory, and VSCode
@@ -588,11 +614,7 @@ end
 # alone.
 function push_to_editor(port::Integer, mode)
     if mode !== true
-        # `TERM_PROGRAM` survives into a subshell and into `tmux`, where it names a window this
-        # process is no longer attached to. The socket the command line needs is the stronger
-        # signal, so ask for it first.
-        haskey(ENV, "VSCODE_IPC_HOOK_CLI") || get(ENV, "TERM_PROGRAM", "") == "vscode" ||
-            return "the environment names no VSCode terminal"
+        in_vscode_terminal() || return "the environment names no VSCode terminal"
     end
     code = editor_cli()
     code === nothing && return "no `code` program on PATH"

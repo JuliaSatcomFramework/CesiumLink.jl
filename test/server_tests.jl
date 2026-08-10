@@ -1157,3 +1157,23 @@ end
         end
     end
 end
+
+@testitem "showing a server names the page rather than its fields" begin
+    server = start_server(; dist_dir = nothing)
+    try
+        shown = withenv("VSCODE_IPC_HOOK_CLI" => nothing, "TERM_PROGRAM" => nothing) do
+            sprint(show, MIME"text/plain"(), server)
+        end
+        @test shown == "CesiumLink server at $(viewer_url(server)) (0 clients)"
+        # A VSCode terminal gets the URI that opens the tab again, and nothing else does.
+        in_editor = withenv("TERM_PROGRAM" => "vscode") do
+            sprint(show, MIME"text/plain"(), server)
+        end
+        @test endswith(in_editor, "\n  VSCode tab: vscode://disberd.cesiumlink/open/$(bound_port(server))")
+        @test sprint(show, server) == "Server($(viewer_url(server)))"
+    finally
+        stop_server(server)
+    end
+    @test sprint(show, MIME"text/plain"(), server) == "CesiumLink server (stopped)"
+    @test sprint(show, server) == "Server(stopped)"
+end
