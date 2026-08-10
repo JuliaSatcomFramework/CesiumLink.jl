@@ -11,8 +11,14 @@ concurrency:
 
 jobs:
   js:
-    name: Viewer
-    runs-on: ubuntu-latest
+    name: Viewer (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # One platform's failure must not cancel the others: the point of the matrix is to see which
+      # platforms pass, and a cancelled run reports nothing about them.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
     defaults:
       run:
         working-directory: lib
@@ -29,8 +35,12 @@ jobs:
       - run: npm test
 
   julia:
-    name: Julia
-    runs-on: ubuntu-latest
+    name: Julia (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -41,7 +51,11 @@ jobs:
       # Build the viewer first. The suite asks `viewer_dist()` for the tree it serves, and that
       # function prefers `lib/dist`. Without this step it falls back to the release artifact, and
       # the tests then measure a build other than this one.
-      - run: npm ci && npm run build
+      #
+      # Two steps rather than one `&&`: the Windows runner reads a `run:` block with PowerShell.
+      - run: npm ci
+        working-directory: lib
+      - run: npm run build
         working-directory: lib
       - uses: julia-actions/setup-julia@v2
         with:
