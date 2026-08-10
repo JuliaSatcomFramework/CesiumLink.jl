@@ -7,11 +7,24 @@ by the sun and under a star field. The camera opens on the whole sky and then ri
 julia examples/Satellites/run.jl
 ```
 
-**This is the one example with no scene on its page.** The mission is 240 keyframes, and every
-keyframe carries a position for each of 60 satellites and for each of the 21 vertices of its trail.
-A recording of the whole mission is several megabytes, which every reader of this page would
-download. Run the command above instead. The documentation build still builds the scene and measures
-its arrays, so the code below is code that runs.
+The scene below is a recording of that program, played in the browser.
+
+```@raw html
+<!-- The basemap tiles come from CARTO's CDN, which nothing here controls. A globe wearing Earth's
+     bundled texture means that host is unreachable, not that the viewer is broken. -->
+<iframe src="../viewer/player.html?rec=../recordings/satellites.jsonl&modules=modules"
+        title="Sixty satellites dragging glowing trails over a lit globe, played in the browser"
+        loading="lazy"
+        style="width:100%;aspect-ratio:16/10;border:1px solid var(--vp-c-divider);border-radius:8px">
+</iframe>
+```
+
+Watch one trail as it crosses the terminator. Then wait: at keyframe 12 the camera leaves the whole
+sky and rides satellite 1 for the rest of the mission.
+
+The mission is short on purpose — 30 keyframes, fifteen minutes of orbit. Every keyframe carries a
+position for each of 60 satellites and for each of the nine vertices of its trail, so a mission long
+enough to cover a whole orbit would be several megabytes on this page.
 
 ## The trail hangs off points nobody sees
 
@@ -37,21 +50,21 @@ no `show` and is never torn down.
 ## A vertex is an offset, not an instant
 
 ```julia
-const TRACK_OFFSETS = (-TRAIL_SECONDS):50.0:LEAD_SECONDS
+const TRACK_OFFSETS = (-TRAIL_SECONDS):DT_SECONDS:LEAD_SECONDS
 ```
 
 Each vertex stands at a fixed offset **from the keyframe**, not at a fixed instant of the mission. So
 the whole ladder slides along the orbit with the satellite rather than staying put while the satellite
-leaves it.
+leaves it. Nine vertices: six behind the satellite, the satellite, and two ahead of it.
 
 It slides smoothly because a position is the one thing the viewer blends between keyframes. Every
 other knob switches at the crossing. The vertex at offset zero rides the same blend as the marker, so
 the head of the trail cannot drift off the satellite it belongs to.
 
 The ladder is also what the window costs: one position per satellite per offset per keyframe. That is
-why the window is eight keyframes and the offsets are 50 seconds apart. A 50-second chord of a low
-orbit stands about 3 km inside the arc it cuts, which is under one pixel at any range the whole globe
-is visible from.
+why the window is eight keyframes and the offsets are one keyframe interval apart. A 30-second chord
+of a low orbit stands about 1 km inside the arc it cuts, which is well under one pixel at any range
+the whole globe is visible from.
 
 ## The globe is lit and the sky is drawn
 
@@ -76,7 +89,7 @@ declare_camera(server,
 ```
 
 Two stops. The first is a fixed viewpoint over the whole sky. The second names an entity, so the
-camera flies to it at keyframe 24 and then stays with it: the marker holds still in the frame while
+camera flies to it at keyframe 12 and then stays with it: the marker holds still in the frame while
 the ground and the other orbits sweep under it.
 
 A drag while the camera rides steers around the satellite and keeps riding it. The track is declared
@@ -96,9 +109,9 @@ moves a satellite by a few metres, far under one pixel at this scale.
 
 ## What it does not do
 
-The scene holds the whole mission in memory: two hours of 60 satellites is a small array, so it is
-propagated once at construction. A mission long enough for that to matter propagates per window
-instead, which is what [Constellation](constellation.md) does.
+The scene holds the whole mission in memory: fifteen minutes of 60 satellites is a small array, so
+it is propagated once at construction. A mission long enough for that to matter propagates per
+window instead, which is what [Constellation](constellation.md) does.
 
 ## Full source
 

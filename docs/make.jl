@@ -43,25 +43,6 @@ function stage_external()
     stage_examples()
     record_examples()
     record_tutorials()
-    check_satellites()
-    return nothing
-end
-
-# The Satellites example alone has no recording, so its scene is built and measured here instead.
-# Two hours of 60 satellites, each dragging a trail of 21 vertices, is several megabytes of window,
-# and a recording of the whole mission would be downloaded by every reader of the page.
-function check_satellites()
-    scene = SATELLITES.SatelliteScene()
-    @assert length(scene.names) == 60
-    families = SATELLITES.window_families(scene, 1, SATELLITES.CHUNK_FRAMES)
-    track = only(f for f in families if f isa Nodes && f.kind == "track")
-    trail = only(f for f in families if f isa Edges)
-    # The trail hangs off a node family nothing draws, and its segments join consecutive vertices of
-    # one satellite. A layout that stops agreeing with the segments draws a cat's cradle across the
-    # sky, which no other check here would notice.
-    @assert size(track.position) == (3, 60 * length(SATELLITES.TRACK_OFFSETS),
-                                     SATELLITES.CHUNK_FRAMES)
-    @assert size(trail.pairs, 2) == 60 * (length(SATELLITES.TRACK_OFFSETS) - 1)
     return nothing
 end
 
@@ -187,6 +168,29 @@ function record_examples()
         @assert minimum(scene.values) < 0 < maximum(scene.values)
     end
 
+    # The lit globe, the sky and the basemap belong to this scene, so the recording is made off a
+    # server declaring all three. A recording carries the declaration, so the played page gets them
+    # back without a query string.
+    record_example("satellites.jsonl";
+                   after = (server, _) -> pull_windows(server, SATELLITES.CHUNK_FRAMES,
+                                                       SATELLITES.TOTAL_FRAMES),
+                   imagery = SATELLITES.IMAGERY, lighting = true, stars = true) do server
+        scene = SATELLITES.SatelliteScene()
+        SATELLITES.install_satellite_scene!(server, scene)
+        @assert length(scene.names) == 60
+        families = SATELLITES.window_families(scene, 1, SATELLITES.CHUNK_FRAMES)
+        track = only(f for f in families if f isa Nodes && f.kind == "track")
+        trail = only(f for f in families if f isa Edges)
+        # The trail hangs off a node family nothing draws, and its segments join consecutive vertices
+        # of one satellite. A layout that stops agreeing with the segments draws a cat's cradle
+        # across the sky, and a recording of that is as valid as a recording of the trails.
+        @assert size(track.position) == (3, 60 * length(SATELLITES.TRACK_OFFSETS),
+                                         SATELLITES.CHUNK_FRAMES)
+        @assert size(trail.pairs, 2) == 60 * (length(SATELLITES.TRACK_OFFSETS) - 1)
+        return scene
+    end
+    assert_fills(joinpath(SRC, "public", "recordings", "satellites.jsonl"))
+
     record_example("constellation.jsonl"; after = pull_the_rest) do server
         scene = ConstellationScene()
         families = Constellation.window_families(scene, 1, Constellation.CHUNK_FRAMES)
@@ -268,9 +272,11 @@ end
 # Ask the constellation for the rest of its mission by the route a viewer's own `core/need` takes, so
 # the recording exercises the listener the example ships rather than a path written for it here. The
 # recording is open by now, so each window lands at its own offset and the page fills as it plays.
-function pull_the_rest(server, scene)
-    chunk = Constellation.CHUNK_FRAMES
-    for first_frame in (chunk + 1):chunk:scene.total_frames
+pull_the_rest(server, scene) =
+    pull_windows(server, Constellation.CHUNK_FRAMES, scene.total_frames)
+
+function pull_windows(server, chunk, total_frames)
+    for first_frame in (chunk + 1):chunk:total_frames
         sleep(1)
         CesiumLink.request_window(server, first_frame, chunk, :append)
     end
@@ -294,8 +300,8 @@ end
 # port.
 # `after` runs with the recording already open, so what it sends is written at its own offset
 # rather than into the standing scene at offset zero.
-function record_example(build, name; after = (server, scene) -> nothing)
-    server = start_server(; dist_dir = DIST, host = "127.0.0.1", port = 0)
+function record_example(build, name; after = (server, scene) -> nothing, server_args...)
+    server = start_server(; dist_dir = DIST, host = "127.0.0.1", port = 0, server_args...)
     try
         scene = build(server)
         record!(server, joinpath(SRC, "public", "recordings", name))

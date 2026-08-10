@@ -21,8 +21,6 @@ of the API its author reaches for.
 The code of each one is on its page, in full. It also sits in the package, under `examples/`, so a
 clone carries it and you can run it where you read it.
 
-Every example runs during the documentation build. Three of the four pages carry a recording of that
+Every example runs during the documentation build. The scene on each page is a recording of that
 run, played in the browser with no Julia behind it — see
-[Record and replay a session](../how-to/record-replay.md). [Satellite trails](satellites.md) is the
-exception: its mission is several megabytes of window, so its page shows the program and asks you to
-run it.
+[Record and replay a session](../how-to/record-replay.md).

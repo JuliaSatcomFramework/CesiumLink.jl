@@ -41,27 +41,27 @@ using SatelliteToolboxTransformations: r_eci_to_ecef
 
 const TLE_FILE = joinpath(@__DIR__, "leo-20200122.tle")
 const DT_SECONDS = 30.0         # mission time between two keyframes
-const TOTAL_FRAMES = 240        # the whole mission: two hours, a little over one orbit
+const TOTAL_FRAMES = 30         # the whole mission: fifteen minutes, a sixth of an orbit
 # What one window carries. The trail costs a position per satellite per offset per keyframe, so the
-# window is short: eight keyframes are 200 KB and six seconds of playback, which is time enough to
-# ask for the next eight and have them arrive. A long window would only put more of the mission in
+# window is short: eight keyframes are about 100 KB and six seconds of playback, which is time enough
+# to ask for the next eight and have them arrive. A long window would only put more of the mission in
 # the viewer's buffer, and it is the buffer a scrub has to be answered out of.
 const CHUNK_FRAMES = 8
 const INTERVAL_SECONDS = 0.75   # wall-clock time one keyframe interval plays over
-const LEAD_SECONDS = 1200.0     # how far ahead of the satellite the trail is drawn
-const TRAIL_SECONDS = 500.0     # and how far behind it
-# Where the trail has a vertex, as an offset from the keyframe. A 50 s chord of a low orbit stands
-# about 3 km inside the arc it cuts, which is under a pixel at any range the whole globe is visible
-# from, and the ladder is what the window pays for: one position per satellite per offset per
-# keyframe.
-const TRACK_OFFSETS = (-TRAIL_SECONDS):50.0:LEAD_SECONDS
+const LEAD_SECONDS = 60.0       # how far ahead of the satellite the trail is drawn
+const TRAIL_SECONDS = 180.0     # and how far behind it
+# Where the trail has a vertex, as an offset from the keyframe. The step is one keyframe interval, so
+# the ladder is nine vertices: six behind the satellite, the satellite, and two ahead of it. A 30 s
+# chord of a low orbit stands about 1 km inside the arc it cuts, which is well under a pixel at any
+# range the whole globe is visible from, and the ladder is what the window pays for: one position per
+# satellite per offset per keyframe.
+const TRACK_OFFSETS = (-TRAIL_SECONDS):DT_SECONDS:LEAD_SECONDS
 const SAT_COLOR = "#00e5ff"
 const TRAIL_COLOR = "#00e5ff80"
-# The tour: which satellite the camera rides, and the keyframe it gets on at. Twenty-four keyframes
-# is eighteen seconds of playback, which is time enough to read the whole sky before the camera
-# leaves it.
+# The tour: which satellite the camera rides, and the keyframe it gets on at. Twelve keyframes is
+# nine seconds of playback, which is time enough to read the whole sky before the camera leaves it.
 const RIDE_SAT = 1
-const RIDE_FRAME = 24
+const RIDE_FRAME = 12
 const IMAGERY = Imagery("https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png";
                         max_level = 18, credit = "© OpenStreetMap · © CARTO")
 
