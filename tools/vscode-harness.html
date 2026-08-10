@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>CesiumLink — the VSCode host under the harness</title>
+  <!--
+    The VSCode host, made measurable in headless Chrome. Chrome cannot open a webview, so this page
+    loads the same bundle and gives it a stub `acquireVsCodeApi`. The stub bridges the webview
+    channel to a real WebSocket.
+
+    What this exercises: the VSCode transport, the `hello` handshake, the import of a declared
+    module, and the worker shim. The shim reroutes any `http:` worker URL, so a same-origin asset
+    base still runs the workers from `cesium/WorkersBundled/`.
+
+    Warning: do not read a pass here as proof that the webview works. This page does not reproduce
+    cross-origin isolation, and that is the condition the worker shim exists for.
+
+    This page is not the page the extension writes. The extension's page carries a content security
+    policy and a nonce, and it runs in a webview. This page runs same-origin in a browser. The two
+    are allowed to differ, and neither one is built from the other.
+  -->
+  <link rel="stylesheet" href="vscode.css" />
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; background: #000; }
+    #app { position: absolute; inset: 0; }
+  </style>
+  <script>
+    // The stub extension. It holds every message until the page sends `hello`, exactly as the
+    // extension must: the page speaks first by design, because a webview drops anything posted to
+    // it before it listens.
+    (() => {
+      // The serving origin holds the `cesium/` and `modules/` trees, and the base ends with a slash.
+      globalThis.CESIUM_LINK_ASSET_BASE = location.origin + "/";
+
+      const scheme = location.protocol === "https:" ? "wss" : "ws";
+      const socket = new WebSocket(`${scheme}://${location.host}/ws`);
+      socket.binaryType = "arraybuffer";
+
+      let listening = false;
+      const held = [];
+      const toPage = (msg) => (listening ? window.postMessage(msg, "*") : held.push(msg));
+
+      socket.addEventListener("open", () => toPage({ type: "open" }));
+      socket.addEventListener("message",
+        (ev) => toPage({ type: "frame", payload: new Uint8Array(ev.data) }));
+      socket.addEventListener("close",
+        (ev) => toPage({ type: "closed", reason: ev.reason || undefined }));
+
+      const api = {
+        postMessage(msg) {
+          if (msg.type === "hello") {
+            listening = true;
+            for (const m of held) window.postMessage(m, "*");
+            held.length = 0;
+          } else if (msg.type === "frame") {
+            socket.send(msg.payload);
+          } else if (msg.type === "close") {
+            socket.close();
+          } else if (msg.type === "log") {
+            // Nothing in a webview reaches a terminal, so the host sends its own failures out. Here
+            // the console is where a reader looks.
+            console.log("viewer:", msg.line);
+          }
+        },
+      };
+      globalThis.acquireVsCodeApi = () => api;
+    })();
+  </script>
+</head>
+<body>
+  <div id="app"></div>
+  <script type="module" src="vscode.js"></script>
+</body>
+</html>

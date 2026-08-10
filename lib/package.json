@@ -1,0 +1,25 @@
+{
+  "name": "cesiumlink-viewer",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Cesium 3D globe viewer for time-dynamic scenes, driven from Julia",
+  "scripts": {
+    "build": "node build.mjs",
+    "serve": "node build.mjs && node serve.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit && node --check ../extension/extension.js && node --check ../extension/uri.js",
+    "test": "node --test '{core,vscode,primitives,ui,heatmap,models}/**/*.test.mjs' '{core,vscode,primitives,ui,heatmap,models}/**/*.test.ts' '../extension/**/*.test.mjs'",
+    "harness": "node build.mjs && julia --project=../tools ../tools/harness.jl",
+    "harness:check": "node build.mjs && julia --project=../tools ../tools/harness.jl --check tools/baseline/harness.json"
+  },
+  "devDependencies": {
+    "esbuild": "^0.23.0",
+    "typescript": "^5.5.0"
+  },
+  "dependencies": {
+    "@cesium/engine": "26.1.0",
+    "@cesium/widgets": "^16.1.0"
+  },
+  "allowScripts": {
+    "esbuild@0.23.1": true
+  }
+}

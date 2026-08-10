@@ -1,0 +1,3 @@
+*.vsix
+# The tests run from the repo, not from the packaged extension.
+*.test.mjs

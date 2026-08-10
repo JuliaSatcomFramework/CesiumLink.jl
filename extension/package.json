@@ -1,0 +1,41 @@
+{
+  "name": "cesiumlink",
+  "displayName": "CesiumLink",
+  "description": "A live CesiumLink scene in an editor tab, over a relayed WebSocket.",
+  "version": "0.1.5",
+  "publisher": "disberd",
+  "engines": {
+    "vscode": "^1.102.0"
+  },
+  "categories": [
+    "Visualization"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JuliaSatcomFramework/CesiumLink.jl.git",
+    "directory": "extension"
+  },
+  "main": "./extension.js",
+  "activationEvents": [
+    "onUri"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "cesiumLink.pickScene",
+        "title": "CesiumLink: Pick a Scene"
+      }
+    ],
+    "configuration": {
+      "title": "CesiumLink",
+      "properties": {
+        "cesiumLink.distDir": {
+          "type": "string",
+          "default": "",
+          "description": "Absolute path of the built viewer tree (the whole dist folder: vscode.js loads a chunk beside it, and cesium/ holds the assets). A scene found in the discovery directory names its own tree; this setting applies only to a host and port typed by hand."
+        }
+      }
+    }
+  }
+}
