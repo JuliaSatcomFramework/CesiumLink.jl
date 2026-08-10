@@ -659,6 +659,13 @@ editor_command(path, uri) =
 function push_to_editor(port::Integer, mode)
     if mode !== true
         in_vscode_terminal() || return "the environment names no VSCode terminal"
+        # `TERM_PROGRAM` says a VSCode terminal started this process. The socket says which window,
+        # and the command line reaches a running window through that socket alone: without it `code`
+        # starts a VSCode of its own, which opens a window nobody asked for and answers the URI
+        # there. A window that appears out of nowhere is worse than no window, so `:auto` stops here
+        # and the reader opens the tab from the URI that `show` prints. `open = true` still asks.
+        haskey(ENV, "VSCODE_IPC_HOOK_CLI") ||
+            return "this terminal names no VSCode window to ask; `code` would open one of its own"
     end
     code = editor_cli()
     code === nothing && return "no `code` program on PATH"

@@ -987,16 +987,24 @@ end
             end
         end
 
-        # The socket of the command line is the first signal, and `TERM_PROGRAM` the second.
-        for editor in (("VSCODE_IPC_HOOK_CLI" => "/run/user/1000/vscode-ipc.sock",
-                        "TERM_PROGRAM" => nothing),
-                       ("VSCODE_IPC_HOOK_CLI" => nothing, "TERM_PROGRAM" => "vscode"))
-            rm(seen; force = true)
-            withenv("PATH" => dir * ":" * get(ENV, "PATH", ""), editor...) do
-                Sys.isunix() || return
-                @test CesiumLink.push_to_editor(50005, :auto) === nothing
-                @test ran() == "--openExternal vscode://disberd.cesiumlink/open/50005"
-            end
+        # The socket names the window to ask, and the push needs it.
+        rm(seen; force = true)
+        withenv("PATH" => dir * ":" * get(ENV, "PATH", ""),
+                "VSCODE_IPC_HOOK_CLI" => "/run/user/1000/vscode-ipc.sock",
+                "TERM_PROGRAM" => nothing) do
+            Sys.isunix() || return
+            @test CesiumLink.push_to_editor(50005, :auto) === nothing
+            @test ran() == "--openExternal vscode://disberd.cesiumlink/open/50005"
+        end
+
+        # A VSCode terminal that names no socket is one whose window the command line cannot reach.
+        # Asking anyway opens a VSCode of its own, which is a window nobody asked for.
+        rm(seen; force = true)
+        withenv("PATH" => dir * ":" * get(ENV, "PATH", ""),
+                "VSCODE_IPC_HOOK_CLI" => nothing, "TERM_PROGRAM" => "vscode") do
+            @test CesiumLink.push_to_editor(50005, :auto) ==
+                  "this terminal names no VSCode window to ask; `code` would open one of its own"
+            @test !isfile(seen)
         end
 
         # A terminal of another editor is not one of ours.
