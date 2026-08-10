@@ -29,6 +29,34 @@ Pkg.instantiate()
 using Documenter, DocumenterVitepress
 using CesiumLink
 
+# Every ordered list DocumenterVitepress 0.3.5 writes is numbered from 2: its markdown writer labels
+# the item at index `i` with `i + 1`. The number is the whole defect. A "2." line cannot interrupt
+# the paragraph above it — CommonMark lets only a list starting at 1 do that — so the first item is
+# also absorbed into that paragraph, and the reader sees a run-on sentence followed by a list that
+# starts at 3.
+#
+# The body below is DocumenterVitepress PR 387, which is merged and unreleased. The method replaces
+# the released one, and it is installed here rather than as a pass over the generated files because
+# `makedocs` builds the Vitepress site itself when `CI` is set: there is no point after it at which
+# the markdown is still what the site is built from. Delete the whole block once a release carries
+# the fix.
+function DocumenterVitepress.render(io::IO, mime::MIME"text/plain",
+                                    node::Documenter.MarkdownAST.Node,
+                                    list::Documenter.MarkdownAST.List, page, doc; kwargs...)
+    bullet(i) = list.type === :ordered ? "$(i). " : "- "
+    iob = IOBuffer()
+    for (i, item) in enumerate(node.children)
+        DocumenterVitepress.render(iob, mime, item, item.children, page, doc;
+                                   prenewline = false, kwargs...)
+        lines = split(String(take!(iob)), '\n')
+        lines[2:end] .= "    " .* lines[2:end]
+        body = join(lines, '\n')
+        endswith(body, '\n') || (body *= "\n")
+        print(io, bullet(i))
+        print(io, body)
+    end
+end
+
 # `make_demo_recording`: the session the live player on the recording page plays. Generated here
 # rather than committed, so the scene in the documentation is always the one this tree produces.
 include(joinpath(REPO_ROOT, "tools", "make-demo-recording.jl"))
