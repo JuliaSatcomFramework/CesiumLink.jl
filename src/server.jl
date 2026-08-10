@@ -643,12 +643,14 @@ end
 # globe would silently wear a pyramid the author never named.
 const IMAGERY_MOUNT = "imagery"
 
-# A directory as a mount root: absolute, normalised, and with no trailing slash. The slash carries no
-# meaning here, and a root that keeps one reads as a different directory in a message.
-function mount_dir(path)
-    dir = rstrip(normpath(abspath(String(path))), '/')
-    return isempty(dir) ? "/" : dir
-end
+# A directory as a mount root: absolute, normalised, and with no trailing separator. The separator
+# carries no meaning at the end, and `basename` reads an *empty* name from a path that keeps one — so
+# a mount named after its own directory ends up with no name at all.
+#
+# Split and rejoin rather than strip a character. `splitpath` drops the trailing element and reads
+# either separator, so this holds on every platform; stripping `/` leaves the `\` a Windows path ends
+# with, and stripping `\` as well would turn `C:\` into a drive-relative `C:`.
+mount_dir(path) = joinpath(splitpath(normpath(abspath(String(path))))...)
 
 # The mounts `start_server` was given, as name => absolute directory. A bare string is one mount,
 # named after the last element of its path, so `/data/glb` answers `/assets/glb/`. Every name is part
@@ -771,7 +773,9 @@ Open the page at [`viewer_url(server)`](@ref viewer_url).
 `port` defaults to `0`, which asks the operating system for a free port. Two people on one machine
 therefore never collide, and nobody has to pick a number. Read the port back with
 [`bound_port`](@ref). Pass an explicit port only when something outside this process must reach a
-number it already knows, such as an SSH forward. **An explicit port that is already taken throws.**
+number it already knows, such as an SSH forward. **An explicit port that is already taken throws** —
+on Windows it does not. A socket there takes a port another socket holds, so a second server binds
+the same number and a request reaches one of the two. Leave `port` at `0` on Windows.
 
 `host` defaults to the loopback `127.0.0.1`, so the scene is reachable from this machine alone. This
 package runs on shared multi-user machines, where `"::"` offers the scene to everyone who can route

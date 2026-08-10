@@ -840,10 +840,22 @@ end
 @testitem "an explicit port another server holds throws instead of returning a dead server" begin
     held = start_server(; dist_dir = nothing)
     try
-        # The failure mode this replaces: a `Server` that bound nothing, answers nothing and reports
-        # nothing wrong.
-        @test_throws "could not listen on" start_server(; dist_dir = nothing,
-                                                       port = bound_port(held))
+        if Sys.iswindows()
+            # Windows admits the second bind. A socket there takes a port another socket holds unless
+            # the first asked for exclusive use, so there is no error to report and no dead server:
+            # the second one binds, and a request reaches one of the two listeners.
+            second = start_server(; dist_dir = nothing, port = bound_port(held))
+            try
+                @test bound_port(second) == bound_port(held)
+            finally
+                stop_server(second)
+            end
+        else
+            # The failure mode this replaces: a `Server` that bound nothing, answers nothing and
+            # reports nothing wrong.
+            @test_throws "could not listen on" start_server(; dist_dir = nothing,
+                                                           port = bound_port(held))
+        end
     finally
         stop_server(held)
     end
