@@ -4,21 +4,6 @@ You add two checkboxes to the scene of [tutorial 2](moving-scene.md). Julia answ
 refuses the second one. By the end you have seen that a control decides nothing in the browser. It
 takes about twenty minutes.
 
-The scene you build plays below. It is a recording of the script at the end of this page, and no
-Julia process is behind it.
-
-```@raw html
-<iframe src="../viewer/player.html?rec=../recordings/controls.jsonl&modules=modules"
-        title="Two checkboxes over a moving scene, played in the browser"
-        loading="lazy"
-        style="width:100%;aspect-ratio:16/10;border:1px solid var(--vp-c-divider);border-radius:8px">
-</iframe>
-```
-
-**The recorded page answers no click.** A replay runs no listener, so the two boxes above report to
-nobody and return to the value the recording carries. The answer the server sends is the whole point
-of this tutorial, so run the script to see it.
-
 Close the Julia session from the previous tutorial first. It holds the port this one needs. Then
 start a fresh session.
 
@@ -129,7 +114,21 @@ viewer_url(server)
 
 ## What you see, and what to do
 
-The scene of tutorial 2 plays, with two checkboxes at the bottom right.
+The scene of tutorial 2 plays, with two checkboxes at the bottom right. It plays below as well: the
+player holds a recording of the script at the end of this page, and no Julia process is behind it.
+Read [Record and replay a session](../how-to/record-replay.md) for what a recording holds.
+
+```@raw html
+<iframe src="../viewer/player.html?rec=../recordings/controls.jsonl&modules=modules"
+        title="Two checkboxes over a moving scene, played in the browser"
+        loading="lazy"
+        style="width:100%;aspect-ratio:16/10;border:1px solid var(--vp-c-divider);border-radius:8px">
+</iframe>
+```
+
+**The recorded page answers no click.** A replay runs no listener, so the two boxes above report to
+nobody and return to the value the recording carries. The answer the server sends is the whole point
+of this tutorial, so run the script yourself. The three steps below describe your own run.
 
 **Clear the `Satellites` box.** Three things happen in order:
 

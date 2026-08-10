@@ -3,17 +3,6 @@
 You build a static scene: five labelled points on the globe, under a caption. Julia decides
 everything on screen, and the browser draws what Julia sends. It takes about fifteen minutes.
 
-The scene you build plays below. It is a recording of the script at the end of this page, and no
-Julia process is behind it.
-
-```@raw html
-<iframe src="../viewer/player.html?rec=../recordings/first-scene.jsonl&modules=modules"
-        title="Five labelled cities on the globe, played in the browser"
-        loading="lazy"
-        style="width:100%;aspect-ratio:16/10;border:1px solid var(--vp-c-divider);border-radius:8px">
-</iframe>
-```
-
 Start a fresh Julia session in a project that has CesiumLink installed.
 
 ```julia
@@ -94,6 +83,18 @@ Open it in your browser. Keep the `?ws=auto` part. It tells the page to connect 
 plain URL shows an empty globe and asks Julia for nothing.
 
 ## What you see
+
+The scene plays below. It is a recording of the script at the end of this page, and no Julia
+process is behind it. Read [Record and replay a session](../how-to/record-replay.md) for what a
+recording holds.
+
+```@raw html
+<iframe src="../viewer/player.html?rec=../recordings/first-scene.jsonl&modules=modules"
+        title="Five labelled cities on the globe, played in the browser"
+        loading="lazy"
+        style="width:100%;aspect-ratio:16/10;border:1px solid var(--vp-c-divider);border-radius:8px">
+</iframe>
+```
 
 - Five yellow points on the globe, each with its city name beside it.
 - The caption **Five cities** at the top centre.

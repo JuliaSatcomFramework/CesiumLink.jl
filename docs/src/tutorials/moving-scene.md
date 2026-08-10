@@ -4,17 +4,6 @@ You turn the static scene of [tutorial 1](first-scene.md) into a run of 36 keyfr
 satellites travel east around the equator while the five cities stand still. It takes about fifteen
 minutes.
 
-The scene you build plays below. It is a recording of the script at the end of this page, and no
-Julia process is behind it.
-
-```@raw html
-<iframe src="../viewer/player.html?rec=../recordings/moving-scene.jsonl&modules=modules"
-        title="Eight satellites over five cities, played in the browser"
-        loading="lazy"
-        style="width:100%;aspect-ratio:16/10;border:1px solid var(--vp-c-divider);border-radius:8px">
-</iframe>
-```
-
 Close the Julia session from the previous tutorial first. It holds the port this one needs. Then
 start a fresh session.
 
@@ -104,6 +93,18 @@ viewer_url(server)
 ```
 
 ## What you see
+
+The scene plays below. It is a recording of the script at the end of this page, and no Julia
+process is behind it. Read [Record and replay a session](../how-to/record-replay.md) for what a
+recording holds.
+
+```@raw html
+<iframe src="../viewer/player.html?rec=../recordings/moving-scene.jsonl&modules=modules"
+        title="Eight satellites over five cities, played in the browser"
+        loading="lazy"
+        style="width:100%;aspect-ratio:16/10;border:1px solid var(--vp-c-divider);border-radius:8px">
+</iframe>
+```
 
 - Eight blue points that travel east around the equator, and five yellow cities that do not move.
 - The clock at the bottom left, which counts from midnight on 1 January 2026.
