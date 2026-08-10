@@ -194,14 +194,26 @@ end
                     @test entry["port"] == bound_port(server)
                     @test haskey(entry, "dist") && haskey(entry, "assets")
 
-                    # A reader opens this file at a moment the server does not choose, and a
-                    # rewrite must never hand it a fragment: an editor asked to open the scene
-                    # reads the file once, and a fragment reads as a scene that is not running.
+                    # A reader opens this file at a moment the server does not choose, and a rewrite
+                    # must never hand it a fragment: an editor asked to open the scene reads the
+                    # file once, and a fragment reads as a scene that is not running.
+                    #
+                    # A read that does not open the file at all is a different answer, and only
+                    # Windows gives it: replacing a name another process holds open leaves that name
+                    # delete-pending, and an open in that instant is refused. A reader there has to
+                    # ask again. What no reader may ever see is half a file.
                     stop = Ref(false)
                     torn = Ref(0)
+                    refused = Ref(0)
                     reader = Threads.@spawn while !stop[]
-                        try
-                            read_entry()
+                        text = try
+                            read(server.discovery_file, String)
+                        catch
+                            refused[] += 1
+                            nothing
+                        end
+                        text === nothing || try
+                            JSON.parse(text)
                         catch
                             torn[] += 1
                         end
@@ -213,6 +225,9 @@ end
                     stop[] = true
                     wait(reader)
                     @test torn[] == 0
+                    # The file is whole again the moment the rewrite is over.
+                    @test read_entry()["modules"] == Dict("rainfade" => own)
+                    Sys.iswindows() || @test refused[] == 0
                 finally
                     stop_server(server)
                 end
