@@ -250,9 +250,20 @@ The built viewer the package ships: the directory `start_server` serves the page
 and the vendored modules from. Pass a path of your own when developing the viewer itself.
 
 The viewer sources are in `lib/`, beside the Julia sources. `npm run build` writes the bundle to
-`lib/dist`.
+`lib/dist`, and that tree wins when it exists. An installed package has no `lib/dist`, so it gets the
+tree from the `viewer` artifact, which downloads on the first call.
 """
-viewer_dist() = normpath(joinpath(pkgdir(CesiumLink), "lib", "dist"))
+function viewer_dist()
+    built = normpath(joinpath(pkgdir(CesiumLink), "lib", "dist"))
+    isdir(built) && return built
+    # Say what is about to happen. This function is the default value of a keyword on `start_server`
+    # and on `vendored`, so the first `start_server()` of an installed package otherwise stops for
+    # about 9 MB with nothing on screen.
+    hash = artifact_hash("viewer", joinpath(pkgdir(CesiumLink), "Artifacts.toml"))
+    (hash === nothing || artifact_exists(hash)) ||
+        @info "CesiumLink downloads the built viewer, about 9 MB. It is kept for later runs."
+    return artifact"viewer"
+end
 
 """
     vendored(id; dist_dir=viewer_dist()) -> ModuleEntry

@@ -13,6 +13,9 @@ drives a real viewer through it with whatever produced the data absent.
 module CesiumLink
 
 using HTTP, JSON, Base64, CodecZlib
+# The built viewer ships as a lazy artifact, which `viewer_dist` falls back to. `@artifact_str`
+# reaches a lazy entry only when this package loads `LazyArtifacts`.
+using LazyArtifacts
 using ColorTypes: Colorant, red, green, blue, alpha
 # Qualified rather than brought in: `Dates` stamps one field of the discovery file, and `format` and
 # `now` are names too general to put in this namespace.
