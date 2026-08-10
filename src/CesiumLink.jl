@@ -13,6 +13,9 @@ drives a real viewer through it with whatever produced the data absent.
 module CesiumLink
 
 using HTTP, JSON, Base64, CodecZlib
+# Qualified: `connect` and `localhost` are names too general to put in this namespace. One call uses
+# them — the probe that tells a live discovery file from a dead one.
+import Sockets
 # The built viewer ships as a lazy artifact, which `viewer_dist` falls back to. `@artifact_str`
 # reaches a lazy entry only when this package loads `LazyArtifacts`.
 using LazyArtifacts

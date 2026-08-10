@@ -9,7 +9,8 @@ import assert from "node:assert/strict";
 import Module from "node:module";
 import { mkdtempSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const lines = [];
 const STUB = {
@@ -31,7 +32,13 @@ Module._load = (req, parent, isMain) =>
 const { imageryOrigin, readableMounts, sceneMounts, pageHtml, activate } =
   (await import("./extension.js")).default;
 // `log` is created in `activate`, and `readableMounts` writes to it when a directory is missing.
-activate({ subscriptions: [] });
+// The context carries what VSCode gives one, so `activate` announces the build it is running rather
+// than reporting that it could not read it.
+activate({
+  subscriptions: [],
+  extensionPath: dirname(fileURLToPath(import.meta.url)),
+  extension: { packageJSON: { version: "0.0.0-test" } },
+});
 
 const WEBVIEW = { cspSource: "vscode-webview://x" };
 

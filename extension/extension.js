@@ -31,10 +31,29 @@ let log;
 function activate(context) {
   log = vscode.window.createOutputChannel('CesiumLink');
   context.subscriptions.push(log);
+  announce(context);
   context.subscriptions.push(vscode.commands.registerCommand(
     'cesiumLink.pickScene', () => pickScene(context)));
   context.subscriptions.push(vscode.window.registerUriHandler(
     { handleUri: (uri) => openPushed(context, uri) }));
+}
+
+// Which build this window is running, written before anything else can happen.
+//
+// The version does not move for every edit, and VSCode loads an extension once and keeps it — so a
+// window whose host started before an install is still running the older file, with the same version
+// number and the newer file sitting on disk beside it. The install time is what tells two builds of
+// one version apart, and it is the answer to "am I looking at the code I just installed".
+// It reports and never decides: a line about the build must not be what stops the extension loading.
+function announce(context) {
+  try {
+    const entry = path.join(context.extensionPath, 'extension.js');
+    const installed = fs.statSync(entry).mtime.toISOString();
+    log.appendLine(`CesiumLink ${context.extension.packageJSON.version}, installed ${installed}`);
+    log.appendLine(`  running ${entry}`);
+  } catch (e) {
+    log.appendLine(`could not read this extension's own build: ${e.message}`);
+  }
 }
 
 // --- the push -------------------------------------------------------------------------------

@@ -24,6 +24,45 @@
     end
 end
 
+@testitem "starting a server drops the discovery files of servers that stopped" begin
+    using CesiumLink: sweep_discovery, bound_port
+
+    mktempdir() do dir
+        held = start_server(; dist_dir = nothing)
+        try
+            mine = Int(Base.Libc.getpid())
+            port = bound_port(held)
+            live = joinpath(dir, "$mine-$port.json")
+            # A port nothing listens on: port 1 is privileged, so no scene of ours holds it.
+            gone = joinpath(dir, "$mine-1.json")
+            # The case a check on the port alone keeps forever. A scene is usually served on a port
+            # its author picked and reuses, so a file a dead process left names a port that answers
+            # again today.
+            reused = joinpath(dir, "999998-$port.json")
+            unrelated = joinpath(dir, "notes.txt")
+            unnamed = joinpath(dir, "nothing-here.json")
+            for f in (live, gone, reused, unrelated, unnamed)
+                write(f, "{}")
+            end
+
+            sweep_discovery(dir)
+
+            @test isfile(live)                    # this process runs and its port answers
+            @test !isfile(gone)
+            @test isfile(unrelated)               # the sweep reads `.json` and nothing else
+            @test isfile(unnamed)                 # a name carrying no pid and port says nothing
+            if Sys.isunix()
+                @test !isfile(reused)
+            else
+                # Windows judges a file by its port alone, so this one stands.
+                @test isfile(reused)
+            end
+        finally
+            stop_server(held)
+        end
+    end
+end
+
 @testitem "the traversal guard reads path elements, not a separator" begin
     using CesiumLink: under_root
 

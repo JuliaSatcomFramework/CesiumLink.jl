@@ -418,8 +418,9 @@ re-read the file rather than cache it.
 The file name is the pid and the port, so two servers in one process each get their own.
 [`stop_server`](@ref) removes the file.
 
-A file whose `pid` no longer runs is stale, and a reader skips it. Nothing removes a stale file: a
-process that was killed never reached `stop_server`, and one leftover file costs a reader one line.
+A file is live while the process it names runs and its port answers, and a reader skips every other.
+[`start_server`](@ref) removes those, so a process killed before it reached `stop_server` leaves
+nothing behind for long.
 """
 function discovery_dir()
     runtime = get(ENV, "XDG_RUNTIME_DIR", "")
@@ -441,6 +442,58 @@ function chmod_quietly(dir, dir_mode, file, file_mode)
     end
 end
 
+# Whether anything is listening on `port` of the loopback.
+function port_answers(port::Integer)
+    try
+        close(Sockets.connect(Sockets.localhost, port))
+        return true
+    catch
+        return false
+    end
+end
+
+# Whether the process that wrote a discovery file is still running.
+#
+# `kill(pid, 0)` sends no signal and only asks. A process of one's own always answers, so a zero
+# return means it is there. Windows has no such call in Base, and a file there is judged by its port
+# alone — one file too many, which is the direction to err in.
+process_alive(pid::Integer) =
+    !Sys.isunix() || ccall(:kill, Cint, (Cint, Cint), pid, 0) == 0
+
+# Drop the discovery files of servers that have stopped. A server removes its own in `stop_server`,
+# so this collects the ones a killed process left behind. Nothing else ever would, and the directory
+# grows for as long as the machine stands.
+#
+# Both halves of the name are read, and the process is asked about first — which is also the order a
+# reader asks in. The port alone is not enough: a scene is usually served on a port somebody picked
+# and reuses, so a file from a process that died last week names a port that answers today, and a
+# sweep that trusted the port would keep every one of them.
+#
+# Housekeeping, so it never costs the caller a session: a file that cannot be read or removed is left
+# where it is.
+function sweep_discovery(dir)
+    for name in readdir(dir; join = true)
+        endswith(name, ".json") || continue
+        stamp = discovery_stamp(basename(name))
+        stamp === nothing && continue
+        pid, port = stamp
+        try
+            (process_alive(pid) && port_answers(port)) || rm(name; force = true)
+        catch e
+            @debug "could not remove a stale discovery file" file = name exception = e
+        end
+    end
+    return nothing
+end
+
+# The `(pid, port)` a discovery file's name carries, or `nothing` for a name that carries neither.
+function discovery_stamp(name)
+    parts = rsplit(name[1:(end - length(".json"))], '-'; limit = 2)
+    length(parts) == 2 || return nothing
+    pid, port = tryparse(Int, parts[1]), tryparse(Int, parts[2])
+    return pid === nothing || port === nothing ? nothing : (pid, port)
+end
+
 # Write the discovery file for a server on `port` and return its path, or `nothing` if the directory
 # refused it. A directory that cannot be written costs a warning rather than the server: the scene
 # still serves, and a picker that cannot find it is a smaller loss than a session that never starts.
@@ -451,6 +504,9 @@ function write_discovery(port::Integer, title::AbstractString, imagery = nothing
     try
         dir = discovery_dir()
         mkpath(dir)
+        # Before this server's own file goes in, so the directory holds the servers that are running
+        # and nothing else. Our own port is already bound and answers, so it is never swept.
+        sweep_discovery(dir)
         file = joinpath(dir, "$pid-$port.json")
         entry = Dict("port" => Int(port), "pid" => pid, "title" => String(title),
                      "started" => Dates.format(Dates.now(Dates.UTC), "yyyy-mm-ddTHH:MM:SSZ"),
