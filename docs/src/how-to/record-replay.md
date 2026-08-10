@@ -169,6 +169,7 @@ give the camera back. It flies to the viewpoint that applies **now**, which is w
 has reached and not where you left it.
 
 Use the clock at the bottom left to pause and to change speed, and drag the ruler to scrub.
+A scrub leaves the clock paused where you dropped it, so press play again to carry on.
 This tour is keyed by keyframe, so the camera holds while the scene holds, and it goes back
 with the scene when you scrub. The legend and the caption came from the recorded overlay.
 

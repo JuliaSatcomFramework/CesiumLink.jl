@@ -245,6 +245,10 @@ stops the clock there, so the last delivered frame stays on screen and starvatio
 rather than as a stutter; the viewer asks for the covering window (`core/need`) and resumes when it
 installs.
 
+Dragging the ruler is itself a pause, in the same sense the widget's play button is: the clock stops
+where the user put it and stays stopped once the window arrives. Only a clock that ran off the end of
+the buffer on its own resumes by itself.
+
 An `append` extends the buffer only if it *continues* it, at **either** end: its `startFrame` is one
 past the last frame delivered, or its last frame is one before the first — a clock running backwards
 consumes the buffer downwards and is served windows that extend it that way. One that leaves a gap or

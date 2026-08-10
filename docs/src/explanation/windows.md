@@ -31,6 +31,11 @@ frame stays on screen, and the Core asks for the window that covers it. Starvati
 as a pause rather than as a stutter or as a wrong frame. The hold clears the clock's `canAnimate`
 and never its `shouldAnimate`, so a pause the user pressed during a hold survives the release.
 
+That is the automatic half. A scrub is the other one: dragging the ruler writes `shouldAnimate`
+false, exactly as the play button does, because moving the clock by hand is a deliberate pause. The
+window it lands outside of is still asked for and still installs, but the clock stays where the user
+put it until the user presses play.
+
 ## What an index means
 
 Inside one window, index `i` addresses the same object in every frame of that window. That is the
