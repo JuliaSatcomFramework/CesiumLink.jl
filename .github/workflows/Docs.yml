@@ -43,3 +43,20 @@ jobs:
       - run: julia --project=docs --color=yes docs/make.jl
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # GitHub Pages runs Jekyll on a branch whose root carries no `.nojekyll` marker, and Jekyll
+      # rewrites every `.md` file it finds into `.html`. The viewer ships the two Cesium licence
+      # files as Markdown, so they then answer 404 at the path the built tree puts them, which is
+      # the path `NOTICE` promises. Documenter writes no such marker, and one inside `dev/` does not
+      # count: Pages reads the root alone. This step writes nothing when the marker is already
+      # there, and it stands after the deploy, which is what creates the branch.
+      - name: Keep Jekyll off the published site
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh api "repos/$GITHUB_REPOSITORY/contents/.nojekyll?ref=gh-pages" >/dev/null 2>&1; then
+            echo "the marker is already on gh-pages"
+          else
+            gh api -X PUT "repos/$GITHUB_REPOSITORY/contents/.nojekyll" \
+              -f message="Keep Jekyll off the published site" \
+              -f branch=gh-pages -f content=""
+          fi
