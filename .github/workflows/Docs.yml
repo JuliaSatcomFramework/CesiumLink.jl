@@ -4,7 +4,9 @@ name: Docs
 # starts a server for each one, so it takes minutes rather than seconds.
 on:
   push:
-    tags: ["v*"]
+    # A package version tag, and nothing else that starts with the letter v. `v*` also matches
+    # `viewer-v0.1.1`, the tag of a viewer artifact release, which has no reason to rebuild the site.
+    tags: ["v[0-9]*"]
   workflow_dispatch:
 
 # Two deploys must not run at the same time. `deploydocs(; forcepush = true)` amends and force-pushes
