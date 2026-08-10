@@ -1,0 +1,45 @@
+name: Docs
+
+# The site is built by hand or on a tag, never on every push: the build runs every example, and
+# starts a server for each one, so it takes minutes rather than seconds.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+# Two deploys must not run at the same time. `deploydocs(; forcepush = true)` amends and force-pushes
+# `gh-pages`, so a second run pushing over the first loses whichever snapshot lands second. Queue
+# them instead of cancelling: a cancelled run may stop in the middle of that push.
+concurrency:
+  group: docs
+  cancel-in-progress: false
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: lib/package-lock.json
+      # The viewer goes into the site whole, and every live player on a page loads it. Without this
+      # step the build stays green and every player is blank.
+      - run: npm ci
+        working-directory: lib
+      - run: npm run build
+        working-directory: lib
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: "1"
+      - uses: julia-actions/cache@v2
+      # `docs/make.jl` develops the local packages and instantiates its own environment, so it needs
+      # no Pkg call before it. Vitepress runs from Node of its own, which `DocumenterVitepress`
+      # carries.
+      - run: julia --project=docs --color=yes docs/make.jl
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
