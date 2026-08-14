@@ -1,7 +1,7 @@
 # Look at what the wire actually carried
 
 The scene is wrong and the payload looks right. Read the frame. Every frame is binary, so
-`less` and `jq` no longer answer on their own.
+`less` and `jq` do not answer on their own.
 
 ## What a frame is
 
@@ -14,14 +14,14 @@ One WebSocket message carries one frame:
 [region]          the array bytes the header points into
 ```
 
-The header holds the message. Every numeric array in it became
+The header holds the message. Every numeric array in it becomes
 
 ```json
 { "$wire": "f32", "shape": [2, 3], "off": 0 }
 ```
 
 and its bytes sit in the region. `off` counts from the start of the **region**, never from
-the start of the frame, and is always a multiple of 8. The length is not carried: it is
+the start of the frame, and is always a multiple of 8. The frame carries no length: it is
 `prod(shape) × bytesPerElement`. A message with no arrays has an empty region.
 
 ## Decode a frame you have on disk
@@ -44,16 +44,16 @@ region: 24 bytes, 1 array(s)
   params.payloads.demo.position  f32  shape [2, 3]  off 0  →  1.0, 3.0, 5.0, 2.0, 4.0, 6.0
 ```
 
-Each array is decoded rather than read off the header, so a wrong offset or a short region
-fails here instead of in the browser.
+The script decodes each array rather than reading it off the header, so a wrong offset or a
+short region fails here instead of in the browser.
 
-To capture frames in the first place, record the session. See
+To capture frames, record the session. See
 [Record and replay a session](record-replay.md).
 
 ## Check a payload from the REPL
 
-You do not need a server to see what a payload becomes. `encode_arrays` returns the header
-value and writes the bytes into the region you give it.
+`encode_arrays` returns the header value and writes the bytes into the region you give it. No
+server is needed.
 
 ```@repl wire
 using CesiumLink
@@ -94,8 +94,8 @@ than the number your listener was handed. Convert with [`CesiumLink.to_wire_inde
 ## Watch the total
 
 `npm run harness:check` reports **bytes on the wire per payload**, counted at the socket
-before the viewer parses anything. It is exact, and it is the number that tells you arrays
-have found their way back into the header.
+before the viewer parses anything. It is exact, and it tells you when arrays went back into
+the header.
 
 ## Next
 

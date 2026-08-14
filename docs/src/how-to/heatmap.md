@@ -1,8 +1,8 @@
 # Drape a scalar field over the globe
 
-You hold a field of numbers over longitude and latitude: demand, rain fade, elevation
-statistics. You want it on the globe as colour, with a colorbar that agrees with it, and a
-hover that says what the number under the cursor is.
+You hold a field of numbers over longitude and latitude, and you want it on the globe as
+colour, with a colorbar that agrees with it and a hover that reads the number under the
+cursor.
 
 The `heatmap` module draws it. Julia bakes the colour, so nothing in the browser reads a
 value or picks a shade from it.
@@ -40,7 +40,7 @@ size(grid)                                   # 4 × W × H
 ```
 
 [`Raster`](@ref) names the grid and the box it covers. [`heatmap_payload`](@ref) makes the
-module's payload out of any number of rasters, and [`push_window`](@ref) sends it.
+payload out of any number of rasters, and [`push_window`](@ref) sends it.
 
 ```julia
 server = start_server()
@@ -55,7 +55,7 @@ push_window(server, Dict(:heatmap => heatmap_payload(
 A raster is declared per window. A window that says nothing about the heatmap leaves the
 screen as it is, so a scene that pushes a run of windows states its rasters in each one.
 
-Add the colorbar from the same colormap and the same range.
+Add the colorbar from the same colormap and range.
 
 ```julia
 declare_overlay(server, [Legend("Demand [Gbps]", RANGE..., CMAP; region = :top_right)])
@@ -74,7 +74,7 @@ rgba_grid(CMAP, holed; range = RANGE)[:, 1, end]     # the north-west texel, ful
 
 Two consequences you can use:
 
-- A field with holes in it needs no mask of its own.
+- A field with holes needs no mask of its own.
 - **A shape that is not a rectangle is a rectangle whose outside texels are `NaN`.** Build
   the box, then write `NaN` everywhere the shape does not cover.
 
@@ -136,7 +136,7 @@ boundary of the box indexes rather than misses.
 
 With several rasters, search them in reverse declared order: the raster on top is the one
 the eye sees. Skip a raster whose texel is `NaN` there, and the answer falls through to the
-raster that is visible underneath.
+raster visible underneath.
 
 The globe raycast is an opt-in. A session where no listener asks for the coordinate never
 pays for it.
@@ -147,8 +147,8 @@ Use it when the field really is a grid over a box. It maps a coordinate back to 
 your own `values` array holds, so a tooltip reads the array you sent.
 
 It is the wrong tool for cells that are not a grid: a mesh of irregular polygons, or ground
-cells with centres of their own. Those are entities, and the `primitives` module draws them
-as [`Areas`](@ref). A hover then reports the entity under the cursor, and the listener reads
+cells with centres of their own. Those are entities, which the `primitives` module draws as
+[`Areas`](@ref). A hover then reports the entity under the cursor, and the listener reads
 `ev.entity.idx` instead. See [Draw points, lines and areas](primitives.md).
 
 ## Next

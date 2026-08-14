@@ -7,8 +7,7 @@ The `ui` module draws them, so register it once:
 register_module!(server, vendored(:ui))
 ```
 
-[Tutorial 3](../tutorials/controls.md) walks through one checkbox from the click to the answer. This
-guide is the rest of the vocabulary.
+[Tutorial 3](../tutorials/controls.md) walks through one checkbox from the click to the answer.
 
 ## Declare the whole list
 
@@ -35,12 +34,10 @@ Select("cells", "Cells", "served", ["all" => "All", "served" => "Served", "idle"
 ```
 
 The declared value must be one of the options. A declaration that rejects its own value is refused at
-the constructor, because a widget showing one state while the scene is filtered by another is worse
-than an error.
+the constructor.
 
-An option's value travels as JSON, so it comes back to your listener as JSON carries it. A `Symbol`
-option is recorded as a `String`, and the value the listener reports is one of the options you
-declared:
+An option's value travels as JSON. A `Symbol` option is recorded as a `String`, and the listener
+reports one of the options you declared:
 
 ```julia
 on_event(server, "ui", "control") do ev, reply
@@ -53,8 +50,7 @@ end
 
 ## Put related controls in one box
 
-[`Group`](@ref) draws several controls inside one box, so they read as one thing rather than as a
-stack:
+[`Group`](@ref) draws several controls inside one box:
 
 ```julia
 Group([Toggle("trails", "Trails", true),
@@ -73,8 +69,7 @@ Group([Legend("Throughput (Gbps)", 0, 12, SAT_CMAP),
       region = :top_left, style = (; flex_direction = "row"))
 ```
 
-A group does not nest. One level is what grouping related controls needs, and the four regions
-already separate the corners.
+A group does not nest.
 
 ## Choose a corner
 

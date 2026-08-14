@@ -1,8 +1,8 @@
 # Work in map coordinates
 
-Your data is in degrees and metres. The scene draws in ECEF metres. This page converts
-between the two, sends the result in the layout the payload families take, and keeps the
-conversion on the same ellipsoid the browser draws on.
+Your data is in degrees and metres. The scene draws in ECEF metres. Convert between the two,
+send the result in the layout the payload families take, and keep the conversion on the same
+ellipsoid the browser draws on.
 
 ## Convert degrees to ECEF metres
 
@@ -37,7 +37,7 @@ on the wrong one still looks like a scene.
 ## Convert against the shape the scene is drawn on
 
 The viewer places every position through Cesium's own conversion, on the ellipsoid the
-server declared. A scene that computes ECEF for itself agrees with what is drawn only if it
+server declared. A scene that computes ECEF itself agrees with what is drawn only if it
 converts against the same shape.
 
 Pass the server, and both directions resolve to that session's ellipsoid:
@@ -65,11 +65,11 @@ server = start_server(; ellipsoid = Ellipsoids.MARS)
 ```
 
 Left alone, nothing is declared and the viewer keeps its own WGS84 default. A strongly
-flattened shape has a drawing limit, and declaring one whose limit is within the camera's
-reach warns. It is not refused.
+flattened shape has a drawing limit, and one whose limit is within the camera's reach warns.
+It is not refused.
 
 You need no geodesy package for this. If your scene already loads one, convert with it
-instead. Use the same two radii.
+instead, on the same two radii.
 
 ## Get the array layout right
 
@@ -86,8 +86,8 @@ reshape.
 ## Trap: a vector of structs becomes JSON objects
 
 The codec encodes numeric arrays. A `Vector` of a three-field struct is not `<: Number`, so
-it is walked element by element into a JSON list. The bytes stay in the header, the payload
-grows, and nothing raises.
+the codec walks it element by element into a JSON list. The bytes stay in the header, the
+payload grows, and nothing raises.
 
 ```@repl coords
 struct Point3
@@ -109,8 +109,8 @@ CesiumLink.encode_arrays((; position = reinterpret(reshape, Float64, track)), re
 ```
 
 This holds for any struct whose fields share one type: a `StaticArrays` `SVector`, a
-coordinate type of your own, a two-field pair. Reinterpret it, and send `Float32` where the
-values are positions. See [Send large arrays](large-arrays.md).
+coordinate type of your own, a two-field pair. Reinterpret it, and send `Float32` for
+positions. See [Send large arrays](large-arrays.md).
 
 ## Next
 

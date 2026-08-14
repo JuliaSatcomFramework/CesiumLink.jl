@@ -10,11 +10,11 @@ The normative statement of the frame layout and the encoded-array form is the
 
 A numeric array anywhere in a payload, at any depth, travels as a self-describing triple of marker,
 shape and offset. The bytes sit in the frame's region behind the header. A decoder therefore needs
-no schema for the payload, and nothing else about a payload's structure is interpreted anywhere.
+no schema for the payload, and nothing else in a payload is interpreted.
 
 `shape` is row-major, the last dimension varying fastest, which is the reverse of Julia's
-column-major `size`. Stated that way, the flat byte order is the same on both sides, so a browser
-typed array and the Julia array it came from agree on element order with no permutation.
+column-major `size`. The flat byte order is then the same on both sides, so a browser typed array
+and the Julia array it came from agree on element order without a permutation.
 
 ## The frame
 

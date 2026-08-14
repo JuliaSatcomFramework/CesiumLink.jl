@@ -1,18 +1,17 @@
 # Tutorials
 
-These five tutorials teach CesiumLink from nothing. Each one starts where the one before it stopped,
-so work through them in order. Together they take about an hour.
+These five tutorials teach CesiumLink from nothing. Work through them in order: each one starts
+where the one before it stopped. Together they take about an hour.
 
 ## Before you start
 
-You need three things:
+You need:
 
 - Julia 1.10 or later.
 - CesiumLink installed in the project you start Julia in.
 - A browser on the same machine as Julia.
 
-Every tutorial runs in one Julia session and one browser tab. Each one ends with the complete script,
-so you can copy the whole of it and run it again.
+Every tutorial runs in one Julia session and one browser tab, and ends with the complete script.
 
 ## The five tutorials
 
@@ -22,7 +21,7 @@ so you can copy the whole of it and run it again.
    play it.
 3. [A control the server answers](controls.md) — add a toggle, answer it in Julia, and push the scene
    it asks for.
-4. [Write a viewer module](first-module.md) — write an ES module of your own, and declare it over the
-   wire beside the vendored ones.
+4. [Write a viewer module](first-module.md) — write an ES module of your own, and declare it over
+   the wire beside the vendored ones.
 5. [Ship a module from a Julia package](package-with-module.md) — put that module in a Julia package
    that serves it, and reach it from any scene.

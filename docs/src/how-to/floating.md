@@ -2,8 +2,8 @@
 
 A [`Floating`](@ref) object is a box of server-authored content at a point on screen, with an
 identity of its own and a lifetime you control. Use one when the content must stay while the cursor
-moves on. For content that follows the cursor and is replaced on the next move, use the tooltip
-instead — see [Show a value on hover](tooltips.md).
+moves on. For content that follows the cursor, use the tooltip instead — see
+[Show a value on hover](tooltips.md).
 
 The `ui` module draws the boxes, so register it once:
 
@@ -32,8 +32,8 @@ A float shows either `html` or a `mount`, never both and never neither:
   it across a shadow boundary.
 
 The set is retained, so a browser that connects later comes back to the same boxes. A float whose
-declaration is unchanged keeps the box it already has. A move or a restyle therefore does not tear
-down a mounted module.
+declaration is unchanged keeps the box it already has, so a move or a restyle does not tear down a
+mounted module.
 
 ## Choose an anchor
 
@@ -48,10 +48,9 @@ point and flips near an edge. `Screen` is the top-left exactly.
 
 `idx` is **1-based**, like every entity index in the Julia API.
 
-An `Entity` anchor is a module capability. The viewer asks that module where the entity is, so a
-module is anchorable exactly when it exports `positionOf(kind, idx)`. The vendored `primitives`
-module does. A float that names a module which does not, or a point that no longer projects, hides
-its box rather than failing.
+The viewer asks the anchor's module where the entity is, so a module is anchorable exactly when it
+exports `positionOf(kind, idx)`. The vendored `primitives` module does. A float that names a module
+without it, or a point that no longer projects, hides its box rather than failing.
 
 ## Pin a box on a click
 
@@ -94,8 +93,7 @@ From then on the user owns where that box sits.
   every later declaration of that float. The anchor becomes the screen point, and the size joins the
   float's own `style`. You need no listener for this.
 - **A declared rect seeds a box when the box is created. It cannot move a box already on screen.**
-  A new `anchor` or `style` for a float the user has dragged changes nothing they can see. This is
-  deliberate: a declaration already in flight when the pointer came up must not snap the box back.
+  A new `anchor` or `style` for a float the user dragged changes nothing they can see.
 
 To put a dragged box back where your declaration says, declare the set without that float and declare
 it again. A rect lives exactly as long as its float, and every rect is forgotten when
@@ -118,15 +116,15 @@ says nothing about keeps the value it had.
 
 Two conditions to plan for:
 
-- A float declared while a scene is already playing shows its declared content until a window that
-  carries its track arrives. Every buffered window was built before the float existed. If you declare
-  one in answer to an event, push a `:replace` window over where the clock is.
+- A float declared while a scene plays shows its declared content until a window that carries its
+  track arrives. Every buffered window was built before the float existed. If you declare one in
+  answer to an event, push a `:replace` window over where the clock is.
 - A mounted float keyframes no field here. Its per-keyframe data reaches it through the window
   addressed to that module.
 
 Watch the size. An SVG plot is easily 20–50 KB, and one per keyframe is a large share of a window
 otherwise measured in hundreds of kilobytes. The track carries only the frames the window covers, so
-how finely the content changes is your choice.
+you choose how finely the content changes.
 
 ## Next
 

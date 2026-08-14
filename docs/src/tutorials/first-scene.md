@@ -1,7 +1,7 @@
 # Your first scene
 
 You build a static scene: five labelled points on the globe, under a caption. Julia decides
-everything on screen, and the browser draws what Julia sends. It takes about fifteen minutes.
+everything on screen. It takes about fifteen minutes.
 
 Start a fresh Julia session in a project that has CesiumLink installed.
 
@@ -15,9 +15,9 @@ using CesiumLink
 server = start_server()
 ```
 
-[`start_server`](@ref) opens one port. That one port serves the viewer page and the WebSocket the
-page connects back on. The operating system picks the port number, so two people on one machine
-never collide. Julia now waits for a browser.
+[`start_server`](@ref) opens one port for the viewer page and the WebSocket the page connects back
+on. The operating system picks the number, so two people on one machine never collide. Julia now
+waits for a browser.
 
 ## 2. Declare the two modules the scene needs
 
@@ -27,8 +27,8 @@ register_module!(server, vendored(:ui))
 ```
 
 A module draws part of the scene, and the browser loads only the modules the server declares.
-`primitives` draws points, lines and footprints. `ui` draws the overlay. [`vendored`](@ref) names a
-module that ships inside the viewer the package serves.
+`primitives` draws points, lines and footprints; `ui` draws the overlay. [`vendored`](@ref) names a
+module that ships inside the viewer.
 
 ## 3. Place five points on the globe
 
@@ -40,9 +40,9 @@ names = ["Rome", "London", "New York", "Tokyo", "Sydney"]
 cities = ecef(lons, lats; ellipsoid = server)
 ```
 
-The renderer takes cartesian metres, so [`ecef`](@ref) converts the degrees for you. It returns a
-`3 × 5` matrix: one column of `(x, y, z)` per point. Pass `server` as the `ellipsoid`. Your
-coordinates then land on the same shape the browser builds its globe on.
+The renderer takes cartesian metres, so [`ecef`](@ref) converts the degrees. It returns a `3 × 5`
+matrix: one column of `(x, y, z)` per point. Pass `server` as the `ellipsoid`, so the points land on
+the shape the browser builds its globe on.
 
 ## 4. Put a caption on screen
 
@@ -50,8 +50,8 @@ coordinates then land on the same shape the browser builds its globe on.
 declare_overlay(server, [Title("Five cities")])
 ```
 
-[`declare_overlay`](@ref) states the whole overlay as one list. [`Title`](@ref) is a caption, and it
-sits at the top centre.
+[`declare_overlay`](@ref) states the whole overlay as one list. [`Title`](@ref) is a caption at the
+top centre.
 
 ## 5. Push the scene
 
@@ -65,10 +65,10 @@ push_window(server,
 
 [`Nodes`](@ref) is one family of points: a name, the positions, and how they look.
 [`primitives_payload`](@ref) collects the families into the payload that module reads.
-[`push_window`](@ref) broadcasts one **window** — a run of keyframes carrying every module's data for
-those keyframes. This window holds a single keyframe, which is how a static scene travels.
+[`push_window`](@ref) broadcasts one **window**: a run of keyframes with every module's data for
+them. This window holds one keyframe, which is how a static scene travels.
 
-The call returns `0`, which is how many clients it reached. No browser is connected yet. The server
+The call returns `0`, the number of clients it reached: no browser is connected yet. The server
 keeps the window and sends it to the first client that arrives.
 
 ## 6. Open the viewer
@@ -79,14 +79,13 @@ keeps the window and sends it to the first client that arrives.
 viewer_url(server)      # "http://127.0.0.1:38391/?ws=auto"
 ```
 
-Open it in your browser. Keep the `?ws=auto` part. It tells the page to connect back to Julia. The
-plain URL shows an empty globe and asks Julia for nothing.
+Open it in your browser. Keep the `?ws=auto` part: it tells the page to connect back to Julia. The
+plain URL shows an empty globe.
 
 ## What you see
 
-The scene plays below. It is a recording of the script at the end of this page, and no Julia
-process is behind it. Read [Record and replay a session](../how-to/record-replay.md) for what a
-recording holds.
+The scene below is a recording of the script at the end of this page. Read
+[Record and replay a session](../how-to/record-replay.md) for what a recording holds.
 
 ```@raw html
 <iframe src="../viewer/player.html?rec=../recordings/first-scene.jsonl&modules=modules"
@@ -99,11 +98,10 @@ recording holds.
 - Five yellow points on the globe, each with its city name beside it.
 - The caption **Five cities** at the top centre.
 - A band along the bottom edge with a clock, a timeline ruler and a keyframe readout. This scene
-  holds one keyframe, so the band has nothing to play. The next tutorial gives it a run to play.
+  holds one keyframe, so the band has nothing to play.
 - Three buttons in the top right corner: the home view, the 2D/3D picker and the fullscreen toggle.
 
-Drag the globe to turn it, and scroll to zoom. The browser does all of that on its own, and asks
-Julia for nothing.
+Drag the globe to turn it, and scroll to zoom. The browser does that on its own.
 
 ## Stop the server
 

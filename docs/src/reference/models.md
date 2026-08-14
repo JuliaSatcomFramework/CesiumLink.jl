@@ -8,12 +8,12 @@ CurrentModule = CesiumLink
 per entity of a node family, turned by a reference frame and an attitude. `CesiumLink` re-exports
 the two names below, so `using CesiumLink` reaches them.
 
-The submodule is named `ModelFamilies` and not `Models`, because a module and a type inside it
-cannot share a name. The file and the wire id both read `models`.
+The submodule is `ModelFamilies`, because a module and a type inside it cannot share a name. The
+file and the wire id both read `models`.
 
-A model family carries neither a position nor a colour. Where a model stands belongs to the
+A model family carries no position and no colour. Where a model stands belongs to the
 [`CesiumLink.Primitives.Nodes`](@ref) family it names as its anchor, and what it looks like belongs
-to the file. A click on a model reports the anchor entity, and never the model.
+to the file. A click on a model reports the anchor entity, never the model.
 
 ## The family and its payload
 
