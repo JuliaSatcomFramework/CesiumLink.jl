@@ -1,9 +1,5 @@
-@testitem "server static + lifecycle" begin
+@testitem "server static + lifecycle" setup=[FreePort] begin
     using HTTP, Sockets
-
-    # A free port on ::1; the small reuse race is acceptable for a test.
-    freeport() = (s = Sockets.listen(Sockets.IPv6("::1"), 0);
-                  p = Int(Sockets.getsockname(s)[2]); close(s); p)
 
     mktempdir() do dir
         write(joinpath(dir, "index.html"), "<h1>hi</h1>")
@@ -79,11 +75,8 @@ end
     @test under_root(joinpath(root, "index.html"), root * "/")
 end
 
-@testitem "server push + ready replay" setup=[DemoWindow] begin
+@testitem "server push + ready replay" setup=[DemoWindow, FreePort] begin
     using HTTP, JSON, Sockets
-
-    freeport() = (s = Sockets.listen(Sockets.IPv6("::1"), 0);
-                  p = Int(Sockets.getsockname(s)[2]); close(s); p)
 
     port = freeport()
     server = start_server(; host = "::1", port = port)
@@ -108,11 +101,8 @@ end
     end
 end
 
-@testitem "core/need reaches its listener with a 1-based start frame, its count and its mode" begin
+@testitem "core/need reaches its listener with a 1-based start frame, its count and its mode" setup=[FreePort] begin
     using HTTP, JSON, Sockets
-
-    freeport() = (s = Sockets.listen(Sockets.IPv6("::1"), 0);
-                  p = Int(Sockets.getsockname(s)[2]); close(s); p)
 
     port = freeport()
     server = start_server(; host = "::1", port)
@@ -145,11 +135,8 @@ end
     end
 end
 
-@testitem "a throwing core/need listener leaves the connection open" begin
+@testitem "a throwing core/need listener leaves the connection open" setup=[FreePort] begin
     using HTTP, JSON, Sockets
-
-    freeport() = (s = Sockets.listen(Sockets.IPv6("::1"), 0);
-                  p = Int(Sockets.getsockname(s)[2]); close(s); p)
 
     port = freeport()
     server = start_server(; host = "::1", port)
@@ -172,11 +159,8 @@ end
     end
 end
 
-@testitem "a core/need event is answered by appending to the delivered buffer" setup=[DemoWindow] begin
+@testitem "a core/need event is answered by appending to the delivered buffer" setup=[DemoWindow, FreePort] begin
     using HTTP, JSON, Sockets
-
-    freeport() = (s = Sockets.listen(Sockets.IPv6("::1"), 0);
-                  p = Int(Sockets.getsockname(s)[2]); close(s); p)
 
     port = freeport()
     server = start_server(; host = "::1", port)
@@ -206,11 +190,7 @@ end
     end
 end
 
-@testitem "the window rebuilt for a joining client carries the identity every client then names" setup=[DemoWindow, Joining] begin
-    using Sockets
-
-    freeport() = (s = Sockets.listen(Sockets.IPv6("::1"), 0);
-                  p = Int(Sockets.getsockname(s)[2]); close(s); p)
+@testitem "the window rebuilt for a joining client carries the identity every client then names" setup=[DemoWindow, Joining, FreePort] begin
 
     port = freeport()
     server = start_server(; host = "::1", port)
@@ -238,11 +218,7 @@ end
     end
 end
 
-@testitem "a client joining an appended scene is answered by a core/need listener" setup=[DemoWindow, Joining] begin
-    using Sockets
-
-    freeport() = (s = Sockets.listen(Sockets.IPv6("::1"), 0);
-                  p = Int(Sockets.getsockname(s)[2]); close(s); p)
+@testitem "a client joining an appended scene is answered by a core/need listener" setup=[DemoWindow, Joining, FreePort] begin
 
     port = freeport()
     server = start_server(; host = "::1", port)
@@ -268,11 +244,7 @@ end
     end
 end
 
-@testitem "a throwing core/need listener leaves the joining client the window the server holds" setup=[DemoWindow, Joining] begin
-    using Sockets
-
-    freeport() = (s = Sockets.listen(Sockets.IPv6("::1"), 0);
-                  p = Int(Sockets.getsockname(s)[2]); close(s); p)
+@testitem "a throwing core/need listener leaves the joining client the window the server holds" setup=[DemoWindow, Joining, FreePort] begin
 
     port = freeport()
     server = start_server(; host = "::1", port)
@@ -295,11 +267,7 @@ end
     end
 end
 
-@testitem "a core/need listener that pushes nothing leaves the joining client the window the server holds" setup=[DemoWindow, Joining] begin
-    using Sockets
-
-    freeport() = (s = Sockets.listen(Sockets.IPv6("::1"), 0);
-                  p = Int(Sockets.getsockname(s)[2]); close(s); p)
+@testitem "a core/need listener that pushes nothing leaves the joining client the window the server holds" setup=[DemoWindow, Joining, FreePort] begin
 
     port = freeport()
     server = start_server(; host = "::1", port)
@@ -321,11 +289,8 @@ end
     end
 end
 
-@testitem "with nothing to ask for a window, the retained one is replayed as it stands" setup=[DemoWindow] begin
+@testitem "with nothing to ask for a window, the retained one is replayed as it stands" setup=[DemoWindow, FreePort] begin
     using HTTP, JSON, Sockets
-
-    freeport() = (s = Sockets.listen(Sockets.IPv6("::1"), 0);
-                  p = Int(Sockets.getsockname(s)[2]); close(s); p)
 
     port = freeport()
     server = start_server(; host = "::1", port)
@@ -348,11 +313,8 @@ end
     end
 end
 
-@testitem "a pushed window carries its start frame, declared range, mode and identity" setup=[DemoWindow] begin
+@testitem "a pushed window carries its start frame, declared range, mode and identity" setup=[DemoWindow, FreePort] begin
     using HTTP, JSON, Sockets
-
-    freeport() = (s = Sockets.listen(Sockets.IPv6("::1"), 0);
-                  p = Int(Sockets.getsockname(s)[2]); close(s); p)
 
     port = freeport()
     server = start_server(; host = "::1", port)
@@ -381,11 +343,8 @@ end
     end
 end
 
-@testitem "a listener's replacement window becomes the scene a reconnecting client replays" setup=[DemoWindow] begin
+@testitem "a listener's replacement window becomes the scene a reconnecting client replays" setup=[DemoWindow, FreePort] begin
     using HTTP, JSON, Sockets
-
-    freeport() = (s = Sockets.listen(Sockets.IPv6("::1"), 0);
-                  p = Int(Sockets.getsockname(s)[2]); close(s); p)
 
     port = freeport()
     server = start_server(; host = "::1", port)
@@ -433,11 +392,8 @@ end
     end
 end
 
-@testitem "retained replay: latest per (module, topic), all topics on connect" begin
+@testitem "retained replay: latest per (module, topic), all topics on connect" setup=[FreePort] begin
     using HTTP, JSON, Sockets
-
-    freeport() = (s = Sockets.listen(Sockets.IPv6("::1"), 0);
-                  p = Int(Sockets.getsockname(s)[2]); close(s); p)
 
     port = freeport()
     server = start_server(; host = "::1", port)
@@ -465,11 +421,8 @@ end
     end
 end
 
-@testitem "a window's identity is new on a replace and held across an append" setup=[DemoWindow] begin
+@testitem "a window's identity is new on a replace and held across an append" setup=[DemoWindow, FreePort] begin
     using HTTP, JSON, Sockets
-
-    freeport() = (s = Sockets.listen(Sockets.IPv6("::1"), 0);
-                  p = Int(Sockets.getsockname(s)[2]); close(s); p)
 
     port = freeport()
     server = start_server(; host = "::1", port)
@@ -497,11 +450,8 @@ end
     end
 end
 
-@testitem "a registered module is declared on ready and served from its own directory" begin
+@testitem "a registered module is declared on ready and served from its own directory" setup=[FreePort] begin
     using HTTP, JSON, Sockets
-
-    freeport() = (s = Sockets.listen(Sockets.IPv6("::1"), 0);
-                  p = Int(Sockets.getsockname(s)[2]); close(s); p)
 
     mktempdir() do dir
         # The module's directory is mounted whole, so a sibling chunk resolves relative to the entry.
@@ -546,11 +496,8 @@ end
     end
 end
 
-@testitem "modules are declared in registration order, and an id registered again keeps its place" begin
-    using JSON, Sockets
-
-    freeport() = (s = Sockets.listen(Sockets.IPv6("::1"), 0);
-                  p = Int(Sockets.getsockname(s)[2]); close(s); p)
+@testitem "modules are declared in registration order, and an id registered again keeps its place" setup=[FreePort] begin
+    using JSON
 
     mktempdir() do dir
         for f in ("a.js", "b.js")
@@ -591,11 +538,8 @@ end
     end
 end
 
-@testitem "the declared ellipsoid reaches the client on the session declaration" begin
+@testitem "the declared ellipsoid reaches the client on the session declaration" setup=[FreePort] begin
     using HTTP, JSON, Sockets
-
-    freeport() = (s = Sockets.listen(Sockets.IPv6("::1"), 0);
-                  p = Int(Sockets.getsockname(s)[2]); close(s); p)
 
     port = freeport()
     # Mars: visibly not Earth, so a globe built on it cannot be mistaken for the default.
@@ -655,11 +599,8 @@ end
     @test_logs min_level = Logging.Warn CesiumLink.ellipsoid_radii((a = 1.0, b = 1.0))
 end
 
-@testitem "a client reporting a globe on another ellipsoid is an error naming both" begin
-    using JSON, Logging, Sockets
-
-    freeport() = (s = Sockets.listen(Sockets.IPv6("::1"), 0);
-                  p = Int(Sockets.getsockname(s)[2]); close(s); p)
+@testitem "a client reporting a globe on another ellipsoid is an error naming both" setup=[FreePort] begin
+    using JSON, Logging
 
     # What the viewer sends once its globe exists. `module` is a Julia keyword, so the event's
     # params are built as a Dict here.
@@ -695,11 +636,8 @@ end
     end
 end
 
-@testitem "a served file revalidates, and a rebuild invalidates the tag, the body and the gzip" begin
-    using HTTP, Sockets, CodecZlib
-
-    freeport() = (s = Sockets.listen(Sockets.IPv6("::1"), 0);
-                  p = Int(Sockets.getsockname(s)[2]); close(s); p)
+@testitem "a served file revalidates, and a rebuild invalidates the tag, the body and the gzip" setup=[FreePort] begin
+    using HTTP, CodecZlib
 
     mktempdir() do dir
         built = repeat("export const k = 1;\n", 200)      # over the floor below which gzip is skipped
@@ -741,11 +679,8 @@ end
     end
 end
 
-@testitem "an .mjs module is served as JavaScript, and compresses as one" begin
-    using HTTP, Sockets, CodecZlib
-
-    freeport() = (s = Sockets.listen(Sockets.IPv6("::1"), 0);
-                  p = Int(Sockets.getsockname(s)[2]); close(s); p)
+@testitem "an .mjs module is served as JavaScript, and compresses as one" setup=[FreePort] begin
+    using HTTP, CodecZlib
 
     mktempdir() do dir
         mod_dir = mkpath(joinpath(dir, "heat"))
@@ -779,11 +714,8 @@ end
     end
 end
 
-@testitem "a client offering gzip gets compressed bytes, one that does not gets the file" begin
-    using HTTP, Sockets, CodecZlib
-
-    freeport() = (s = Sockets.listen(Sockets.IPv6("::1"), 0);
-                  p = Int(Sockets.getsockname(s)[2]); close(s); p)
+@testitem "a client offering gzip gets compressed bytes, one that does not gets the file" setup=[FreePort] begin
+    using HTTP, CodecZlib
 
     mktempdir() do dir
         built = repeat("export const k = 1;\n", 200)
@@ -816,12 +748,9 @@ end
     end
 end
 
-@testitem "a client announcing another protocol version is closed, not humoured" begin
+@testitem "a client announcing another protocol version is closed, not humoured" setup=[FreePort] begin
     using HTTP, JSON, Sockets
     using CesiumLink: PROTOCOL_VERSION
-
-    freeport() = (s = Sockets.listen(Sockets.IPv6("::1"), 0);
-                  p = Int(Sockets.getsockname(s)[2]); close(s); p)
 
     port = freeport()
     server = start_server(; dist_dir = nothing, host = "::1", port)
@@ -1078,11 +1007,8 @@ end
     end
 end
 
-@testitem "the declaration carries the lighting flag, and omits it when the globe is evenly lit" begin
+@testitem "the declaration carries the lighting flag, and omits it when the globe is evenly lit" setup=[FreePort] begin
     using HTTP, JSON, Sockets
-
-    freeport() = (s = Sockets.listen(Sockets.IPv6("::1"), 0);
-                  p = Int(Sockets.getsockname(s)[2]); close(s); p)
 
     # The declaration a server sends on `ready`, as the client reads it.
     function declared(; kw...)
@@ -1106,11 +1032,8 @@ end
     @test declared(; stars = true)["stars"] == true
 end
 
-@testitem "core/stop stops the server, and no listener can refuse it" begin
+@testitem "core/stop stops the server, and no listener can refuse it" setup=[FreePort] begin
     using HTTP, JSON, Sockets
-
-    freeport() = (s = Sockets.listen(Sockets.IPv6("::1"), 0);
-                  p = Int(Sockets.getsockname(s)[2]); close(s); p)
 
     stop_frame = JSON.json((; method = "event",
         params = Dict("module" => "core", "topic" => "stop", "payload" => Dict())))
@@ -1184,11 +1107,8 @@ end
     end
 end
 
-@testitem "a module registered while a client is connected is declared to it" begin
+@testitem "a module registered while a client is connected is declared to it" setup=[FreePort] begin
     using HTTP, JSON, Sockets
-
-    freeport() = (s = Sockets.listen(Sockets.IPv6("::1"), 0);
-                  p = Int(Sockets.getsockname(s)[2]); close(s); p)
 
     # A frame that never comes must fail this test rather than hang it: a server that stops
     # declaring is exactly the regression here, and `receive` waits for as long as the socket lives.

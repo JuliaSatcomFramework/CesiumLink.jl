@@ -40,11 +40,8 @@
     @test isempty(pointer_subscription(EventListener[]))
 end
 
-@testitem "a listener declares its subscription to the viewer, and it survives a reconnect" begin
+@testitem "a listener declares its subscription to the viewer, and it survives a reconnect" setup=[FreePort] begin
     using HTTP, JSON, Sockets
-
-    freeport() = (s = Sockets.listen(Sockets.IPv6("::1"), 0);
-                  p = Int(Sockets.getsockname(s)[2]); close(s); p)
 
     port = freeport()
     server = start_server(; host = "::1", port)
@@ -334,11 +331,8 @@ end
     end
 end
 
-@testitem "an answered event sends one batch echoing its seq" begin
+@testitem "an answered event sends one batch echoing its seq" setup=[FreePort] begin
     using HTTP, JSON, Sockets
-
-    freeport() = (s = Sockets.listen(Sockets.IPv6("::1"), 0);
-                  p = Int(Sockets.getsockname(s)[2]); close(s); p)
 
     port = freeport()
     server = start_server(; host = "::1", port)

@@ -132,11 +132,8 @@ end
           Dict("url" => "assets/imagery/", "layout" => "tms")
 end
 
-@testitem "the mount serves a tile and refuses a path that climbs out of it" setup=[Pyramid] begin
+@testitem "the mount serves a tile and refuses a path that climbs out of it" setup=[Pyramid, FreePort] begin
     using HTTP, JSON, Sockets
-
-    freeport() = (s = Sockets.listen(Sockets.IPv6("::1"), 0);
-                  p = Int(Sockets.getsockname(s)[2]); close(s); p)
 
     mktempdir() do root
         dir = pyramid(mkpath(joinpath(root, "tiles")))
@@ -174,11 +171,8 @@ end
     end
 end
 
-@testitem "a server with no imagery directory answers nothing under the mount" begin
-    using HTTP, Sockets
-
-    freeport() = (s = Sockets.listen(Sockets.IPv6("::1"), 0);
-                  p = Int(Sockets.getsockname(s)[2]); close(s); p)
+@testitem "a server with no imagery directory answers nothing under the mount" setup=[FreePort] begin
+    using HTTP
 
     port = freeport()
     server = start_server(; dist_dir = nothing, host = "::1", port, imagery = :none)

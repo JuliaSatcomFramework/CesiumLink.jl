@@ -86,11 +86,8 @@ end
     @test issorted(first.(stops))
 end
 
-@testitem "the overlay declaration reaches the ui module and survives a reconnect" begin
+@testitem "the overlay declaration reaches the ui module and survives a reconnect" setup=[FreePort] begin
     using HTTP, JSON, Sockets
-
-    freeport() = (s = Sockets.listen(Sockets.IPv6("::1"), 0);
-                  p = Int(Sockets.getsockname(s)[2]); close(s); p)
 
     port = freeport()
     server = start_server(; host = "::1", port)
@@ -186,11 +183,8 @@ end
     @test_throws "1-based" Entity(:primitives, :sat, 0)
 end
 
-@testitem "the float set reaches the ui module and survives a reconnect" begin
+@testitem "the float set reaches the ui module and survives a reconnect" setup=[FreePort] begin
     using HTTP, JSON, Sockets
-
-    freeport() = (s = Sockets.listen(Sockets.IPv6("::1"), 0);
-                  p = Int(Sockets.getsockname(s)[2]); close(s); p)
 
     port = freeport()
     server = start_server(; host = "::1", port)

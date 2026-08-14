@@ -142,11 +142,8 @@ end
     end
 end
 
-@testitem "a ride goes out on the wire and never displaces the declared track" setup=[Furnished] begin
+@testitem "a ride goes out on the wire and never displaces the declared track" setup=[Furnished, FreePort] begin
     using HTTP, JSON, Sockets
-
-    freeport() = (s = Sockets.listen(Sockets.IPv6("::1"), 0);
-                  p = Int(Sockets.getsockname(s)[2]); close(s); p)
 
     # One `commands` frame carrying a `core/camera` payload with a `follow` statement in it. The
     # replay a joining client gets comes first and carries the track, so the read skips past it.

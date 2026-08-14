@@ -1,3 +1,15 @@
+# `setup=[FreePort]` brings `freeport` into scope: a port number nothing is listening on. A test
+# that must know the port before the server starts asks for one, because `port = 0` lets the OS
+# choose and only the started server can then say which. There is a race between the probe and the
+# `start_server` that follows it, and no way to close it from here — the OS hands out a port the
+# probe already returned only under a load the suite does not create.
+@testsnippet FreePort begin
+    using Sockets
+
+    freeport() = (s = Sockets.listen(Sockets.IPv6("::1"), 0);
+                  p = Int(Sockets.getsockname(s)[2]); close(s); p)
+end
+
 # `setup=[Wire]` brings `lowered` and `header` into scope: the two ways a test looks inside a frame.
 # Every frame the server sends is binary, so a test client splits one before it reads anything.
 @testsnippet Wire begin
