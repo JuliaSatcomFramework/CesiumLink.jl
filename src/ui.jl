@@ -298,7 +298,7 @@ payload(g::Group) = (; g.controls)
 Declare `items` as the **whole** overlay: one ordered list of [`AbstractControl`](@ref)s, addressed
 at the `ui` module's `declare` topic. Re-declaring replaces the previous list, so removing a widget
 means declaring without it, and the list's order is the order the widgets stack in within a region.
-Returns the number of clients reached.
+Returns the number of clients it was queued for.
 
 The declaration is retained, so a browser connecting later comes back to the same overlay. A widget
 always shows the value it was declared with: after answering a `ui/control` event, declare the list
@@ -479,7 +479,7 @@ JSON.lower(f::Floating) =
 Declare `items` as the **whole** set of floating objects, addressed at the `ui` module's `floating`
 topic. Re-declaring replaces the set, so removing one float means declaring without it, and a float
 whose declaration is unchanged keeps the box it already had — including a mounted module, which is
-not torn down and rebuilt by a move or a restyle. Returns the number of clients reached.
+not torn down and rebuilt by a move or a restyle. Returns the number of clients it was queued for.
 
 The set is retained, so a browser connecting later comes back to the same floats. Nothing about them
 is remembered beyond the declaration itself: pinning something is declaring a float, and unpinning it

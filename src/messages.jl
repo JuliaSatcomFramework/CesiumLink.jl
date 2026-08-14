@@ -27,6 +27,11 @@ function commands_message(commands; seq = nothing)
     return Frame(JSON.json((; method = "commands", params)), take!(region))
 end
 
+# The `core/dropped` command: this client's send queue was full and refused `n` frames. It is the
+# only frame a client is sent about its own connection, and it asks for nothing — the client decides
+# what to do, and a viewer answers with a `core/replay` event.
+dropped_message(n::Integer) = commands_message([Command(CORE_DROPPED..., (; n = Int(n)))])
+
 """
     modules_message(mods; ellipsoid=nothing, furniture=nothing, imagery=nothing,
                     assets=nothing, lighting=false, stars=false) -> Frame

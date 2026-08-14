@@ -78,6 +78,25 @@ The server sends this frame once per connection, before any state addressed to a
 CesiumLink.modules_message
 ```
 
+## How a client is written to
+
+Every client holds a bounded queue of frames and one task that drains it. A broadcast copies the
+client set, releases the server's lock and enqueues, so a client that stops reading fills its own
+queue and holds up nothing else — no other client, and no request the same lock guards. The drain
+task is what serialises one client's writes (ADR-0030).
+
+A full queue drops the frame and counts it. The next frame that fits is preceded by a `core/dropped`
+command carrying the count, and a client that hears it asks for a `core/replay` — which is answered
+with the retained scene, the same frames a client connecting now is replayed.
+
+`send_frame` is the one function that knows how a client of a given kind is written to. A host that
+reaches its page by some other route than a WebSocket adds a method for its own connection type.
+
+```@docs
+CesiumLink.Client
+CesiumLink.send_frame
+```
+
 ## Reading back what the session declares
 
 The server keeps the last command per `(module, topic)` pair and replays the set to every client

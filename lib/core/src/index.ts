@@ -162,6 +162,16 @@ export async function createViewer(
     return out;
   };
 
+  // The server's queue for this connection filled up and dropped frames. Ask for the retained scene
+  // again — the same frames a client connecting now is replayed — because the server holds the last
+  // message per (module, topic) and a dropped one is therefore recoverable in full. The window comes
+  // back with it, so the scene on screen is the scene the server is on.
+  const askReplay = (payload: unknown) => {
+    const n = (payload as { n?: number } | null)?.n ?? 0;
+    console.warn(`core: the server dropped ${n} frame(s) for this client; asking for a replay`);
+    sendEvent("core", "replay", {});
+  };
+
   // One pointer dispatch for all modules: the Core owns the ScreenSpaceEventHandler, resolves a hit
   // to the module that stamped it, and forwards upward only what the subscription asked for.
   const pointer = createPointerDispatch(scene, Cesium, (p) => sendEvent("core", "pointer", p));
@@ -350,9 +360,10 @@ export async function createViewer(
         camera.windowDelivered();
       });
       // Everything that is not a window: a batch of addressed commands, applied in order. The
-      // pseudo-module id "core" addresses the Core itself, with four topics: the pointer-event
+      // pseudo-module id "core" addresses the Core itself, with five topics: the pointer-event
       // subscription the server derives from its registered listeners, the two declarations of what
-      // the Core puts on screen, and the camera track.
+      // the Core puts on screen, the camera track, and the count of frames the server dropped for
+      // this client.
       t.on("commands", (params, bytes) => {
         const region = bytes ?? NO_BYTES;
         const batch = (params ?? {}) as { seq?: number | null; commands?: Command[] };
@@ -370,6 +381,7 @@ export async function createViewer(
             else if (c.topic === "furniture") declareFurniture(payload);
             else if (c.topic === "regions") declareRegions(payload);
             else if (c.topic === "camera") camera.declare(payload);
+            else if (c.topic === "dropped") askReplay(payload);
             else console.warn(`core: unknown command topic ${c.topic}; ignored`);
             continue;
           }

@@ -201,7 +201,7 @@ declare_camera(server::Server, viewpoints::Viewpoint...) =
     declare_follow(server::Server, target; range, heading, pitch, duration) -> Int
     declare_follow(server::Server) -> Int
 
-Put the camera on a moving thing, or take it off. Returns the number of clients reached.
+Put the camera on a moving thing, or take it off. Returns the number of clients it was queued for.
 
 `target` names what to ride, and `range`, `heading` and `pitch` say how to sit on it, exactly as
 [`Viewpoint`](@ref) states them. The camera flies into that seat over `duration` seconds. A call
