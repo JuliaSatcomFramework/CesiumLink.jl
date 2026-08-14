@@ -461,7 +461,7 @@ function start_server(; dist_dir = viewer_dist(), host = "127.0.0.1", port = 0,
     # The push goes out after the discovery file, and never before it: the extension reads that
     # file to find the scene the push names.
     server.discovery_file = write_discovery(bound_port(server), title, imagery_source(server);
-                                            assets = server.asset_dirs,
+                                            host = server.host, assets = server.asset_dirs,
                                             trusted_origins = server.trusted_origins,
                                             modules = module_dirs(server))
     if open !== false

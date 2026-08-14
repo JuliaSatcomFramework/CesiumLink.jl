@@ -1190,6 +1190,46 @@ end
     @test sprint(show, server) == "Server(stopped)"
 end
 
+@testitem "the discovery file holds what the extension reads" setup=[FreePort] begin
+    using JSON
+
+    # `extension/fixtures/discovery.json` is the file the extension's own test reads. This checks
+    # that a real one carries the same fields, so a field added or renamed here fails a test on both
+    # sides rather than showing up as a scene the picker cannot open.
+    fixture = JSON.parsefile(joinpath(pkgdir(CesiumLink), "extension", "fixtures",
+                                      "discovery.json"))
+
+    mktempdir() do runtime
+        was = get(ENV, "XDG_RUNTIME_DIR", nothing)
+        ENV["XDG_RUNTIME_DIR"] = runtime
+        try
+            # A basemap named as a URL, so every optional field is written: `imagery` is absent from
+            # a scene that declares none, and it carries the one trusted origin with it.
+            server = start_server(; dist_dir = nothing, host = "::1", port = freeport(),
+                                  title = "the fixture scene",
+                                  imagery = "https://tiles.example/{z}/{x}/{y}.png")
+            try
+                entry = JSON.parsefile(server.discovery_file)
+                @test sort(collect(keys(entry))) == sort(collect(keys(fixture)))
+                # The reader connects with this string and builds nothing of its own, so the route
+                # and the host are stated here. This server binds `::1`, which no URL naming
+                # `127.0.0.1` reaches.
+                @test entry["ws"] == "ws://[::1]:$(bound_port(server))/ws"
+                # The liveness probe reaches this server too. A probe of `127.0.0.1` alone would
+                # call the file stale and the next `start_server` would remove it.
+                @test CesiumLink.port_answers(bound_port(server))
+                for (key, value) in fixture
+                    @test typeof(entry[key]) == typeof(value)
+                end
+            finally
+                stop_server(server)
+            end
+        finally
+            was === nothing ? delete!(ENV, "XDG_RUNTIME_DIR") : (ENV["XDG_RUNTIME_DIR"] = was)
+        end
+    end
+end
+
 @testitem "a client that stops reading drops frames instead of blocking the broadcast" begin
     using CesiumLink: Client, CLIENT_QUEUE, broadcast_all!, commands_message, Command,
                       drain_client!, unpack

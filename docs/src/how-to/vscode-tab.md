@@ -66,8 +66,8 @@ scenes apart. Pass `title` when you want to read the list rather than decode it:
 server = start_server(; title = "coverage, 12 GHz")
 ```
 
-The list comes from a file each server writes for itself — see [`discovery_dir`](@ref). A scene
-whose process is gone is skipped, so a crashed session leaves no row you can pick.
+The list comes from a file each server writes for itself — see [`discovery_dir`](@ref). A scene whose
+port no longer answers is skipped, so a crashed session leaves no row you can pick.
 
 ## 3. Let a scene open its own tab
 

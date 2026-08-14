@@ -7,7 +7,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import Module from "node:module";
-import { mkdtempSync, mkdirSync } from "node:fs";
+import net from "node:net";
+import { mkdtempSync, mkdirSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -29,7 +30,8 @@ Module._load = (req, parent, isMain) =>
 
 // Through the default export: for a CommonJS module that is `module.exports` itself, and the named
 // bindings Node's lexer offers are not reliable for an object literal built this way.
-const { imageryOrigin, readableMounts, sceneMounts, pageHtml, activate } =
+const { imageryOrigin, readableMounts, sceneMounts, pageHtml, activate,
+        discoveryDir, isRunning, answers, scene } =
   (await import("./extension.js")).default;
 // `log` is created in `activate`, and `readableMounts` writes to it when a directory is missing.
 // The context carries what VSCode gives one, so `activate` announces the build it is running rather
@@ -110,3 +112,62 @@ test("a mount path cannot end the script block it is written into", () => {
 });
 
 Module._load = realLoad;
+
+// --- the discovery file, as the reader sees it -----------------------------------------------
+//
+// `fixtures/discovery.json` is one file of the kind a running server writes. The Julia suite writes
+// a real one and checks it carries the same fields, so a field added or renamed on the writing side
+// fails a test here and there rather than showing up as a scene that will not open.
+
+const FIXTURE = JSON.parse(
+  readFileSync(join(dirname(fileURLToPath(import.meta.url)), "fixtures", "discovery.json"), "utf8"),
+);
+
+test("a scene row is read out of the file rather than derived from the port", () => {
+  const s = scene(FIXTURE);
+  // The route and the host come from the file: a server bound to `::1` answers no URL naming
+  // `127.0.0.1`, so the reader must never build this one itself.
+  assert.equal(s.url, "ws://127.0.0.1:54321/ws");
+  assert.equal(s.port, 54321);
+  assert.equal(s.label, "the fixture scene");
+  assert.equal(s.dist, "/home/somebody/.julia/artifacts/f1x7u2e/dist");
+  assert.deepEqual(s.assets, { models: "/data/glb" });
+  assert.deepEqual(Object.keys(s.modules), ["primitives"]);
+  assert.deepEqual(s.trustedOrigins, ["https://tiles.example"]);
+  // The three the panel needs before it exists all come from this one file.
+  assert.equal(imageryOrigin(s.imagery), "https://tiles.example");
+});
+
+test("a file from a server older than the `ws` field still opens", () => {
+  const { ws, ...older } = FIXTURE;
+  assert.equal(scene(older).url, "ws://localhost:54321/ws", "the route such a server answered on");
+});
+
+test("the picker's directory is the one the server writes into", () => {
+  const dir = discoveryDir();
+  assert.ok(dir.endsWith("cesiumlink"), `expected a cesiumlink directory, got ${dir}`);
+  // The first branch of the three, which is the one a Linux session takes.
+  if (process.env.XDG_RUNTIME_DIR) {
+    assert.equal(dir, join(process.env.XDG_RUNTIME_DIR, "cesiumlink"));
+  }
+});
+
+test("liveness asks the pid first and the port last", async () => {
+  assert.equal(isRunning(process.pid), true, "this very process is running");
+  // A pid nothing can be running under. `isRunning` answers for the pid alone, and the port is what
+  // decides — so a scene on a port that answers nothing is never shown, whatever the pid says.
+  assert.equal(isRunning(0x7fffffff), false);
+  assert.equal(await answers("ws://localhost:1/ws"), false,
+               "port 1 is privileged, so no scene of ours holds it");
+
+  // The probe dials the address the scene's URL names. A server bound to `::1` answers nothing on
+  // `127.0.0.1`, and many machines resolve `localhost` to that address alone.
+  const server = net.createServer();
+  await new Promise((done) => server.listen(0, "::1", done));
+  try {
+    const { port } = server.address();
+    assert.equal(await answers(`ws://[::1]:${port}/ws`), true, "an IPv6 loopback server answers");
+  } finally {
+    server.close();
+  }
+});
