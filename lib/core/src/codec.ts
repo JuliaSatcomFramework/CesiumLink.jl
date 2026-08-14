@@ -114,6 +114,13 @@ export function isNdArray(v: unknown): v is NdArray {
   return !!o && typeof o === "object" && ArrayBuffer.isView(o.data) && Array.isArray(o.shape);
 }
 
+/**
+ * Read a declared list of numbers as a plain list. A short list travels as JSON, a long list travels
+ * as an encoded array, and a field the declaration omits gives the empty list.
+ */
+export const numbers = (v: number[] | NdArray | undefined): number[] =>
+  v === undefined ? [] : isNdArray(v) ? Array.from(v.data) : v;
+
 function decodeArray(w: WireArray, region: Uint8Array): NdArray {
   const Ctor = CTORS[w.$wire];
   const count = elementCount(w.shape);

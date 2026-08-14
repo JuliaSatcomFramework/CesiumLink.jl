@@ -13,7 +13,7 @@
 // with its own layer stack, and that is why it is a module of its own.
 
 import type { ImageryLayer, ImageryLayerCollection } from "@cesium/engine";
-import { isNdArray, type NdArray } from "../../core/src/codec.ts";
+import { isNdArray, numbers, type NdArray } from "../../core/src/codec.ts";
 import type { Disposable, ModuleContext } from "../../core/src/module-host.ts";
 import type { Timeline } from "../../core/src/windows.ts";
 import { gridAt, toCanvas, type Grid } from "./grid.ts";
@@ -53,10 +53,6 @@ let shown: Shown[] = [];
 // before it reaches the screen: the last draw wins and every earlier one is dropped.
 let epoch = 0;
 
-/** A declared extent, which travels either as a plain list or as an encoded array of four. */
-const degrees = (extent: number[] | NdArray): number[] =>
-  isNdArray(extent) ? Array.from(extent.data) : extent;
-
 /** The grid as something a provider can be built from, which for a canvas is a data URL. */
 const url = (g: Grid): string => toCanvas(g).toDataURL();
 
@@ -93,7 +89,7 @@ async function redraw(index: number): Promise<void> {
   // Every swap encodes one PNG per raster. A keyframe crossing is rare enough to pay for that. A
   // field that must follow the render tick needs a provider that uploads its texture directly.
   const providers = await Promise.all(want.map(({ spec, grid }) => {
-    const [west, south, east, north] = degrees(spec.extent);
+    const [west, south, east, north] = numbers(spec.extent);
     return Cesium.SingleTileImageryProvider.fromUrl(url(grid), {
       rectangle: Cesium.Rectangle.fromDegrees(west, south, east, north),
     });
