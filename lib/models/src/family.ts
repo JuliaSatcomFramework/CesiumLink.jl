@@ -9,7 +9,8 @@
 // because a window may prune or resize that family under this one. See ADR-0022 and ADR-0023.
 
 import type { Cartesian3, Entity, EntityCollection, Quaternion } from "@cesium/engine";
-import { isNdArray, type NdArray } from "../../core/src/codec.ts";
+import { numbers, type NdArray } from "../../core/src/codec.ts";
+import { sayOnce } from "../../core/src/once.ts";
 import type { Placement, Timeline, WindowInfo } from "../../core/src/windows.ts";
 import { at, knob, type Knob, type Slice } from "../../primitives/src/knobs.ts";
 import { axesQuaternion, frameNamed, frameQuaternion,
@@ -53,17 +54,12 @@ interface ModelWindow {
 /** An entity carrying the stamp of the entity it is anchored to, which is not Cesium's own field. */
 type Anchored = Entity & { pickId?: object };
 
-/** A declared list of numbers, which travels either as a plain list or as an encoded array. */
-const numbers = (v: number[] | NdArray | undefined): number[] =>
-  v === undefined ? [] : isNdArray(v) ? Array.from(v.data) : v;
-
 export class ModelFamily {
   readonly kind: string;
   private readonly C: CesiumRuntime;
   private readonly entities: EntityCollection;
   private readonly anchors: Anchors;
   private readonly assetUrl: (path: string) => string | null;
-  private readonly warn: (message: string) => void;
   private readonly timeline: Timeline<ModelWindow>;
 
   /** The last window's declaration, which is what a rebuild is made from. */
@@ -75,8 +71,8 @@ export class ModelFamily {
   private readonly made: Anchored[] = [];
   private orientationAt: Slice | null = null;
   private showAt: Slice | null = null;
-  /** Faults already reported. A family draws every frame, and a fault says itself once. */
-  private readonly said = new Set<string>();
+  /** Reports each fault one time. The key states which fault this is. */
+  private readonly say: (key: string, message: string) => void;
   /** Where each model stood on the previous tick, for the `velocity` frame only. */
   private readonly wasAt: (Cartesian3 | null)[] = [];
   /** The step each model last took, which is the direction the `velocity` frame faces. */
@@ -92,7 +88,7 @@ export class ModelFamily {
     this.entities = entities;
     this.anchors = anchors;
     this.assetUrl = assetUrl;
-    this.warn = warn;
+    this.say = sayOnce(warn);
     this.timeline = timeline;
   }
 
@@ -286,11 +282,5 @@ export class ModelFamily {
     this.timeline.clear();
     this.built = "";
     this.spec = null;
-  }
-
-  private say(key: string, message: string): void {
-    if (this.said.has(key)) return;
-    this.said.add(key);
-    this.warn(message);
   }
 }

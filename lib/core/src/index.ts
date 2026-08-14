@@ -14,7 +14,7 @@ import { createPointerDispatch } from "./picking";
 import { createCameraAuthority } from "./camera";
 import { createAssetUrl, type AssetBase, type AssetMounts } from "./assets";
 import { blockAt, decodeArrays, isNdArray } from "./codec";
-import { createOverlay, type OverlayRegion } from "./overlay";
+import { createOverlay, REGIONS, type OverlayRegion } from "./overlay";
 import { createWindows, Timeline } from "./windows";
 import { NO_BYTES } from "./transport";
 import type { Declaration, Transport } from "./transport";
@@ -219,9 +219,6 @@ export async function createViewer(
   // raised again from where the cursor is. Whatever answers a hover answers this one too, and stays
   // the only author of what the box shows.
   windows.onKeyframe(() => pointer.refreshHover());
-
-  /** The four regions, as a runtime list — the wire carries a name and may carry an unknown one. */
-  const REGIONS: OverlayRegion[] = ["top-left", "top-center", "top-right", "bottom-right"];
 
   // Whether the ruler is on screen, which is the half of the stranded-frames check the furniture
   // declaration states. It starts at the default, which is what a session that declares nothing shows.

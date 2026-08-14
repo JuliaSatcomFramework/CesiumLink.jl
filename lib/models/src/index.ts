@@ -15,6 +15,7 @@
 // nothing but custom materials, which is why this is a module rather than a fourth family there.
 
 import type { Disposable, ModuleContext } from "../../core/src/module-host.ts";
+import { sayOnce } from "../../core/src/once.ts";
 import { ModelFamily, type Anchors, type ModelSpec } from "./family.ts";
 
 /** One window's models, as Julia's `models_payload` builds them. */
@@ -28,13 +29,8 @@ const ANCHOR = "primitives";
 export default {
   setup(ctx: ModuleContext): Disposable {
     const families = new Map<string, ModelFamily>();
-    const said = new Set<string>();
-    const say = (key: string, message: string): void => {
-      if (said.has(key)) return;
-      said.add(key);
-      console.warn(message);
-    };
     const warn = (message: string): void => console.warn(message);
+    const say = sayOnce(warn);
 
     // Reached from a callback and never from setup: a peer whose own setup has not run yet answers
     // nothing from every accessor, and the host warns about the lookup rather than the emptiness.

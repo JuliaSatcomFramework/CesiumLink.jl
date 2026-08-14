@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { blockAt, decodeArrays, type NdArray } from "./codec.ts";
+import { blockAt, decodeArrays, numbers, type NdArray } from "./codec.ts";
 
 // A region holding a Julia `Float32[1 3 5; 2 4 6]` (2x3, column-major), whose row-major shape
 // [3, 2] describes the same buffer.
@@ -118,4 +118,10 @@ test("a keyframe outside the window is null, and a leading axis that disagrees t
 
 test("a rank more than one above the base rank throws, naming the shape and the base rank", () => {
   assert.throws(() => blockAt(nd([1, 2, 3, 4, 5, 6], 3, 2, 1), 0, 0, 3), /\[3,2,1\].*base rank 0/);
+});
+
+test("a declared list of numbers reads the same whichever way it travelled", () => {
+  assert.deepEqual(numbers([1, 2, 3]), [1, 2, 3]);
+  assert.deepEqual(numbers(nd([1, 2, 3], 3)), [1, 2, 3]);
+  assert.deepEqual(numbers(undefined), []);
 });
