@@ -30,6 +30,11 @@ on:
 #
 # A pull request build pushes nothing, so it needs none of that. It takes a group of its own per
 # branch, where a new commit supersedes the build of the one before it.
+#
+# That holds only while `docs/make.jl` leaves `push_preview` unset. Turning it on makes a pull
+# request amend and force-push `gh-pages` like any other deploy, and this group must go back to
+# `docs` in the same change — a preview racing a deploy is the case the single group exists for.
+# The site is already *built* under the base `previews/PR##`; it is the push alone that is off.
 concurrency:
   group: docs-${{ github.event_name == 'pull_request' && github.ref || 'deploy' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
