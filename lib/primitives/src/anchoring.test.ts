@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import type { AnchorResolver } from "../../core/src/camera.ts";
 import type { ModuleContext } from "../../core/src/module-host.ts";
+import { windowCoverage } from "../../core/src/testing.ts";
 import { Timeline, type WindowInfo } from "../../core/src/windows.ts";
 
 // `positionOf` is what a float anchored to an entity resolves through, so it has to answer for every
@@ -120,7 +121,7 @@ function viewer(scene: unknown = SCENE) {
   const windows: ((w: WindowInfo, payload: unknown) => void)[] = [];
   const frames: ((f: { index: number; alpha: number }) => void)[] = [];
   const keyframe: ((index: number) => void)[] = [];
-  const covers = new Map<number, WindowInfo>();
+  const covers = windowCoverage();
   const resolvers: AnchorResolver[] = [];
   const ctx = {
     anchors: (resolve: AnchorResolver) => (resolvers.push(resolve), () => {}),
@@ -130,16 +131,13 @@ function viewer(scene: unknown = SCENE) {
     pickId: (kind: string, idx: number) => ({ kind, idx }),
     onWindow: (cb: (w: WindowInfo, payload: unknown) => void) => (windows.push(cb), () => {}),
     onKeyframe: (cb: (index: number) => void) => (keyframe.push(cb), () => {}),
-    placement: (index: number) => {
-      const w = covers.get(index);
-      return w ? { window: w, k: index - w.startFrame } : null;
-    },
+    placement: covers.placement,
     onFrame: (cb: (f: { index: number; alpha: number }) => void) => (frames.push(cb), () => {}),
     perWindow: <T>() => new Timeline<T>(),
   } as unknown as ModuleContext;
   const teardown = primitives.setup(ctx);
   const info = window();
-  for (let k = 0; k < info.count; k++) covers.set(info.startFrame + k, info);
+  covers.deliver(info);
   /** Deliver a window. A second one replaces the first, so a family it does not name is pruned. */
   const deliver = (payload: unknown) => {
     for (const cb of windows) cb(info, payload);

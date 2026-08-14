@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { windowCoverage } from "../../core/src/testing.ts";
 import { Timeline, type WindowInfo } from "../../core/src/windows.ts";
 
 // The module touches the DOM and nothing else — no Cesium — so a handful of stubs is the whole
@@ -181,7 +182,7 @@ function fakeViewer(scene = fakeScene()) {
   const frames: (() => void)[] = [];
   const pointer: ((e: { screen: { x: number; y: number } }) => void)[] = [];
   const sent: { topic: string; payload: unknown }[] = [];
-  const covers = new Map<number, WindowInfo>();
+  const covers = windowCoverage();
   const ctx = {
     container,
     frame: null as { index: number; alpha: number } | null,
@@ -218,12 +219,7 @@ function fakeViewer(scene = fakeScene()) {
     notify(topic: string, payload: unknown) {
       sent.push({ topic, payload });
     },
-    // The Core's own answer, modelled: which delivered window carries an absolute keyframe, and
-    // where in it that keyframe sits. A replace re-indexes, so nothing before it survives.
-    placement: (index: number) => {
-      const w = covers.get(index);
-      return w ? { window: w, k: index - w.startFrame } : null;
-    },
+    placement: covers.placement,
     perWindow: <T>() => new Timeline<T>(),
   };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -247,8 +243,7 @@ function fakeViewer(scene = fakeScene()) {
     /** Deliver one window's `ui` payload, covering `count` keyframes from absolute `startFrame`. */
     deliver: (payload: unknown, w: Partial<WindowInfo> & { startFrame: number; count: number }) => {
       const info = { mode: "replace", ...w } as WindowInfo;
-      if (info.mode === "replace") covers.clear();
-      for (let k = 0; k < info.count; k++) covers.set(info.startFrame + k, info);
+      covers.deliver(info);
       windows.forEach((cb) => cb(info, payload));
       // The Core's own guarantee, modelled: a replace re-indexes, so it fires a crossing at the
       // index the clock is on. An append changes nothing on screen and fires none.

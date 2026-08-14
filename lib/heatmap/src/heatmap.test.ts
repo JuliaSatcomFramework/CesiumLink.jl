@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { windowCoverage } from "../../core/src/testing.ts";
 import { Timeline, type WindowInfo } from "../../core/src/windows.ts";
 
 // The module reaches two things outside itself: a canvas, to fill with the grid's own bytes, and
@@ -52,7 +53,7 @@ const EXTENT = [-10, 40, 10, 50];
 function fakeViewer() {
   const windows: ((w: WindowInfo, payload: unknown) => void)[] = [];
   const keyframe: ((index: number) => void)[] = [];
-  const covers = new Map<number, WindowInfo>();
+  const covers = windowCoverage();
   // The collection already carries the globe's own imagery, which this module never touches.
   const base = { provider: { url: "base", rectangle: null } } as FakeLayer;
   const stack: FakeLayer[] = [base];
@@ -88,10 +89,7 @@ function fakeViewer() {
       keyframe.push(cb);
       return () => {};
     },
-    placement: (index: number) => {
-      const w = covers.get(index);
-      return w ? { window: w, k: index - w.startFrame } : null;
-    },
+    placement: covers.placement,
     perWindow: <T>() => new Timeline<T>(),
   };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -103,8 +101,7 @@ function fakeViewer() {
     stack,
     deliver: (payload: unknown, w: Partial<WindowInfo> & { startFrame: number; count: number }) => {
       const info = { mode: "replace", ...w } as WindowInfo;
-      if (info.mode === "replace") covers.clear();
-      for (let k = 0; k < info.count; k++) covers.set(info.startFrame + k, info);
+      covers.deliver(info);
       windows.forEach((cb) => cb(info, payload));
       // The Core's own guarantee, modelled: a replace re-indexes, so it fires a crossing at the
       // index the clock is on. An append changes nothing on screen and fires none.
