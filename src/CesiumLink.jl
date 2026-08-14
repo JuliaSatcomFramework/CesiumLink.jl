@@ -28,6 +28,7 @@ import Dates
 
 include("codec.jl")
 include("ellipsoids.jl")
+include("ellipsoid_check.jl")
 include("colormap.jl")
 include("primitives/primitives.jl")
 include("models.jl")
