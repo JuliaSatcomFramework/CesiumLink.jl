@@ -1,0 +1,22 @@
+# Codecov reads this from the head of a pull request. Without it the defaults apply, and two of them
+# are wrong for this package.
+
+codecov:
+  notify:
+    # The Linux run and the Windows run each upload one report, and the two are one measurement:
+    # several files split on `Sys.iswindows()`, so each run reaches lines the other cannot. A status
+    # posted after the first upload counts the other platform's branches as unreached.
+    after_n_builds: 2
+
+comment:
+  after_n_builds: 2
+
+coverage:
+  status:
+    patch:
+      default:
+        # A report, and never a gate. The default target is the project's own coverage, which a diff
+        # that only moves code cannot meet: every moved line arrives as a new line, so the error
+        # paths a file already did not cover are counted again as a shortfall this diff created.
+        # The test suite is what says the package works. This says which lines it reached.
+        informational: true
