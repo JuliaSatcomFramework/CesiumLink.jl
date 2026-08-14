@@ -44,8 +44,9 @@ const PLACEMENT = ["position", "top", "right", "bottom", "left", "transform", "z
 
 /**
  * A region's declared CSS with the placement properties removed. A refusal warns, names the
- * property, and drops that property only — the rest of the bag still applies. Keys arrive already
- * lowered to CSS spelling (`flex-direction`, not `flex_direction`).
+ * property, and drops that property only — the rest of the bag still applies. Keys arrive in CSS
+ * spelling (`flex-direction`, not `flex_direction`). The refusal compares the key in lower case,
+ * because `setProperty` lowers it too: `Top` and `top` reach the same declaration.
  */
 export function scrubRegionStyle(
   region: string,
@@ -54,7 +55,7 @@ export function scrubRegionStyle(
 ): Record<string, string> {
   const kept: Record<string, string> = {};
   for (const [property, value] of Object.entries(bag)) {
-    if (PLACEMENT.includes(property)) {
+    if (PLACEMENT.includes(property.toLowerCase())) {
       warn(`overlay: region ${region} may not set '${property}' — the Core owns placement (ADR-0004)`);
       continue;
     }
