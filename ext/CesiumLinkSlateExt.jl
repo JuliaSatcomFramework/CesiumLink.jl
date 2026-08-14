@@ -97,9 +97,10 @@ function SEB.slate_render(server::Server)
     # first, and the cell that was drawing goes quiet with nothing said anywhere. Say it here
     # instead. A cell that wants a second viewer wants a second server; a cell that only pushes to
     # this one needs no viewer at all.
+    # `#cell-<id>` is the anchor Slate gives every cell, and what its own cross-references link to.
     owner == cell || return SEB.html_fragment(
-        "<em>CesiumLink: cell <code>$owner</code> already draws this server. " *
-        "One cell draws one server.</em>")
+        "<em>CesiumLink: cell <a href=\"#cell-$owner\"><code>$owner</code></a> already draws this " *
+        "server. One cell draws one server.</em>")
     # Register the mount component with the page. Slate does this itself for a widget the notebook
     # binds, and a `Server` is displayed rather than bound, so the render asks for it. Without this
     # the cell holds an empty component descriptor that nothing ever mounts.
