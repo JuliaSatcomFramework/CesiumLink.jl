@@ -26,7 +26,7 @@ never touches the artifact.
 - **A lazy artifact, with `lib/dist` preferred** (chosen).
 - **Commit the built tree** (rejected). 25 MB per state of the tree, in every clone, forever.
 - **Two artifacts, one for the Cesium subtree** (rejected). It buys nothing and forces a second mount
-  root in `server.jl`.
+  root in `static.jl`.
 - **`export-ignore` in `.gitattributes` to keep `lib/` out of what a user downloads** (rejected, and a
   trap). Pkg verifies a package tree against its `git-tree-sha1`. A tree that `git archive` strips
   does not match that hash.

@@ -29,9 +29,10 @@ the gate before splitting, not after.
 
 There is no package boundary. There is a namespace boundary, checkable by reading:
 
-- `events.jl`, `server.jl`, `messages.jl`, `codec.jl`, `recorder.jl` and `geodesy.jl` name no module
-  but `core` itself. The one exception is `vendored`, whose whole job is resolving a vendored module
-  id to a path, so naming the shipped set is what it is for.
+- `events.jl`, `server.jl`, `static.jl`, `discovery.jl`, `editor.jl`, `imagery.jl`, `messages.jl`,
+  `codec.jl`, `recorder.jl` and `geodesy.jl` name no module but `core` itself. The one exception is
+  `vendored` in `artifacts.jl`, whose whole job is resolving a vendored module id to a path, so
+  naming the shipped set is what it is for.
 - Each vocabulary submodule names only its own module id.
 - `colormap.jl` names no module id at all. It is neither vocabulary, and it sits at package top
   level where every vocabulary can reach it.
