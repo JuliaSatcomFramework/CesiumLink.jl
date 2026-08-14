@@ -1215,6 +1215,9 @@ end
                 # and the host are stated here. This server binds `::1`, which no URL naming
                 # `127.0.0.1` reaches.
                 @test entry["ws"] == "ws://[::1]:$(bound_port(server))/ws"
+                # The liveness probe reaches this server too. A probe of `127.0.0.1` alone would
+                # call the file stale and the next `start_server` would remove it.
+                @test CesiumLink.port_answers(bound_port(server))
                 for (key, value) in fixture
                     @test typeof(entry[key]) == typeof(value)
                 end

@@ -57,15 +57,15 @@ The file name is the pid and the port, so two servers in one process each get th
 
 ## Which files are live
 
-**A file is live while its port answers. A reader shows no scene whose port answers nothing.** The
-port is the whole of the rule, and it is the half both ends can always ask: a process that still runs
+**A file is live while its port answers. A reader shows no scene whose port answers nothing.** Every
+file must pass the port, and the port is the half both ends can always ask: a process that still runs
 is no proof that the server inside it does, because a REPL reset takes the server away and leaves the
 process.
 
-The pid is an optimisation on top of that rule, and each end takes it as far as its platform allows.
-It costs nothing and it drops most stale files before any socket work, so both ends ask it first
-where they can. It cannot decide on its own either way: a pid that is gone means the file is stale,
-and a pid that runs means nothing.
+The pid is an early reject in front of that rule, and each end takes it as far as its platform
+allows. It costs nothing and it drops most stale files before any socket work, so both ends ask it
+first where they can. A pid that is gone is enough to call the file stale. A pid that runs says
+nothing on its own, and the port then decides.
 
 - Julia asks with `kill(pid, 0)`, which Base offers on unix alone. Off unix this package answers "it
   may be running" and lets the port decide, which keeps a file too many rather than one too few.
@@ -123,18 +123,23 @@ function chmod_quietly(dir, dir_mode, file, file_mode)
     end
 end
 
-# Whether anything is listening on `port` of the loopback.
+# Whether anything is listening on `port` of the loopback. Ask both loopback addresses: a server
+# bound to `::1` answers nothing on `127.0.0.1`, and a sweep that asked only the IPv4 address would
+# remove that server's own file. The IPv4 address comes first, because it is what a default bind
+# takes. A refused connection costs no wait.
 function port_answers(port::Integer)
-    try
-        close(Sockets.connect(Sockets.localhost, port))
-        return true
-    catch
-        return false
+    for address in (Sockets.localhost, Sockets.IPv6("::1"))
+        try
+            close(Sockets.connect(address, port))
+            return true
+        catch
+        end
     end
+    return false
 end
 
 # Whether the process that wrote a discovery file is still running. See the liveness rule in
-# `discovery_dir`'s docstring: this is the optimisation half of it, and the port decides.
+# `discovery_dir`'s docstring: this is the early reject in front of it, and the port decides.
 #
 # `kill(pid, 0)` sends no signal and only asks. A process of one's own always answers, so a zero
 # return means it is there. Base offers no such call off unix, so this answers "it may be running"
