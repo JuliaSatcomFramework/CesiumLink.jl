@@ -23,6 +23,7 @@ Each file is JSON and describes one server:
 | field | what it holds |
 |---|---|
 | `port` | the port the server listens on |
+| `ws` | the WebSocket URL a client on this machine connects to, route and all |
 | `pid` | the process that serves it |
 | `title` | the `title` given to [`start_server`](@ref) |
 | `started` | when the server started, as an ISO 8601 instant in UTC |
@@ -31,6 +32,10 @@ Each file is JSON and describes one server:
 | `assets` | every directory the server serves, by mount name |
 | `modules` | every registered module's own directory, by module id |
 | `trustedOrigins` | the origins the page may reach off-site |
+
+`ws` is stated here rather than built by the reader out of `port`. The route and the host are the
+server's own facts: a server bound to `::1` answers no URL that names `127.0.0.1`, and a reader that
+builds one from a rule of its own is a second statement of the route to keep in step.
 
 A reader that hosts the page itself mounts the `dist` directory rather than fetching it over HTTP,
 so the reader and the server must share a filesystem. The field records the tree the package
@@ -50,9 +55,28 @@ re-read the file rather than cache it.
 The file name is the pid and the port, so two servers in one process each get their own.
 [`stop_server`](@ref) removes the file.
 
-A file is live while the process it names runs and its port answers, and a reader skips every other.
-[`start_server`](@ref) removes those, so a process killed before it reached `stop_server` leaves
-nothing behind for long.
+## Which files are live
+
+**A file is live while its port answers. A reader shows no scene whose port answers nothing.** The
+port is the whole of the rule, and it is the half both ends can always ask: a process that still runs
+is no proof that the server inside it does, because a REPL reset takes the server away and leaves the
+process.
+
+The pid is an optimisation on top of that rule, and each end takes it as far as its platform allows.
+It costs nothing and it drops most stale files before any socket work, so both ends ask it first
+where they can. It cannot decide on its own either way: a pid that is gone means the file is stale,
+and a pid that runs means nothing.
+
+- Julia asks with `kill(pid, 0)`, which Base offers on unix alone. Off unix this package answers "it
+  may be running" and lets the port decide, which keeps a file too many rather than one too few.
+- The extension asks with `process.kill(pid, 0)`, which Node offers on every platform, and keeps a
+  file it is refused permission to ask about.
+
+The two therefore drop different numbers of stale files on Windows, and never show a different set of
+scenes, because the port decides in both.
+
+[`start_server`](@ref) removes the stale files, so a process killed before it reached
+[`stop_server`](@ref) leaves nothing behind for long. The reader never removes one: it is a reader.
 """
 function discovery_dir()
     runtime = get(ENV, "XDG_RUNTIME_DIR", "")
@@ -109,11 +133,12 @@ function port_answers(port::Integer)
     end
 end
 
-# Whether the process that wrote a discovery file is still running.
+# Whether the process that wrote a discovery file is still running. See the liveness rule in
+# `discovery_dir`'s docstring: this is the optimisation half of it, and the port decides.
 #
 # `kill(pid, 0)` sends no signal and only asks. A process of one's own always answers, so a zero
-# return means it is there. Windows has no such call in Base, and a file there is judged by its port
-# alone — one file too many, which is the direction to err in.
+# return means it is there. Base offers no such call off unix, so this answers "it may be running"
+# there and leaves the port to decide — one file too many, which is the direction to err in.
 process_alive(pid::Integer) =
     !Sys.isunix() || ccall(:kill, Cint, (Cint, Cint), pid, 0) == 0
 
@@ -155,6 +180,7 @@ end
 # refused it. A directory that cannot be written costs a warning rather than the server: the scene
 # still serves, and a picker that cannot find it is a smaller loss than a session that never starts.
 function write_discovery(port::Integer, title::AbstractString, imagery = nothing;
+                         host::AbstractString = "127.0.0.1",
                          assets = Dict{String,String}(), trusted_origins = String[],
                          modules = Dict{String,String}())
     pid = Int(Base.Libc.getpid())
@@ -165,7 +191,13 @@ function write_discovery(port::Integer, title::AbstractString, imagery = nothing
         # and nothing else. Our own port is already bound and answers, so it is never swept.
         sweep_discovery(dir)
         file = joinpath(dir, "$pid-$port.json")
-        entry = Dict("port" => Int(port), "pid" => pid, "title" => String(title),
+        entry = Dict("port" => Int(port),
+                     # The route as well as the number, so a reader connects with what the file says
+                     # rather than with a rule of its own. A wildcard bind answers on every
+                     # interface, and `url_host` names the loopback for it, exactly as `viewer_url`
+                     # does for the page.
+                     "ws" => "ws://$(url_host(host)):$(Int(port))/ws",
+                     "pid" => pid, "title" => String(title),
                      "started" => Dates.format(Dates.now(Dates.UTC), "yyyy-mm-ddTHH:MM:SSZ"),
                      # A reader that hosts the page itself needs the directory before it opens a
                      # socket, so the path travels here rather than on the wire.
