@@ -1,0 +1,12 @@
+{
+  "port": 50004,
+  "ws": "ws://127.0.0.1:50004/ws",
+  "pid": 4242,
+  "title": "the fixture scene",
+  "started": "2026-08-14T09:15:00Z",
+  "dist": "/home/somebody/.julia/artifacts/f1x7u2e/dist",
+  "imagery": "https://tiles.example/{z}/{x}/{y}.png",
+  "assets": { "models": "/data/glb" },
+  "modules": { "primitives": "/home/somebody/.julia/artifacts/f1x7u2e/dist/modules/primitives" },
+  "trustedOrigins": ["https://tiles.example"]
+}

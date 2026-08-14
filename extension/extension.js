@@ -80,7 +80,9 @@ async function openPushed(context, uri) {
 
 // --- the picker ---------------------------------------------------------------------------
 
-// The server resolves this directory the same way, and the two must agree.
+// The server resolves this directory the same way, and the two must agree. Seven lines that cannot
+// be shared across two languages; `extension.test.mjs` reads a file the Julia suite writes, so a
+// divergence in what the file holds is a test failure on both sides.
 function discoveryDir() {
   const runtime = process.env.XDG_RUNTIME_DIR;
   if (runtime) return path.join(runtime, 'cesiumlink');
@@ -89,9 +91,11 @@ function discoveryDir() {
   return path.join(os.homedir(), '.cache', 'cesiumlink');
 }
 
-// Nothing removes the file of a server that stopped, so the reader asks whether the process still
-// runs. Signal 0 sends no signal. `EPERM` reports a process of that id under another user, which
-// this reader can neither use nor prove stale, so it stays in the list.
+// Whether the process that wrote a file is still running — the cheap half of the liveness rule (the
+// `discovery_dir` docstring states it). A pid that is gone means the file is stale; a pid that runs
+// means nothing, so `answers` below decides. Signal 0 sends no signal. `EPERM` reports a process of
+// that id under another user, which this reader can neither use nor prove stale, so it stays in the
+// list.
 function isRunning(pid) {
   try {
     process.kill(pid, 0);
@@ -155,7 +159,11 @@ function scene(s) {
     label: s.title || 'CesiumLink',
     port: s.port,
     detail: `port ${s.port} — started ${s.started}`,
-    url: `ws://localhost:${s.port}/ws`,
+    // The URL the file states. The route and the host are the server's own facts — a server bound to
+    // `::1` answers no URL that names `127.0.0.1` — so this reads them rather than building them
+    // from the port. A file written by a server older than the `ws` field carries none, and the
+    // default route is what such a server answered on.
+    url: s.ws || `ws://localhost:${s.port}/ws`,
     dist: s.dist,
     imagery: s.imagery,
     // Every directory the server serves, by mount name; every registered module's own directory, by
@@ -577,7 +585,9 @@ function pageHtml(webview, assetBase, mountBases, trustedOrigins) {
 }
 
 // VSCode reads `activate` and `deactivate`. The rest is exported for `extension.test.mjs`: what the
-// panel is given is fixed when it is created, so it is worth checking without an editor to run in.
+// panel is given is fixed when it is created, so it is worth checking without an editor to run in,
+// and the discovery half is what the Julia server has to agree with.
 module.exports = {
   activate, deactivate: () => {}, imageryOrigin, readableMounts, sceneMounts, pageHtml,
+  discoveryDir, isRunning, answers, liveScenes, scene,
 };
