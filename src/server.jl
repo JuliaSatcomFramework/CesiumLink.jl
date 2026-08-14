@@ -1441,6 +1441,29 @@ function retained(server::Server, key::Tuple{String,String})
     end
 end
 
+"""
+    CesiumLink.declared(server, module_id, topic) -> Any
+
+The payload of the command the server holds under `(module_id, topic)`, or `nothing` when it holds
+none. This is what a client that connects now is sent for that pair, so it answers "what does this
+session say about X" without a wire frame in hand.
+
+The server keeps one command per pair, so the answer is one payload. A window is not a command and
+is not readable here: it goes under `("core", "window")` and carries no command batch.
+
+```julia
+declare_furniture(server; timeline = false)
+CesiumLink.declared(server, "core", "furniture")["items"]["timeline"]   # false
+```
+"""
+function declared(server::Server, module_id, topic)
+    msg = retained(server, (String(module_id), String(topic)))
+    msg === nothing && return nothing
+    # `only` rather than `first`: one command per pair is what `retain!` stores, and a batch here
+    # means the retention key and the frame disagree.
+    return only(JSON.parse(msg.header)["params"]["commands"])["payload"]
+end
+
 # Every retained wire frame in replay order — oldest update first, so the most recent one is applied
 # last. `skip` leaves out the keys a caller means to send itself.
 function retained_messages(server::Server; skip = ())

@@ -25,12 +25,12 @@ end
         Dict(:tracks => (; position = reshape(Float32.(1:(6count)), 3, 2, count), title))
 end
 
-# `setup=[Furnished]` brings `declared` into scope: the payload the server retains for one of the
-# Core's own topics, which is what a client connecting later reads.
+# `setup=[Furnished]` brings `declared` into scope: the payload the server holds for a
+# `(module, topic)` pair, which is what a client connecting later reads. It is not exported, so a
+# test item that asks what the session declares says so here.
 @testsnippet Furnished begin
-    using CesiumLink, JSON
-    declared(server, topic) =
-        JSON.parse(CesiumLink.retained(server, ("core", topic)).header)["params"]["commands"][1]["payload"]
+    using CesiumLink
+    using CesiumLink: declared
 end
 
 # `setup=[Joining]` brings `first_window` into scope: the `params` of the first window a client that

@@ -2,7 +2,7 @@
     server = start_server(; host = "::1", port = 0)
     try
         declare_furniture(server)
-        p = declared(server, "furniture")
+        p = declared(server, "core", "furniture")
 
         # These defaults mirror the viewer's own table; the viewer owns them.
         @test p["items"] == Dict("timeline" => true, "animation" => true, "keyframe" => true,
@@ -22,7 +22,7 @@ end
     try
         # A named item that is `false` still ships: the payload is the whole set, never a subset.
         declare_furniture(server; timeline = false, inspector = true, nav_help = true)
-        p = declared(server, "furniture")
+        p = declared(server, "core", "furniture")
         @test p["items"]["timeline"] == false
         @test p["items"]["inspector"] == true
         @test length(p["items"]) == 10
@@ -30,7 +30,7 @@ end
         # The second call carries the second call's values and nothing carried over from the first,
         # so an item this call does not name is back at its default.
         declare_furniture(server; scene_mode = false)
-        p2 = declared(server, "furniture")
+        p2 = declared(server, "core", "furniture")
         @test p2["items"]["timeline"] == true
         @test p2["items"]["inspector"] == false
         @test p2["items"]["navHelp"] == false
@@ -44,7 +44,7 @@ end
     server = start_server(; host = "::1", port = 0)
     try
         declare_furniture(server; region = :bottom_right, style = (; flex_direction = "row"))
-        p = declared(server, "furniture")
+        p = declared(server, "core", "furniture")
         @test p["region"] == "bottom-right"
         # `_` lowers to `-`, so the Julia keyword stays idiomatic and the wire stays CSS.
         @test p["style"] == Dict("flex-direction" => "row")
@@ -60,17 +60,17 @@ end
     try
         declare_regions(server, Dict(:top_right => (; flex_direction = "column"),
                                      :top_left => (; max_width = "40%")))
-        @test declared(server, "regions") == Dict("top-right" => Dict("flex-direction" => "column"),
+        @test declared(server, "core", "regions") == Dict("top-right" => Dict("flex-direction" => "column"),
                                                   "top-left" => Dict("max-width" => "40%"))
 
         # A region absent from the declaration returns to its Core default.
         declare_regions(server, Dict(:top_left => (; max_width = "20%")))
-        p = declared(server, "regions")
+        p = declared(server, "core", "regions")
         @test collect(keys(p)) == ["top-left"]
 
         # Which properties a region may set is the viewer's rule, and it is stated once, there.
         declare_regions(server, Dict(:top_left => (; top = "10px")))
-        @test declared(server, "regions")["top-left"] == Dict("top" => "10px")
+        @test declared(server, "core", "regions")["top-left"] == Dict("top" => "10px")
 
         @test_throws "an overlay region is" declare_regions(server, Dict(:middle => (;)))
     finally
@@ -78,7 +78,7 @@ end
     end
 end
 
-@testitem "the declared furniture reaches the client on the session declaration" begin
+@testitem "the declared furniture reaches the client on the session declaration" setup=[Furnished] begin
     using HTTP, JSON
 
     # What the first message a client receives carries under `params`.
@@ -108,9 +108,7 @@ end
         # The declaration says what the retained command says, so the replay that follows it restates
         # the set rather than changing it.
         declare_furniture(server; region = :bottom_right, style = (; gap = "4px"))
-        @test declaration(server)["furniture"] ==
-              JSON.parse(CesiumLink.retained(server, ("core", "furniture")).header
-                         )["params"]["commands"][1]["payload"]
+        @test declaration(server)["furniture"] == declared(server, "core", "furniture")
     finally
         stop_server(server)
     end

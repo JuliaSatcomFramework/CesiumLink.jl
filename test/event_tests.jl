@@ -383,7 +383,7 @@ end
 end
 
 @testitem "a batch is dropped once the chain replaced the scene it was resolved against" begin
-    using CesiumLink: answer_event
+    using CesiumLink: answer_event, declared
 
     click(seq) = Dict("module" => "core", "topic" => "pointer", "seq" => seq,
                       "payload" => Dict("type" => "click", "mods" => [], "entities" => [],
@@ -391,7 +391,7 @@ end
     pushed(server, mode) = push_window(server, Dict(:tracks => (; n = 1));
                                        start_frame = 1, count = 1, dt_seconds = 60,
                                        total_frames = 1, mode)
-    sent(server, key) = CesiumLink.retained(server, key) !== nothing
+    sent(server, module_id, topic) = declared(server, module_id, topic) !== nothing
 
     server = start_server(; host = "::1", port = 0)
     try
@@ -403,21 +403,21 @@ end
 
         # An append preserves the index space, so the commands still address the scene on screen.
         @test !isempty(answer_event(server, click(1)).commands)
-        @test sent(server, ("ui", "tooltip"))
+        @test sent(server, "ui", "tooltip")
 
         # A replace may renumber entities, so the same contribution is withheld: it describes a
         # scene that no longer exists, and fresh state is already on its way.
         mode[] = :replace
         server.retained = filter(p -> first(p) != ("ui", "tooltip"), server.retained)
         @test !isempty(answer_event(server, click(2)).commands)
-        @test !sent(server, ("ui", "tooltip"))
+        @test !sent(server, "ui", "tooltip")
     finally
         stop_server(server)
     end
 end
 
 @testitem "a command's arrays are encoded on the way out, an event's decoded on the way in" begin
-    using CesiumLink: Reply, dispatch_event, send_reply, encode_arrays
+    using CesiumLink: Reply, dispatch_event, send_reply, encode_arrays, declared
     using JSON
 
     server = start_server(; host = "::1", port = 0)
@@ -437,22 +437,19 @@ end
         reply = Reply()
         command!(reply, "heatmap", "field", (; values = Float32[1, 2, 3]))
         send_reply(server, reply)
-        c = only(JSON.parse(CesiumLink.retained(server, ("heatmap", "field")).header)["params"]["commands"])
-        @test c["payload"]["values"]["\$wire"] == "f32"
+        @test declared(server, "heatmap", "field")["values"]["\$wire"] == "f32"
     finally
         stop_server(server)
     end
 end
 
 @testitem "a listener can be taken back out, and installing a scene takes the previous one's out" begin
-    using CesiumLink: answer_event, install_scene!
+    using CesiumLink: answer_event, install_scene!, declared
 
     click() = Dict("module" => "core", "topic" => "pointer", "seq" => 1,
                    "payload" => Dict("type" => "click", "mods" => [], "entities" => [],
                                      "screen" => Dict("x" => 0, "y" => 0)))
-    subscription(server) =
-        only(CesiumLink.JSON.parse(CesiumLink.retained(server, ("core", "subscribe")
-                                   ).header)["params"]["commands"])["payload"]
+    subscription(server) = declared(server, "core", "subscribe")
     # The server registers a listener of its own on `ui/rect` when it starts, which is nobody's to
     # remove. Only the pointer listeners registered here are counted.
     pointer_listeners(server) = [l for l in server.listeners if l.topic == "pointer"]
