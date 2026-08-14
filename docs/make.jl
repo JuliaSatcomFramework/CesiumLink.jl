@@ -467,8 +467,14 @@ makedocs(;
 # so one `makedocs` writes a whole site per base into `build/1`, `build/2` and so on, and names them
 # in `build/bases.txt`. Documenter's function knows nothing of that layout. It deploys the build
 # directory whole, which puts the site one level down at `dev/1/` and leaves `dev/` itself a 404.
+#
+# `push_preview` puts a pull request's site at `previews/PR<n>/`, so a reviewer reads the page rather
+# than the Markdown that makes it. A deploy leaves those directories where they are — Documenter
+# skips `previews` when it clears the branch — and `DocPreviewCleanup.yml` removes one when its pull
+# request closes. A pull request from a fork gets no preview: it carries no token that may write.
 DocumenterVitepress.deploydocs(;
     repo = "github.com/JuliaSatcomFramework/CesiumLink.jl",
     devbranch = "main",
     forcepush = true,
+    push_preview = true,
 )
