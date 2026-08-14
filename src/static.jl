@@ -52,6 +52,10 @@ const GZIP_MIN_BYTES = 1024
 # longer matches the file on disk is recompressed rather than served.
 # Unbounded and process-global — one entry per compressible file ever requested, a few
 # dozen for a viewer dist. Bound it if a mount ever serves generated paths.
+#
+# `GZIP_CACHE_LOCK` is the only other lock on the request path, and it never meets the server's:
+# `mount_for` releases `clients_lock` before it returns, and `gzipped` is the one function that takes
+# this one. The two are never held at once, so there is no order between them to obey.
 const GZIP_CACHE = Dict{String,Tuple{Tuple{Float64,Int},Vector{UInt8}}}()
 const GZIP_CACHE_LOCK = ReentrantLock()
 

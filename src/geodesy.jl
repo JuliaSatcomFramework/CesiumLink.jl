@@ -14,7 +14,7 @@
 # nothing but two positive radii ever reaches the arithmetic.
 _radii(e) = (Float64(e.a), Float64(e.b))
 _radii(::Nothing) = _radii(Ellipsoids.WGS84)
-_radii(server::Server) = _radii(lock(() -> server.ellipsoid, server.clients_lock))
+_radii(server::Server) = _radii(server.ellipsoid)
 
 # The first eccentricity squared, which is what both directions actually use.
 _ecc2(a, b) = 1 - (b / a)^2
