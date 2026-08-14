@@ -8,7 +8,7 @@
 //   down  Julia `slate_emit(channel, SlateBinary(bytes))` → `slateOnStream(channel, m => …)`,
 //         where `m.d` is a `Uint8Array`.
 //   up    `slateCall(channel, args, undefined, [bytes])` → the buffers arrive as binary frames
-//         ahead of the JSON call, and the Julia handler reads `args["__slate_buffers"][1]`.
+//         ahead of the JSON call, and the Julia handler reads `args.__slate_buffers[1]`.
 //
 // One alignment hazard, and Slate is already on the right side of it. `splitFrame` reads from offset
 // 0 and takes a `Float64Array` view over the region, which needs the region on a multiple of 8.

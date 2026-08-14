@@ -29,33 +29,41 @@ end
 
 CesiumLink.send_frame(c::SlateConn, bytes::Vector{UInt8}) = c.emit(c.channel, SEB.SlateBinary(bytes))
 
-# One client per server, for the life of this process. `slate_render` runs several times per cell run
-# and again for every browser that connects, so everything it does must be idempotent — this map is
-# what makes it so.
-const CLIENTS = Dict{Server,Client}()
+# One client per server, for the life of this process, and the cell that draws it. `slate_render`
+# runs several times per cell run and again for every browser that connects, so everything it does
+# must be idempotent — this map is what makes it so.
+const CLIENTS = Dict{Server,Tuple{String,Client}}()
 const CLIENTS_LOCK = ReentrantLock()
 # Channels are numbered and never reused. Counting the live connections instead would hand a server
 # whose cell has just re-run the channel another server is already drawing on.
 const CHANNELS = Ref(0)
 
-# This server's Slate client: built once, joined to the client set, and drained by the one task that
-# writes to the channel. The drain task starts before any frame can be enqueued to the client, which
-# is the order the socket host uses too.
+# The cell drawing `server` and the client its frames ride, claimed for `cell` when no cell holds it
+# yet. The caller compares the cell that comes back against its own: another cell's name means this
+# render must refuse.
+#
+# The client is built once, joined to the client set, and drained by the one task that writes to the
+# channel. The drain task starts before any frame can be enqueued to the client, which is the order
+# the socket host uses too.
 #
 # The process id in the channel is load-bearing: a page mounts an output only when its bytes differ
 # from the ones it already holds, so a replaced worker must render a different channel. Without that,
 # the cell keeps the viewer it has, and that viewer talks to a process that no longer exists — a
 # scene that goes quiet with nothing said anywhere.
-client_for(server::Server, emit) = lock(CLIENTS_LOCK) do
+client_for(server::Server, cell::String, emit) = lock(CLIENTS_LOCK) do
     get!(CLIENTS, server) do
         client = Client(SlateConn("cesiumlink/$(getpid())/$(CHANNELS[] += 1)", emit))
         @async drain_client!(server, client)
         lock(server.clients_lock) do
             push!(server.clients, client)
         end
-        client
+        (cell, client)
     end
 end
+
+# The cell this render runs in. Slate seeds it into task-local storage for the eval, beside the
+# execution context. It is empty for an eval Slate raised outside a cell.
+render_cell() = String(get(task_local_storage(), :slate_cell, ""))
 
 # Serve the directories the viewer fetches from, under names the page builds by rule rather than
 # from a map: the dist itself, one route per assets mount, and one per registered module. Slate
@@ -82,11 +90,20 @@ function SEB.slate_render(server::Server)
     # Outside a cell there is no emitter to capture and no page to draw on. Slate then shows the
     # server's own text form, which names the URL to open.
     ctx === nothing && return nothing
+    cell = render_cell()
+    owner, client = client_for(server, cell, ctx.emit)
+    # One cell draws one server. A second cell would need a second viewer on the first one's channel,
+    # and Slate holds one stream handler per channel — so the second viewer takes the frames off the
+    # first, and the cell that was drawing goes quiet with nothing said anywhere. Say it here
+    # instead. A cell that wants a second viewer wants a second server; a cell that only pushes to
+    # this one needs no viewer at all.
+    owner == cell || return SEB.html_fragment(
+        "<em>CesiumLink: cell <code>$owner</code> already draws this server. " *
+        "One cell draws one server.</em>")
     # Register the mount component with the page. Slate does this itself for a widget the notebook
     # binds, and a `Server` is displayed rather than bound, so the render asks for it. Without this
     # the cell holds an empty component descriptor that nothing ever mounts.
     SEB.ensure_widget_assets!(Server)
-    client = client_for(server, ctx.emit)
     channel = client.conn.channel
     provide_mounts!(server)
     # Everything the viewer sends arrives here as one binary buffer, and it is the same frame a
@@ -107,7 +124,8 @@ end
 function release!(server::Server, client::Client, off)
     drop_client!(server, client)
     lock(CLIENTS_LOCK) do
-        get(CLIENTS, server, nothing) === client && delete!(CLIENTS, server)
+        held = get(CLIENTS, server, nothing)
+        held !== nothing && last(held) === client && delete!(CLIENTS, server)
     end
     try
         off("$(client.conn.channel)/up")

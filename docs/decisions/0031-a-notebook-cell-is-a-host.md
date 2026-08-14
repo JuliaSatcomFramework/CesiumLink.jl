@@ -57,6 +57,14 @@ nothing has to be handed to it and nothing goes stale when a scene registers a m
 The Core holds the mount map the declaration carries, and this host says where a mount is
 (ADR-0021).
 
+**One cell draws one server, and a second cell is told so.** Slate holds one stream handler per
+channel, so a second viewer on a server's channel takes the frames off the first one and the cell
+that was drawing goes quiet with nothing said anywhere. The render therefore claims the server for
+the cell it runs in — Slate names that cell in task-local storage under `:slate_cell` — and a render
+from any other cell returns a line naming the cell that holds it. A cell that wants a second viewer
+wants a second server. A cell that only pushes to this one needs no viewer at all, and the claim is
+free again as soon as the holding cell stops displaying the server.
+
 **The render registers its own component.** Slate loads a widget's front end when a notebook *binds*
 it, and a `Server` is displayed rather than bound. So `slate_render` asks for the registration itself.
 Without it the cell holds a component descriptor that nothing on the page ever mounts, and no error
@@ -77,6 +85,11 @@ a namespace rebuild.
   cell rendered is absent from it, and the page has no way to learn about the mount.
 - **A `Server` rendered from a region worker.** Not supported, and it cannot arise: a value crosses a
   region boundary by serialization, and a `Server` holds a listener, tasks and a lock.
+- **Two cells drawing one server, with the page fanning the channel out to both viewers.** Ten lines
+  in the transport, and both viewers then stay in step. Rejected: two views of one scene is not what
+  a notebook is for, and the shape it invites — one cell per camera angle — is two servers. The
+  refusal is the smaller thing to keep correct, and it says out loud what the fan-out would have
+  quietly permitted.
 
 ## Consequences
 
@@ -84,5 +97,6 @@ The uplink is a `slateCall`, which is a round trip with a timeout while `Transpo
 fire-and-forget. Events are user-driven and rare, so the cost is one wasted promise per event. The
 high-rate direction is the downlink, and that one is a push.
 
-Two cells that display one server share one channel. Both viewers receive the same stream and stay in
-step, and their uplinks meet at one handler.
+A second cell that displays a server already drawn elsewhere shows a line rather than a viewer. The
+cost is a shape the notebook cannot express: one scene seen from two cameras at once. That is two
+servers.
