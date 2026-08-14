@@ -38,8 +38,9 @@ server on the first reload. A static output is replayed to a reconnecting page i
 runs again there, and the viewer's `ready` frame reaches the handler the first render registered —
 so a reload catches up over the same path a client connecting mid-session takes.
 
-**One connection per server, and the channel names the process.** `slate_render` runs several times
-per cell run, so the connection is looked up by `Server` and built only when it is absent. The
+**One connection per server, and the channel names the process.** `slate_render` runs more than once
+per cell run — Slate's `showable` answers by calling the render and discarding the result — so the
+connection is looked up by `Server` and built only when it is absent. The
 channel is `cesiumlink/<pid>/<n>`. The process id in it is load-bearing: a page mounts an output only
 when its bytes differ from the ones it already holds, so a replaced worker must render a different
 channel — otherwise the cell keeps a viewer that talks to a process that no longer exists, and the
