@@ -10,13 +10,13 @@
 import "@cesium/engine/Source/Widget/CesiumWidget.css";
 import "@cesium/widgets/Source/widgets.css";
 import {
+  connectAndDeclare,
   createViewer,
-  firstDeclaration,
+  DECLARATION_TIMEOUT_MS,
   loadImagery,
-  PROTOCOL_VERSION,
+  publish,
+  showStale,
   type AssetBase,
-  type Declaration,
-  type ViewerHandle,
   type ViewerModule,
 } from "../core/src/index";
 import { vsApi } from "./api";
@@ -24,10 +24,6 @@ import { rebaseImagery } from "./imagery";
 import { MODULE_MOUNT, moduleId, moduleUrl } from "./modules";
 import { VsCodeTransport } from "./transport";
 import { installWorkerShim } from "./workers";
-
-// How long a connected server gets to declare the session before the globe is built on WGS84
-// without it. The same wait the browser host gives, and generous next to the channel's own cost.
-const DECLARATION_TIMEOUT_MS = 5000;
 
 const container = document.getElementById("app") as HTMLElement;
 // Ends with a slash, and holds the `cesium/` and `modules/` trees the Julia server would serve.
@@ -69,29 +65,16 @@ void start();
 
 async function start(): Promise<void> {
   const t = new VsCodeTransport();
-  let live = true;
-  try {
-    await t.ready;
-  } catch (e) {
-    report(`the extension opened no socket: ${String(e)}`);
-    live = false;
-  }
-
-  let declaration: Declaration | null = null;
-  if (live) {
-    t.notify("ready", { protocol: PROTOCOL_VERSION });
-    // The globe is built on the ellipsoid the server names, and the first paint shows the furniture
-    // the session asked for. Everything the server replays behind the declaration waits on the
-    // transport until the viewer exists to receive it.
-    declaration = await firstDeclaration(t, DECLARATION_TIMEOUT_MS);
-    if (declaration === null) {
-      report(`the server declared no session within ${DECLARATION_TIMEOUT_MS} ms; ` +
-        `showing a WGS84 globe`);
-    }
+  const { live, declaration, error } = await connectAndDeclare(t);
+  if (!live) {
+    report(`the extension opened no socket: ${String(error)}`);
+  } else if (declaration === null) {
+    report(`the server declared no session within ${DECLARATION_TIMEOUT_MS} ms; ` +
+      `showing a WGS84 globe`);
   }
 
   // The declaration is the only thing that names a basemap here: this host has no address bar, so
-  // it takes no `?imagery=`.
+  // it takes no `?imagery=` and asks `ignoredByDeclaration` nothing.
   const imagery = declaration?.imagery;
   const handle = await createViewer(container, {
     baseUrl,
@@ -106,7 +89,10 @@ async function start(): Promise<void> {
   });
   publish(handle);
   if (live) {
-    t.onClose = showStale;
+    // The one way on is a different scene, not this one again: a server that drops has usually
+    // stopped, and a restarted one binds a new port, so the address this page was given is dead.
+    t.onClose = () => showStale(container,
+      "Disconnected — this scene is no longer live. Run “CesiumLink: Pick a scene”.");
     handle.attachTransport(t, declaration);
   }
 }
@@ -141,23 +127,3 @@ function importModule(url: string): Promise<{ default: ViewerModule }> {
   });
 }
 
-// A server that stops leaves the scene drawn and interactive, so say that what is on the globe is
-// no longer being updated. The one way on is a different scene, not this one again: a server that
-// drops has usually stopped, and a restarted one binds a new port, so the address this page was
-// given is dead.
-function showStale(): void {
-  if (document.getElementById("stale")) return;
-  const banner = document.createElement("div");
-  banner.id = "stale";
-  banner.textContent =
-    "Disconnected — this scene is no longer live. Run “CesiumLink: Pick a scene”.";
-  banner.setAttribute("style",
-    "position:absolute;left:50%;top:12px;transform:translateX(-50%);z-index:10;" +
-    "padding:6px 12px;border-radius:6px;background:rgba(120,20,20,0.88);color:#fff;" +
-    "font:13px/1.4 system-ui,sans-serif;pointer-events:none");
-  container.appendChild(banner);
-}
-
-function publish(handle: ViewerHandle): void {
-  (globalThis as Record<string, unknown>).viewer = handle;
-}

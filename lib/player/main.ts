@@ -15,10 +15,10 @@ import {
   createViewer,
   fetchRecording,
   loadImagery,
+  publish,
   RecordingTransport,
   sceneFromQuery,
   type AssetBase,
-  type ViewerHandle,
 } from "../core/src/index";
 
 const container = document.getElementById("app") as HTMLElement;
@@ -82,8 +82,4 @@ function fail(message: string): void {
   status.className = "failed";
   status.textContent = `The recording did not play: ${message}`;
   console.error("player:", message);
-}
-
-function publish(handle: ViewerHandle): void {
-  (globalThis as Record<string, unknown>).viewer = handle;
 }
