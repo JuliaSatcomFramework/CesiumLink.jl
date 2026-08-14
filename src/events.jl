@@ -19,6 +19,8 @@ const CORE_POINTER   = ("core", "pointer")
 const CORE_SUBSCRIBE = ("core", "subscribe")
 const CORE_ELLIPSOID = ("core", "ellipsoid")
 const CORE_STOP      = ("core", "stop")
+const CORE_DROPPED   = ("core", "dropped")
+const CORE_REPLAY    = ("core", "replay")
 
 """
     EventListener

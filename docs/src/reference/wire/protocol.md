@@ -283,7 +283,7 @@ Everything else. A batch of addressed commands, applied in order (ADR-0010).
   stale batches: a late reply to a click can still be valid, a late reply to a hover usually is not,
   and only the module knows which it is holding.
 - The pseudo-module id `"core"` addresses the Core itself. Its topics are `subscribe`, `furniture`,
-  `regions` and `camera`.
+  `regions`, `camera` and `dropped`.
 - `ui/tooltip` takes two fields. `bare` is a boolean: it drops the `ui` module's own chrome, so one
   contributor owns the whole box. An empty `html`, or `"html": null`, hides the box — an empty box
   left standing on the globe says nothing and covers something.
@@ -529,6 +529,24 @@ the author says nothing more.
 looked, and a recording carries the camera only as the commands the server broadcast. A track is an
 ordinary retained command, so a replay flies the tour with no listener behind it.
 
+### `core/dropped`
+
+```json
+{ "module": "core", "topic": "dropped", "payload": { "n": 12 } }
+```
+
+The server queued `n` frames for this client that its queue could not hold, and dropped them. The
+server holds one send queue per client, drained by one task, so a client that stops reading fills its
+own queue and blocks nothing else (ADR-0030). The marker rides in front of the first frame that fits
+again, so it always arrives, and it is addressed to one client rather than broadcast.
+
+**Answer it with a `core/replay` event.** The frames are gone and the server does not re-send them of
+its own accord. What it holds is the last message per `(module, topic)` and the current window, which
+is what a `core/replay` asks for — so whatever the drop lost comes back, however many frames it was.
+A viewer that ignores this keeps drawing the scene it last received, with nothing to say it is stale.
+
+This command is never retained and never recorded: it describes one connection at one moment.
+
 ## ↑ `ready`
 
 ```json
@@ -618,6 +636,13 @@ Core-produced topics:
   server declared these numbers, so this only ever confirms them. A server that receives different
   ones should say so loudly — a scene drawn on a shape other than the one its coordinates were
   computed against looks entirely plausible and is wrong by kilometres.
+
+- **`core/replay`** — `{}`. Send this client the retained scene again: every retained
+  `(module, topic)` in recency order, and the window. It is what a client sends after a
+  `core/dropped` command told it that frames were lost, and it is answered by the server itself — no
+  listener sees the pair, and a scene cannot answer one. The reply is the same set of frames a client
+  connecting now is replayed, so the server needs no memory of which frames this client missed. Ask
+  for it as often as needed: a replay costs the retained set and changes no server state.
 
 - **`core/stop`** — `{}`. Stop this server. The server removes its discovery file, then drops every
   client socket and frees the port, exactly as `stop_server` does. No listener sees this pair, so a

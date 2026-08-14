@@ -39,6 +39,73 @@ The same-origin URL the viewer imports `entry` from, under the mount its directo
 """
 module_url(entry::ModuleEntry) = "/modules/$(entry.id)/$(basename(entry.path))"
 
+# How many frames a client's queue holds before it drops. The count is small because one frame
+# carries a whole window's arrays and can therefore be megabytes: a queue deep enough to be worth
+# calling deep would hold a client's memory rather than its backlog. The queue absorbs a burst; a
+# client behind for longer than a burst is behind, and the drop tells it so.
+const CLIENT_QUEUE = 64
+
+"""
+    Client
+
+One connected client: the connection frames leave through, the bounded queue of frames waiting for
+it, and how many frames that queue refused since the client was last told. One task drains the
+queue, and it is the only writer of that connection.
+
+`conn` is whatever [`send_frame`](@ref CesiumLink.send_frame) writes to — an `HTTP.WebSocket` for a
+page this server serves.
+"""
+mutable struct Client
+    const conn::Any
+    # One slot over `CLIENT_QUEUE`, reserved for the marker that says what was dropped: the marker
+    # rides in front of the first frame that fits again, and must fit even on a full queue.
+    const out::Channel{Vector{UInt8}}
+    # Held for the check-and-put of one enqueue, never across a send. Two tasks that both find room
+    # for the last slot would otherwise both `put!`, and the second one blocks — which is the stall
+    # this queue exists to prevent.
+    const lock::ReentrantLock
+    dropped::Int
+end
+
+Client(conn) = Client(conn, Channel{Vector{UInt8}}(CLIENT_QUEUE + 1), ReentrantLock(), 0)
+
+"""
+    CesiumLink.send_frame(conn, bytes)
+
+Write one packed wire frame to a client's connection, blocking until it is written.
+
+This is the one place that knows how a client of a given kind is written to. A host that reaches its
+page by some other route than a WebSocket adds a method here and needs nothing else: the queue, the
+drain task and the drop policy above are the same for every kind.
+
+Called from that client's drain task alone, so a method may block for as long as its connection
+takes. Nothing else waits on it.
+"""
+send_frame(ws::HTTP.WebSockets.WebSocket, bytes::Vector{UInt8}) = HTTP.WebSockets.send(ws, bytes)
+
+# Put one packed frame on `client`'s queue, without blocking, and say whether it fits. A full queue
+# drops the frame and counts it; the next frame that fits is preceded by a `core/dropped` command,
+# so the client learns it fell behind and asks for a replay.
+#
+# A slow client therefore costs its own queue and nothing else. It is never removed: the connection
+# recovers on its own once the page drains, and a client removed here would be a live page that the
+# session stops drawing to.
+function enqueue_frame!(client::Client, bytes::Vector{UInt8})
+    lock(client.lock) do
+        isopen(client.out) || return false
+        if Base.n_avail(client.out) ≥ CLIENT_QUEUE
+            client.dropped += 1
+            return false
+        end
+        if client.dropped > 0
+            put!(client.out, pack(dropped_message(client.dropped)))
+            client.dropped = 0
+        end
+        put!(client.out, bytes)
+        return true
+    end
+end
+
 """
     Server
 
@@ -49,7 +116,7 @@ scene. Create one with [`start_server`](@ref); do not construct it directly.
 """
 mutable struct Server
     listener::Any
-    clients::Set{Any}
+    clients::Set{Client}
     const clients_lock::ReentrantLock
     # The modules to declare, in registration order — which is the order the viewer draws and stacks
     # them in; reaching another module through `ctx.modules` is not subject to it. Doubles as the
@@ -110,9 +177,11 @@ mutable struct Server
     # Whether the sky around the globe is drawn. It cannot change mid-session, for the same reason.
     const stars::Bool
     # The open session recording, or `nothing`, and the wall-clock instant it was opened at — every
-    # broadcast frame is stamped with its offset from that. Guarded by `clients_lock`.
+    # broadcast frame is stamped with its offset from that. Guarded by `record_lock`, its own, so
+    # that a slow disk holds up nothing but the next frame to be recorded.
     record::Union{IO,Nothing}
     record_t0::Float64
+    const record_lock::ReentrantLock
     # The host the listener was asked to bind, kept verbatim. `viewer_url` builds the page URL from
     # it, because a wildcard bind answers on every interface and is not an address a browser can be
     # sent to.
@@ -120,6 +189,35 @@ mutable struct Server
     # This server's file in the discovery directory, or `nothing` when none was written.
     # `stop_server` removes it.
     discovery_file::Union{String,Nothing}
+end
+
+# The one task that writes to `client`. Every frame this client is sent leaves through here, in the
+# order it was enqueued.
+#
+# Nothing else may write to `client.conn`. A send is not atomic across tasks, so two tasks writing to
+# one connection interleave their frames on it and the viewer decodes half a window. One drain task
+# per client is what rules that out, and it costs no lock.
+function drain_client!(server::Server, client::Client)
+    try
+        for bytes in client.out
+            send_frame(client.conn, bytes)
+        end
+    catch e
+        # A send that throws is a connection that is gone, which is the one case a client is dropped
+        # in. The queue closes with it, so a broadcast holding this client stops enqueueing to a
+        # queue nobody drains.
+        drop_client!(server, client)
+        e isa HTTP.WebSockets.WebSocketError ||
+            @debug "dropping a client whose send failed" exception = e
+    end
+    return nothing
+end
+
+# Take `client` out of the session: no later broadcast reaches it, and its drain task ends.
+function drop_client!(server::Server, client::Client)
+    lock(server.clients_lock) do; delete!(server.clients, client); end
+    lock(client.lock) do; close(client.out); end
+    return nothing
 end
 
 """
@@ -317,13 +415,13 @@ function start_server(; dist_dir = viewer_dist(), host = "127.0.0.1", port = 0,
         o = url_origin(declared_imagery.url)
         o === nothing || o in origins || push!(origins, o)
     end
-    server = Server(nothing, Set{Any}(), ReentrantLock(), ModuleEntry[],
+    server = Server(nothing, Set{Client}(), ReentrantLock(), ModuleEntry[],
                     Pair{Tuple{String,String},Frame}[], EventListener[], nothing,
                     EventListener[], Dict{String,Any}(), Any[], 0, nothing,
                     dist_dir === nothing ? nothing : normpath(String(dist_dir)),
                     ellipsoid === nothing ? nothing : ellipsoid_radii(ellipsoid),
                     declared_imagery, asset_dirs, origins, lighting, stars, nothing, 0.0,
-                    String(host), nothing)
+                    ReentrantLock(), String(host), nothing)
     # A bind that did not happen must never return a `Server`. HTTP.jl binds inside a task and
     # reports a failure two ways: the task's error reaches here, or the task's ready notification
     # wins the race and `listen!` returns with `bound_port` left at zero. The second one is the
@@ -332,16 +430,20 @@ function start_server(; dist_dir = viewer_dist(), host = "127.0.0.1", port = 0,
         HTTP.listen!(host, port) do stream
             if HTTP.WebSockets.isupgrade(stream.message)
                 HTTP.WebSockets.upgrade(stream) do ws
-                    lock(server.clients_lock) do; push!(server.clients, ws); end
+                    client = Client(ws)
+                    lock(server.clients_lock) do; push!(server.clients, client); end
+                    # The one task that writes to this socket, started before the first frame can be
+                    # enqueued to it. This task reads.
+                    @async drain_client!(server, client)
                     try
                         for msg in ws
-                            handle_msg(server, ws, msg)
+                            handle_msg(server, client, msg)
                         end
                     catch e
                         e isa HTTP.WebSockets.WebSocketError ||
                             @warn "ws handler error" exception = e
                     finally
-                        lock(server.clients_lock) do; delete!(server.clients, ws); end
+                        drop_client!(server, client)
                     end
                 end
             else
@@ -443,8 +545,11 @@ function stop_server(server::Server)
     # Close client sockets BEFORE the listener: close(listener) waits for each upgraded handler's
     # `for msg in ws` loop to return, which for a still-open browser tab never happens.
     lock(server.clients_lock) do
-        for ws in collect(server.clients)
-            try; close(ws); catch; end
+        for client in collect(server.clients)
+            # The queue first: a drain task blocked on a send to a socket that is closing under it
+            # would otherwise keep the client alive until the send throws.
+            lock(client.lock) do; close(client.out); end
+            try; close(client.conn); catch; end
         end
         empty!(server.clients)
     end
@@ -460,7 +565,7 @@ end
 # is symmetric, so what arrives upward is split the same way as what goes down: a header and the
 # region its encoded arrays point into. Nothing the viewer sends carries an array today, so the
 # region is normally empty, and a listener that is handed one costs nothing to support.
-function handle_msg(server::Server, ws, frame)
+function handle_msg(server::Server, client, frame)
     # A malformed frame or a throwing user tooltip callback must not tear the connection down.
     local msg, region
     try
@@ -480,13 +585,13 @@ function handle_msg(server::Server, ws, frame)
         proto = get(params, "protocol", PROTOCOL_VERSION)
         if proto != PROTOCOL_VERSION
             @warn "refusing a client that announced an unsupported protocol version" proto PROTOCOL_VERSION
-            close(ws, HTTP.WebSockets.CloseFrameBody(1002,
+            close(client.conn, HTTP.WebSockets.CloseFrameBody(1002,
                 "this server speaks protocol $PROTOCOL_VERSION; the client announced $proto"))
             return nothing
         end
         # Declare the module set BEFORE the retained scene: the viewer needs to know what to load
-        # before the state addressed to it arrives. Copy both under the lock, then send unlocked
-        # so a slow socket doesn't stall broadcasts.
+        # before the state addressed to it arrives. Copy both under the lock, then queue them
+        # outside it.
         decl, msgs, rebuild = lock(server.clients_lock) do
             span = server.window_span
             # A retained `:append` is not replayed: it extends a `:replace` this client has never
@@ -503,13 +608,13 @@ function handle_msg(server::Server, ws, frame)
                             assets = declared_assets(server)),
             retained_messages(server; skip = rebuild === nothing ? () : (CORE_WINDOW,)), rebuild
         end
-        HTTP.WebSockets.send(ws, pack(decl))
+        enqueue_frame!(client, pack(decl))
         # Replay the retained scene so a mid-session client catches up: every retained topic, in
         # recency order, so the most recently updated one is applied last.
         for m in msgs
-            HTTP.WebSockets.send(ws, pack(m))
+            enqueue_frame!(client, pack(m))
         end
-        rebuild === nothing || rebuild_window(server, ws, rebuild)
+        rebuild === nothing || rebuild_window(server, client, rebuild)
     elseif method == "event"
         # The viewer reports upward as `event {module, topic, seq, frame, window, payload}`, and the
         # listener registry answers it: pointer events, buffer needs and a module's own `notify` are
@@ -518,6 +623,13 @@ function handle_msg(server::Server, ws, frame)
         pair = (get(params, "module", nothing), get(params, "topic", nothing))
         if pair == CORE_ELLIPSOID
             check_reported_ellipsoid(server, get(params, "payload", Dict{String,Any}()))
+        elseif pair == CORE_REPLAY
+            # This client heard that its queue dropped frames, and asks for the scene again. It is
+            # sent what a client connecting now is replayed, which is the whole of what the server
+            # holds — so one path answers both, and neither has to know which frames went missing.
+            for m in retained_messages(server)
+                enqueue_frame!(client, pack(m))
+            end
         elseif pair == CORE_STOP
             # Schedule the stop; do not run it here. This task is reading the socket that the stop
             # closes. The listener chain never sees this pair either: a scene must not be able to
@@ -582,7 +694,7 @@ window_producer(server::Server) =
 # `:append` is at worst a scene that draws in part and says so; silence is not. A new window identity
 # is what says one arrived: a `:replace` mints one, and a producer that threw, sent nothing, or
 # appended instead leaves it where it was.
-function rebuild_window(server::Server, ws, span)
+function rebuild_window(server::Server, client::Client, span)
     before = lock(server.clients_lock) do; server.window_id; end
     request_window(server, span.start_frame, span.count, :replace)
     held = lock(server.clients_lock) do
@@ -591,7 +703,7 @@ function rebuild_window(server::Server, ws, span)
     end
     held === nothing && return nothing
     @warn "the scene produced no replacing window for a joining client; sending the one it holds" span
-    HTTP.WebSockets.send(ws, pack(held))
+    enqueue_frame!(client, pack(held))
     return nothing
 end
 
@@ -634,27 +746,29 @@ function declare_modules(server::Server, id::AbstractString)
     return nothing
 end
 
-# Broadcast to every client; drop any that error mid-send. Named so as not to shadow Base.broadcast!.
-# Sends while holding the lock — a slow client stalls all broadcasts; fine for localhost.
+# Queue a frame for every client, and return how many queues took it. Named so as not to shadow
+# Base.broadcast!.
+#
+# Nothing is sent here, and `clients_lock` is held for the copy of the client set alone. Keep it that
+# way: a send under that lock makes one client that stops reading block every request the lock also
+# guards, a second page's module fetches above all (see `mount_for`). Each client's writes are
+# serialised by its own drain task instead.
 #
 # `record = false` keeps a frame out of an open recording. A recording names its module set in its
 # header, and a player resolves each module against a base of its own from that header alone — so a
 # declaration replayed from the body of the recording would send the player at a URL that only the
 # live server answers.
 function broadcast_all!(server::Server, msg::Frame; record = true)
-    n = 0
     # Laid out once for every client: the layout is the same for all of them, and a window's region
     # is the bulk of the message.
     bytes = pack(msg)
-    lock(server.clients_lock) do
-        record && record_frame!(server, msg)
-        for ws in collect(server.clients)
-            try
-                HTTP.WebSockets.send(ws, bytes); n += 1
-            catch
-                delete!(server.clients, ws)
-            end
-        end
+    clients = lock(server.clients_lock) do; collect(server.clients); end
+    # A recording is a sink and not a client, and it holds no lock of the server's: a slow disk under
+    # `clients_lock` costs every reader of the lock exactly what a slow socket did.
+    record && record_frame!(server, msg)
+    n = 0
+    for client in clients
+        enqueue_frame!(client, bytes) && (n += 1)
     end
     return n
 end
@@ -664,7 +778,7 @@ end
 
 Broadcast a one-command `commands` batch addressed at `(module_id, topic)` and retain it as the
 latest command for that pair, so a client connecting later is replayed it. Arrays anywhere in
-`payload` are encoded on the way out. Returns the number of clients reached.
+`payload` are encoded on the way out. Returns the number of clients it was queued for.
 
 Retention makes a declaration-shaped topic — `core/subscribe`, `ui/declare` — restore itself on
 reconnect; an event-shaped one is harmless to replay because the next event overwrites it.
@@ -682,7 +796,7 @@ end
 Broadcast everything a listener chain contributed to `reply` as **one** `commands` batch, applied by
 the viewer in the order the chain built it, and retain each command as the latest for its
 `(module, topic)`. `seq` echoes the sequence number of the event being answered. An empty reply
-sends nothing. Returns the number of clients reached.
+sends nothing. Returns the number of clients it was queued for.
 
 One event yields one message however many listeners spoke, so the viewer applies every contribution
 at one instant rather than tearing across several.
@@ -805,7 +919,7 @@ Broadcast one **window** — a contiguous run of `count` keyframes carrying ever
 those frames — and record it as the current scene (replayed to any client that connects later).
 `payloads` is a `module_id => payload` mapping; a module absent from it is not updated by this
 window. `start_frame` is **1-based**. See [`window_message`](@ref) for the timing, window and
-declared-range keywords. Returns the number of clients reached.
+declared-range keywords. Returns the number of clients it was queued for.
 
 The window carries an identity the server assigns: a `:replace` gets a new one, an `:append` keeps
 the one it extends. An event naming an identity that is no longer current is answered with nothing,

@@ -386,7 +386,17 @@ them), and the standing window — so a reconnecting browser comes back to the s
 scene, and to the values its scene was actually filtered with. Distinct from event
 history, which is never replayed. Only a replacing window is replayable: an append
 extends one the joining client never received, so a scene on an append is asked to
-rebuild instead.
+rebuild instead. It is also what a client is sent when it asks for a replay after
+frames were dropped for it — see **send queue**.
+
+**Send queue**:
+The bounded queue of frames the server holds for one client, drained by one task — the
+task that serialises that client's writes. A client that stops reading fills its own
+queue and holds up nothing else, neither another client nor a request for a module
+file. A full queue drops the frame, counts it, and tells that client with a
+`core/dropped` command; the client answers by asking for the retained state again
+with a `core/replay` event (ADR-0030).
+_Avoid_: buffer, which is the viewer's delivered buffer.
 
 **Recording**:
 The wire frames a server broadcast, written to a file in order, each stamped with how

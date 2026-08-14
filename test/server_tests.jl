@@ -1189,3 +1189,85 @@ end
     @test sprint(show, MIME"text/plain"(), server) == "CesiumLink server (stopped)"
     @test sprint(show, server) == "Server(stopped)"
 end
+
+@testitem "a client that stops reading drops frames instead of blocking the broadcast" begin
+    using CesiumLink: Client, CLIENT_QUEUE, broadcast_all!, commands_message, Command,
+                      drain_client!, unpack
+    using JSON
+
+    # A connection that writes nothing until it is released: a client that stopped reading, with no
+    # socket to stall. `send_frame` is the one thing a client kind has to answer, so a test kind
+    # needs this and nothing else.
+    struct Held
+        go::Base.Event
+        got::Vector{Vector{UInt8}}
+    end
+    CesiumLink.send_frame(c::Held, bytes::Vector{UInt8}) = (wait(c.go); push!(c.got, bytes); nothing)
+
+    # The `n` of the `core/dropped` command among the frames received, or `nothing`.
+    function dropped_count(frames)
+        for bytes in frames
+            for c in get(JSON.parse(unpack(bytes).header)["params"], "commands", ())
+                (c["module"], c["topic"]) == ("core", "dropped") && return c["payload"]["n"]
+            end
+        end
+        return nothing
+    end
+
+    server = start_server(; dist_dir = nothing)
+    try
+        conn = Held(Base.Event(), Vector{UInt8}[])
+        client = Client(conn)
+        lock(server.clients_lock) do; push!(server.clients, client); end
+        @async drain_client!(server, client)
+
+        msg = commands_message([Command("test", "topic", (; i = 1))])
+        # More frames than the queue holds, at a client that takes none of them. Every broadcast
+        # returns: the queue refuses what does not fit rather than waiting for the client.
+        queued = [broadcast_all!(server, msg; record = false) for _ in 1:(CLIENT_QUEUE + 8)]
+        refused = count(iszero, queued)
+        @test refused ≥ 1
+
+        # The lock is free while that client is stuck, which is what a second page's module fetches
+        # queue behind.
+        @test trylock(server.clients_lock)
+        unlock(server.clients_lock)
+
+        # Release the client and let it catch up. The next frame that fits is then preceded by the
+        # marker that says what it lost.
+        notify(conn.go)
+        deadline = time() + 30
+        while Base.n_avail(client.out) > 0 && time() < deadline
+            sleep(0.05)
+        end
+        broadcast_all!(server, msg; record = false)
+        while dropped_count(copy(conn.got)) === nothing && time() < deadline
+            sleep(0.05)
+        end
+        @test dropped_count(copy(conn.got)) == refused
+    finally
+        stop_server(server)
+    end
+end
+
+@testitem "a client that heard about dropped frames is replayed the retained scene" begin
+    using CesiumLink: Client, send_command, retained_messages, unpack
+    using JSON
+
+    server = start_server(; dist_dir = nothing)
+    try
+        send_command(server, "test", "colour", Dict("c" => "red"))
+        # No drain task and no connection: the frames stay in the queue, which is where this reads
+        # what the client was sent.
+        client = Client(nothing)
+        replay = JSON.json((; method = "event",
+                            params = Dict("module" => "core", "topic" => "replay")))
+        CesiumLink.handle_msg(server, client, replay)
+
+        @test Base.n_avail(client.out) == length(retained_messages(server))
+        sent = JSON.parse(unpack(take!(client.out)).header)
+        @test only(sent["params"]["commands"])["payload"]["c"] == "red"
+    finally
+        stop_server(server)
+    end
+end

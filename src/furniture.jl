@@ -47,7 +47,7 @@ overlay_style(style) =
                       region=:top_right, style=nothing) -> Int
 
 Declare which of the Core's own on-screen items are shown, as the **whole** set. Returns the number
-of clients reached.
+of clients it was queued for.
 
 Each call is a full statement, not a patch. Two calls do not accumulate: an item this call does not
 name takes its default, whatever an earlier call said about it. So `declare_furniture(server)`
@@ -100,7 +100,7 @@ end
 
 Declare the CSS of the Core's overlay regions, as the **whole** set: a region absent from `bags`
 returns to its Core default. Keys are region names, values are CSS bags with `_` lowered to `-`.
-Returns the number of clients reached.
+Returns the number of clients it was queued for.
 
 ```julia
 declare_regions(server, Dict(:top_right => (; flex_direction = "column", gap = "12px")))
