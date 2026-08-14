@@ -17,7 +17,6 @@ import {
   PROTOCOL_VERSION,
   type AssetBase,
   type Declaration,
-  type ViewerHandle,
   type ViewerModule,
 } from "../core/src/index";
 import { MODULE_MOUNT, moduleId, moduleUrl } from "../core/src/modules";
@@ -37,12 +36,17 @@ const DIST = `${EXT_ASSETS}CesiumLink/`;
 const mountBase: AssetBase = (name) => `${EXT_ASSETS}CesiumLink-mount-${name}/`;
 
 /**
- * Draw the scene on `channel` into `container`. Resolves once the viewer is built and attached.
+ * Draw the scene on `channel` into `container`. Resolves once the viewer is built and attached, and
+ * gives back the call that takes it down again.
+ *
+ * A cell that re-runs or is deleted takes its element out of the page. The viewer that drew into it
+ * keeps its render loop and its WebGL context until something destroys it, and a browser holds only
+ * so many contexts — so the caller owes this call whenever the element goes.
  *
  * The bootstrap below is the browser host's, minus the address bar it has no equivalent of. Core
  * PR 4 lifts that sequence out of the hosts; when it lands, this shrinks to the call it exports.
  */
-export async function mount(container: HTMLElement, channel: string): Promise<ViewerHandle> {
+export async function mount(container: HTMLElement, channel: string): Promise<() => void> {
   loadImagery(`${DIST}cesium/`);
   const t = new SlateTransport(channel);
   t.notify("ready", { protocol: PROTOCOL_VERSION });
@@ -65,7 +69,11 @@ export async function mount(container: HTMLElement, channel: string): Promise<Vi
     assetBase: mountBase,
   });
   handle.attachTransport(t, declaration);
-  return handle;
+  // The Core destroys everything the Core built. The transport is the host's, so the host closes it.
+  return () => {
+    handle.destroy();
+    t.close();
+  };
 }
 
 // The server declares a module as `/modules/<id>/<id>.js`, a URL under its own root. The extension
