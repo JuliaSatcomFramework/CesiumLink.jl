@@ -28,6 +28,11 @@ export { sceneFromQuery } from "./query";
 export type { QueryScene } from "./query";
 export { firstDeclaration, NO_BYTES, PROTOCOL_VERSION, WsTransport } from "./transport";
 export type { Declaration, Transport } from "./transport";
+/** The bootstrap a host runs around the Core: connect, declare, publish, and say when it is stale. */
+export {
+  connectAndDeclare, DECLARATION_TIMEOUT_MS, ignoredByDeclaration, publish, showStale,
+} from "./host";
+export type { Bootstrap } from "./host";
 export {
   declarationOf, fetchRecording, parseRecording, RECORDING_VERSION, RecordingTransport,
 } from "./recording";

@@ -1,23 +1,19 @@
 import "@cesium/engine/Source/Widget/CesiumWidget.css";
 import "@cesium/widgets/Source/widgets.css";
 import {
+  connectAndDeclare,
   createViewer,
-  firstDeclaration,
+  DECLARATION_TIMEOUT_MS,
+  ignoredByDeclaration,
   loadImagery,
-  PROTOCOL_VERSION,
+  publish,
   sceneFromQuery,
+  showStale,
   WsTransport,
-  type Declaration,
-  type ViewerHandle,
 } from "../core/src/index";
 
 const container = document.getElementById("app") as HTMLElement;
 const baseUrl = "cesium/";
-
-// How long a connected server gets to declare the session before the globe is built on WGS84
-// without it. Generous next to any round trip, and short enough that a `?ws` pointing at a server
-// that never answers reads as a wait rather than as a broken page.
-const DECLARATION_TIMEOUT_MS = 5000;
 
 // The imagery is the same offline texture whatever shape the globe turns out to be, so its fetch
 // runs alongside the connection instead of behind it. The container shows the page background —
@@ -42,22 +38,11 @@ async function start(): Promise<void> {
   const url = ws === "" || ws === "auto" ? `${scheme}://${location.host}/ws` : ws;
 
   const t = new WsTransport(url);
-  let live = true;
-  let declaration: Declaration | null = null;
-  try {
-    await t.ready;
-  } catch (e) {
-    console.error("CesiumLink: WS connect failed", url, e);
-    live = false;
-  }
-  if (live) {
-    t.notify("ready", { protocol: PROTOCOL_VERSION });
+  const { live, declaration, error } = await connectAndDeclare(t);
+  if (!live) {
+    console.error("CesiumLink: WS connect failed", url, error);
+  } else {
     console.log("CesiumLink: connected to", url);
-    // The globe is built on the ellipsoid the server names, so the coordinates a scene sends and
-    // the surface they are drawn on cannot disagree. The declaration also names the furniture, so
-    // the first paint shows the set the session asked for. Everything the server replays behind the
-    // declaration waits on the transport until the viewer exists to receive it.
-    declaration = await firstDeclaration(t, DECLARATION_TIMEOUT_MS);
     if (declaration === null) {
       console.warn(`CesiumLink: ${url} declared no session within ${DECLARATION_TIMEOUT_MS} ms; ` +
         `showing ${asked.ellipsoid || asked.imagery
@@ -66,12 +51,7 @@ async function start(): Promise<void> {
     }
   }
 
-  // A declared basemap beats the address bar: the server owns the session, and its coordinates are
-  // on the shape it names. The parameters fill in only what no declaration states.
-  const ignored = [
-    asked.imagery && declaration?.imagery !== undefined ? "?imagery" : "",
-    asked.ellipsoid && declaration?.ellipsoid !== undefined ? "?ellipsoid" : "",
-  ].filter(Boolean);
+  const ignored = ignoredByDeclaration(asked, declaration);
   if (ignored.length > 0) {
     console.warn(`CesiumLink: ${url} declares the session, so ${ignored.join(" and ")} ` +
       `has no effect on this page.`);
@@ -86,26 +66,9 @@ async function start(): Promise<void> {
   });
   publish(handle);
   if (live) {
-    t.onClose = showStale;
+    // This page keeps its address, and the server it names may be started again on the same port.
+    t.onClose = () => showStale(container,
+      "Disconnected — this scene is no longer live. Reload to reconnect.");
     handle.attachTransport(t, declaration);
   }
-}
-
-// A server that stops leaves the scene drawn and interactive, so say that what is on the globe is
-// no longer being updated. The page owns this rather than the scene: the server is gone, and a
-// server is what declares anything the overlay shows.
-function showStale(): void {
-  if (document.getElementById("stale")) return;
-  const banner = document.createElement("div");
-  banner.id = "stale";
-  banner.textContent = "Disconnected — this scene is no longer live. Reload to reconnect.";
-  banner.setAttribute("style",
-    "position:absolute;left:50%;top:12px;transform:translateX(-50%);z-index:10;" +
-    "padding:6px 12px;border-radius:6px;background:rgba(120,20,20,0.88);color:#fff;" +
-    "font:13px/1.4 system-ui,sans-serif;pointer-events:none");
-  container.appendChild(banner);
-}
-
-function publish(handle: ViewerHandle): void {
-  (globalThis as Record<string, unknown>).viewer = handle;
 }
