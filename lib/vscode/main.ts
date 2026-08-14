@@ -21,7 +21,7 @@ import {
 } from "../core/src/index";
 import { vsApi } from "./api";
 import { rebaseImagery } from "./imagery";
-import { MODULE_MOUNT, moduleId, moduleUrl } from "./modules";
+import { MODULE_MOUNT, moduleId, moduleUrl } from "../core/src/modules";
 import { VsCodeTransport } from "./transport";
 import { installWorkerShim } from "./workers";
 
