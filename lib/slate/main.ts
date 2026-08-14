@@ -11,20 +11,15 @@
 import "@cesium/engine/Source/Widget/CesiumWidget.css";
 import "@cesium/widgets/Source/widgets.css";
 import {
+  connectAndDeclare,
   createViewer,
-  firstDeclaration,
+  DECLARATION_TIMEOUT_MS,
   loadImagery,
-  PROTOCOL_VERSION,
   type AssetBase,
-  type Declaration,
   type ViewerModule,
 } from "../core/src/index";
 import { MODULE_MOUNT, moduleId, moduleUrl } from "../core/src/modules";
 import { SlateTransport } from "./transport";
-
-// How long a connected server gets to declare the session before the globe is built on WGS84
-// without it. The same wait the other hosts give.
-const DECLARATION_TIMEOUT_MS = 5000;
 
 // Slate serves a package's declared directories under this route, and the notebook page is on the
 // same origin — so a worker needs no shim here, unlike in a webview.
@@ -43,17 +38,15 @@ const mountBase: AssetBase = (name) => `${EXT_ASSETS}CesiumLink-mount-${name}/`;
  * keeps its render loop and its WebGL context until something destroys it, and a browser holds only
  * so many contexts — so the caller owes this call whenever the element goes.
  *
- * The bootstrap below is the browser host's, minus the address bar it has no equivalent of. Core
- * PR 4 lifts that sequence out of the hosts; when it lands, this shrinks to the call it exports.
+ * The bootstrap is the Core's, the same one the browser host and the VSCode host run. What stays
+ * here is the sentence: this host's reader is a notebook author, and the console is where they
+ * look. A Slate channel is already open, so `live` is never false and there is nothing to report
+ * about the connection itself.
  */
 export async function mount(container: HTMLElement, channel: string): Promise<() => void> {
   loadImagery(`${DIST}cesium/`);
   const t = new SlateTransport(channel);
-  t.notify("ready", { protocol: PROTOCOL_VERSION });
-  // The globe is built on the ellipsoid the server names, and the first paint shows the furniture
-  // the session asked for. Everything the server replays behind the declaration waits on the
-  // transport until the viewer exists to receive it.
-  const declaration: Declaration | null = await firstDeclaration(t, DECLARATION_TIMEOUT_MS);
+  const { declaration } = await connectAndDeclare(t);
   if (declaration === null) {
     console.warn(`CesiumLink: the server declared no session within ${DECLARATION_TIMEOUT_MS} ms; ` +
       `showing a WGS84 globe`);
