@@ -7,7 +7,7 @@
     "build": "node build.mjs",
     "serve": "node build.mjs && node serve.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit && node --check ../extension/extension.js && node --check ../extension/uri.js",
-    "test": "node --test '{core,vscode,primitives,ui,heatmap,models}/**/*.test.mjs' '{core,vscode,primitives,ui,heatmap,models}/**/*.test.ts' '../extension/**/*.test.mjs'",
+    "test": "node --test '{core,vscode,slate,primitives,ui,heatmap,models}/**/*.test.mjs' '{core,vscode,primitives,ui,heatmap,models}/**/*.test.ts' '../extension/**/*.test.mjs'",
     "harness": "node build.mjs && julia --project=../tools ../tools/harness.jl",
     "harness:check": "node build.mjs && julia --project=../tools ../tools/harness.jl --check tools/baseline/harness.json"
   },
