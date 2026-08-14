@@ -7,7 +7,6 @@
 
 import { firstDeclaration, PROTOCOL_VERSION, type Declaration, type Transport } from "./transport";
 import type { QueryScene } from "./query";
-import type { ViewerHandle } from "./index";
 
 /**
  * How long a connected server gets to declare the session before the globe is built without it.
@@ -91,7 +90,10 @@ export function showStale(container: HTMLElement, sentence: string): void {
 
 /**
  * Put `handle` on `globalThis.viewer`, where a console session and a test driver both look for it.
+ *
+ * The parameter is the viewer handle `createViewer` returns. It is typed loosely because this file
+ * would otherwise import the Core's own entry point, which imports this one.
  */
-export function publish(handle: ViewerHandle): void {
+export function publish(handle: object): void {
   (globalThis as Record<string, unknown>).viewer = handle;
 }
