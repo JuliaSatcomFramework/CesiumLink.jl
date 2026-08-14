@@ -85,4 +85,5 @@ that connects. Ask it what one pair says:
 
 ```@docs
 CesiumLink.declared
+CesiumLink.retained
 ```
