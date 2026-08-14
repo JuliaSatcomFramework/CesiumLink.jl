@@ -243,27 +243,3 @@ export function cameraFollowView(
     canRejoin: state !== "hidden" && !camera.serverHolds && camera.viewpoint !== null,
   };
 }
-
-// The Core owns placement (ADR-0004), so a declared region style may not set any of these.
-const PLACEMENT = ["position", "top", "right", "bottom", "left", "transform", "z-index", "inset"];
-
-/**
- * A region's declared CSS with the placement properties removed. A refusal warns, names the
- * property, and drops that property only — the rest of the bag still applies. Keys arrive already
- * lowered to CSS spelling (`flex-direction`, not `flex_direction`).
- */
-export function scrubRegionStyle(
-  region: string,
-  bag: Record<string, string>,
-  warn: (message: string) => void = console.warn,
-): Record<string, string> {
-  const kept: Record<string, string> = {};
-  for (const [property, value] of Object.entries(bag)) {
-    if (PLACEMENT.includes(property)) {
-      warn(`overlay: region ${region} may not set '${property}' — the Core owns placement (ADR-0004)`);
-      continue;
-    }
-    kept[property] = value;
-  }
-  return kept;
-}
