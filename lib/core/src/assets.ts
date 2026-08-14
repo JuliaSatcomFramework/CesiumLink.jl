@@ -9,6 +9,8 @@
 // So the Core holds the map the declaration carries, the host says where each mount is, and this is
 // where the two meet (ADR-0021).
 
+import { sayOnce } from "./once.ts";
+
 /** What the `modules` declaration carries: mount name to the same-origin base it answers. */
 export type AssetMounts = Record<string, string>;
 
@@ -30,14 +32,10 @@ export function createAssetUrl(
   base: AssetBase | undefined,
   warn: (message: string) => void = (m) => console.warn(m),
 ): (path: string) => string | null {
-  // A model family asks once per entity per tick, so a bad path would otherwise warn every frame
-  // forever. One line per distinct path is enough to find it.
-  const warned = new Set<string>();
+  // The key is the path, so each bad path gives one line. One line is enough to find it.
+  const say = sayOnce(warn);
   const once = (path: string, why: string): null => {
-    if (!warned.has(path)) {
-      warned.add(path);
-      warn(`CesiumLink: ${why}: ${path}`);
-    }
+    say(path, `CesiumLink: ${why}: ${path}`);
     return null;
   };
   return (path: string): string | null => {
