@@ -50,7 +50,7 @@ scene. Create one with [`start_server`](@ref); do not construct it directly.
 mutable struct Server
     listener::Any
     clients::Set{Any}
-    clients_lock::ReentrantLock
+    const clients_lock::ReentrantLock
     # The modules to declare, in registration order — which is the order the viewer draws and stacks
     # them in; reaching another module through `ctx.modules` is not subject to it. Doubles as the
     # mount table for `/modules/<id>/`. Established per connection: a client is told this set once,
@@ -87,28 +87,28 @@ mutable struct Server
     # the `:replace` it extends established — so a client that has received neither is asked for a
     # replacement over these frames instead of being replayed it. Guarded by `clients_lock`.
     window_span::Any
-    dist_dir::Union{String,Nothing}
+    const dist_dir::Union{String,Nothing}
     # The ellipsoid this session's coordinates are on, declared to every client, or `nothing` to
-    # leave the viewer on its WGS84 default. Fixed at `start_server`: the viewer builds its globe
-    # from the declaration, so changing it mid-session would leave the scene on the old shape.
-    ellipsoid::Union{Nothing,NamedTuple{(:a, :b),Tuple{Float64,Float64}}}
+    # leave the viewer on its WGS84 default. The viewer builds its globe from the declaration, so a
+    # shape that changed mid-session would leave the scene on the old one.
+    const ellipsoid::Union{Nothing,NamedTuple{(:a, :b),Tuple{Float64,Float64}}}
     # What the globe is textured with, as the field the declaration carries: `nothing` to declare
     # none and leave the viewer on its bundled texture, `false` for a globe with no base layer, or
-    # one resolved source. Fixed at `start_server`, for the reason the ellipsoid is.
-    imagery::Any
+    # one resolved source. It cannot change mid-session, for the reason the ellipsoid cannot.
+    const imagery::Any
     # Every directory this server serves, by mount name: `/assets/<name>/` answers out of
     # `asset_dirs[name]`. A directory of basemap tiles is the reserved name `imagery`, so a tile
-    # directory and a folder of models are one mechanism (ADR-0021). Fixed at `start_server`, because
+    # directory and a folder of models are one mechanism (ADR-0021). The set cannot grow mid-session:
     # a VSCode webview is given its roots when its panel is created and cannot be given more later.
-    asset_dirs::Dict{String,String}
+    const asset_dirs::Dict{String,String}
     # Every origin the page may reach off-site, widening both `img-src` and `connect-src`. A basemap
     # declared as a URL adds its own origin here.
-    trusted_origins::Vector{String}
-    # Whether the globe is lit from the sun at the clock's time. Fixed at `start_server`, for the
-    # reason the imagery is.
-    lighting::Bool
-    # Whether the sky around the globe is drawn. Fixed at `start_server`, for the same reason.
-    stars::Bool
+    const trusted_origins::Vector{String}
+    # Whether the globe is lit from the sun at the clock's time. It cannot change mid-session, for
+    # the reason the imagery cannot.
+    const lighting::Bool
+    # Whether the sky around the globe is drawn. It cannot change mid-session, for the same reason.
+    const stars::Bool
     # The open session recording, or `nothing`, and the wall-clock instant it was opened at — every
     # broadcast frame is stamped with its offset from that. Guarded by `clients_lock`.
     record::Union{IO,Nothing}
@@ -116,7 +116,7 @@ mutable struct Server
     # The host the listener was asked to bind, kept verbatim. `viewer_url` builds the page URL from
     # it, because a wildcard bind answers on every interface and is not an address a browser can be
     # sent to.
-    host::String
+    const host::String
     # This server's file in the discovery directory, or `nothing` when none was written.
     # `stop_server` removes it.
     discovery_file::Union{String,Nothing}
@@ -542,8 +542,7 @@ end
 # A micrometre of tolerance — far under any difference between two real ellipsoids, and
 # far over anything the JSON round trip could introduce.
 function check_reported_ellipsoid(server::Server, payload)
-    declared = lock(server.clients_lock) do; server.ellipsoid; end
-    declared === nothing && (declared = Ellipsoids.WGS84)
+    declared = server.ellipsoid === nothing ? Ellipsoids.WGS84 : server.ellipsoid
     a, b = get(payload, "a", nothing), get(payload, "b", nothing)
     if !(a isa Real && b isa Real)
         @error "a client reported an unreadable ellipsoid" payload
