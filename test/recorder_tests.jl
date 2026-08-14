@@ -1,8 +1,5 @@
-@testitem "a replay puts a client where the recorded session would have" setup=[DemoWindow] begin
-    using HTTP, JSON, Sockets
-
-    freeport() = (s = Sockets.listen(Sockets.IPv6("::1"), 0);
-                  p = Int(Sockets.getsockname(s)[2]); close(s); p)
+@testitem "a replay puts a client where the recorded session would have" setup=[DemoWindow, FreePort] begin
+    using HTTP, JSON
 
     mktempdir() do dir
         path = joinpath(dir, "session.jsonl")
@@ -192,11 +189,8 @@ end
     end
 end
 
-@testitem "a replayed answer carries no sequence number of its own" begin
-    using HTTP, JSON, Sockets
-
-    freeport() = (s = Sockets.listen(Sockets.IPv6("::1"), 0);
-                  p = Int(Sockets.getsockname(s)[2]); close(s); p)
+@testitem "a replayed answer carries no sequence number of its own" setup=[FreePort] begin
+    using HTTP, JSON
 
     mktempdir() do dir
         path = joinpath(dir, "session.jsonl")

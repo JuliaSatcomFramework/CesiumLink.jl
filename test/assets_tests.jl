@@ -34,11 +34,8 @@ end
     end
 end
 
-@testitem "a mount serves its files and refuses a path that climbs out of it" begin
-    using HTTP, Sockets
-
-    freeport() = (s = Sockets.listen(Sockets.IPv6("::1"), 0);
-                  p = Int(Sockets.getsockname(s)[2]); close(s); p)
+@testitem "a mount serves its files and refuses a path that climbs out of it" setup=[FreePort] begin
+    using HTTP
 
     mktempdir() do root
         dir = mkpath(joinpath(root, "glb"))
@@ -73,11 +70,8 @@ end
     end
 end
 
-@testitem "the declaration carries the base each mount answers, and not the directory" begin
-    using HTTP, JSON, Sockets
-
-    freeport() = (s = Sockets.listen(Sockets.IPv6("::1"), 0);
-                  p = Int(Sockets.getsockname(s)[2]); close(s); p)
+@testitem "the declaration carries the base each mount answers, and not the directory" setup=[FreePort] begin
+    using HTTP, JSON
 
     # A browser host needs none of this — a same-origin path already resolves against the page — but
     # a host whose page sits on another origin builds its own URL per mount out of it.
@@ -104,11 +98,7 @@ end
     end
 end
 
-@testitem "a basemap URL declares its own origin, and a directory declares none" setup=[Pyramid] begin
-    using Sockets
-
-    freeport() = (s = Sockets.listen(Sockets.IPv6("::1"), 0);
-                  p = Int(Sockets.getsockname(s)[2]); close(s); p)
+@testitem "a basemap URL declares its own origin, and a directory declares none" setup=[Pyramid, FreePort] begin
 
     @test CesiumLink.url_origin("https://cdn.example/tiles/{z}/{x}/{y}.png") == "https://cdn.example"
     @test CesiumLink.url_origin("https://cdn.example:8443/a/b") == "https://cdn.example:8443"
@@ -138,11 +128,8 @@ end
     end
 end
 
-@testitem "the discovery file carries the mounts and the trusted origins" begin
-    using JSON, Sockets
-
-    freeport() = (s = Sockets.listen(Sockets.IPv6("::1"), 0);
-                  p = Int(Sockets.getsockname(s)[2]); close(s); p)
+@testitem "the discovery file carries the mounts and the trusted origins" setup=[FreePort] begin
+    using JSON
 
     mktempdir() do runtime
         # The real runtime directory belongs to the user's own sessions.
@@ -165,11 +152,8 @@ end
     end
 end
 
-@testitem "the discovery file names each module's directory, and again after each registration" begin
-    using JSON, Sockets
-
-    freeport() = (s = Sockets.listen(Sockets.IPv6("::1"), 0);
-                  p = Int(Sockets.getsockname(s)[2]); close(s); p)
+@testitem "the discovery file names each module's directory, and again after each registration" setup=[FreePort] begin
+    using JSON
 
     mktempdir() do runtime
         withenv("XDG_RUNTIME_DIR" => runtime) do

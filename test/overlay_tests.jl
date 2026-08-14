@@ -86,11 +86,8 @@ end
     @test issorted(first.(stops))
 end
 
-@testitem "the overlay declaration reaches the ui module and survives a reconnect" begin
-    using HTTP, JSON, Sockets
-
-    freeport() = (s = Sockets.listen(Sockets.IPv6("::1"), 0);
-                  p = Int(Sockets.getsockname(s)[2]); close(s); p)
+@testitem "the overlay declaration reaches the ui module and survives a reconnect" setup=[FreePort] begin
+    using HTTP, JSON
 
     port = freeport()
     server = start_server(; host = "::1", port)
@@ -186,11 +183,8 @@ end
     @test_throws "1-based" Entity(:primitives, :sat, 0)
 end
 
-@testitem "the float set reaches the ui module and survives a reconnect" begin
-    using HTTP, JSON, Sockets
-
-    freeport() = (s = Sockets.listen(Sockets.IPv6("::1"), 0);
-                  p = Int(Sockets.getsockname(s)[2]); close(s); p)
+@testitem "the float set reaches the ui module and survives a reconnect" setup=[FreePort] begin
+    using HTTP, JSON
 
     port = freeport()
     server = start_server(; host = "::1", port)
@@ -211,46 +205,42 @@ end
 end
 
 @testitem "a reported rect re-anchors its float and rides its style, without a new declaration" begin
-    using CesiumLink: dispatch_event
-    using JSON
+    using CesiumLink: dispatch_event, declared
 
     server = start_server(; host = "::1", port = 0)
     try
-        declared() = JSON.parse(CesiumLink.retained(server, ("ui", "floating")
-                                ).header)["params"]["commands"][1]["payload"]
+        floats() = declared(server, "ui", "floating")
 
         declare_floating(server, [
             Floating(:pin; anchor = Entity(:primitives, :sat, 12), html = "<b>12</b>",
                      adjustable = true, style = (; background = "black")),
             Floating(:other; anchor = Screen(10, 20), html = "<b>x</b>")])
-        @test declared()[1]["anchor"]["anchor"] == "entity"
+        @test floats()[1]["anchor"]["anchor"] == "entity"
 
         dispatch_event(server, Dict("module" => "ui", "topic" => "rect",
                                     "payload" => Dict("id" => "pin", "x" => 120, "y" => 60,
                                                       "w" => 360, "h" => 240)))
         # The set is re-sent on the event alone, so what the server retains for a client connecting
         # later is where the user left the box rather than where the scene last declared it.
-        pin = declared()[1]
+        pin = floats()[1]
         @test pin["anchor"] == Dict("anchor" => "screen", "x" => 120.0, "y" => 60.0)
         # The size merges into the author's own style instead of replacing it.
         @test pin["style"] == Dict("background" => "black", "width" => "360px",
                                    "height" => "240px")
         # A float the user has not touched is declared exactly as the scene wrote it.
-        @test declared()[2]["anchor"] == Dict("anchor" => "screen", "x" => 10.0, "y" => 20.0)
-        @test !haskey(declared()[2], "style")
+        @test floats()[2]["anchor"] == Dict("anchor" => "screen", "x" => 10.0, "y" => 20.0)
+        @test !haskey(floats()[2], "style")
     finally
         stop_server(server)
     end
 end
 
 @testitem "a rect is forgotten when a declaration drops its float, and when the scene is replaced" begin
-    using CesiumLink: dispatch_event
-    using JSON
+    using CesiumLink: dispatch_event, declared
 
     server = start_server(; host = "::1", port = 0)
     try
-        declared() = JSON.parse(CesiumLink.retained(server, ("ui", "floating")
-                                ).header)["params"]["commands"][1]["payload"]
+        floats() = declared(server, "ui", "floating")
         # The two flags differ, so the stamp cannot swap them and still pass.
         pin() = Floating(:pin; anchor = Screen(10, 20), html = "<b>12</b>",
                          adjustable = true, closable = false)
@@ -260,30 +250,30 @@ end
 
         declare_floating(server, [pin()])
         drag()
-        @test declared()[1]["anchor"]["x"] == 120.0
+        @test floats()[1]["anchor"]["x"] == 120.0
         # The two flags travel independently: a box the user may move is not thereby one they may
         # close.
-        @test declared()[1]["adjustable"] && !declared()[1]["closable"]
+        @test floats()[1]["adjustable"] && !floats()[1]["closable"]
 
         # Dropping a float and declaring it again is how a scene puts the box back.
         declare_floating(server, [])
         declare_floating(server, [pin()])
-        @test declared()[1]["anchor"]["x"] == 10.0
-        @test !haskey(declared()[1], "style")
+        @test floats()[1]["anchor"]["x"] == 10.0
+        @test !haskey(floats()[1], "style")
 
         # Replacing the scene forgets every rect: the next scene may name a box the same thing.
         drag()
-        @test declared()[1]["anchor"]["x"] == 120.0
+        @test floats()[1]["anchor"]["x"] == 120.0
         install_scene!(server, nothing, [])
         declare_floating(server, [pin()])
-        @test declared()[1]["anchor"]["x"] == 10.0
+        @test floats()[1]["anchor"]["x"] == 10.0
     finally
         stop_server(server)
     end
 end
 
 @testitem "the built-in rect listener leaves a scene's own listener on that topic reachable" begin
-    using CesiumLink: dispatch_event
+    using CesiumLink: dispatch_event, declared
 
     server = start_server(; host = "::1", port = 0)
     try
@@ -301,7 +291,7 @@ end
         @test server.float_rects["pin"] == (; x = 1.0, y = 2.0, w = 80, h = 48)
         # With nothing declared there is nothing to stamp, and declaring the empty set here would
         # take every box off the screen.
-        @test CesiumLink.retained(server, ("ui", "floating")) === nothing
+        @test declared(server, "ui", "floating") === nothing
     finally
         stop_server(server)
     end

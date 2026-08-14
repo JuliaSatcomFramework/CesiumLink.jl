@@ -3,7 +3,7 @@
 # package's mechanisms are used together.
 
 @testitem "clicking an entity pins a float and pushes the window its track rides" begin
-    using CesiumLink: answer_event
+    using CesiumLink: answer_event, declared
     using JSON
 
     include(joinpath(pkgdir(CesiumLink), "tools", "tracks", "serve.jl"))
@@ -25,8 +25,7 @@
                                                                "kind" => "sat", "idx" => 1)]))
             answer_event(server, click)
 
-            floats = JSON.parse(CesiumLink.retained(server, ("ui", "floating")
-                                ).header)["params"]["commands"][1]["payload"]
+            floats = declared(server, "ui", "floating")
             @test any(f -> f["id"] == "sat-2" && f["keyframed"] == ["html"], floats)
 
             # The window pushed in the same answer covers where the clock was and carries one

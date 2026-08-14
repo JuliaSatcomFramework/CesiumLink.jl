@@ -77,3 +77,12 @@ The server sends this frame once per connection, before any state addressed to a
 ```@docs
 CesiumLink.modules_message
 ```
+
+## Reading back what the session declares
+
+The server keeps the last command per `(module, topic)` pair and replays the set to every client
+that connects. Ask it what one pair says:
+
+```@docs
+CesiumLink.declared
+```

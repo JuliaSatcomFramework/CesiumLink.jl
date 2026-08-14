@@ -14,11 +14,7 @@ const CORE_REGIONS   = ("core", "regions")
 # The furniture set the session states, as the declaration carries it, or `nothing` when the session
 # declares none. It reads the retained `core/furniture` command, so the declaration and the replay
 # that follows it say the same thing and the retention stays the one source of the set.
-function declared_furniture(server::Server)
-    msg = retained(server, CORE_FURNITURE)
-    msg === nothing && return nothing
-    return JSON.parse(msg.header)["params"]["commands"][1]["payload"]
-end
+declared_furniture(server::Server) = declared(server, CORE_FURNITURE...)
 
 # Where a widget may sit. Each names a region the Core positions and stacks controls within; a
 # module never absolute-positions its own overlay.

@@ -1083,9 +1083,9 @@ and its siblings are served same-origin with the page. There is no privileged lo
 module shipped inside the viewer dist is registered exactly like anyone else's.
 
 **Registration order is the order the viewer draws and stacks the modules in**, and decides nothing
-else: a module reaching another through `ctx.modules` may be registered either side of it. The set
-is established per connection — it is declared once, on `ready` — so registering after a client has
-connected has no effect on that client until it reconnects.
+else: a module reaching another through `ctx.modules` may be registered either side of it. A client
+hears the set once, on `ready`. A **new** id registered after that is declared to the clients
+already connected, so a scene that registers its modules after its server starts reaches them all.
 
 An id registered twice keeps its place in that order and takes the last entry given for it, so a
 scene installed again on one server registers its modules again without error. Two packages that
@@ -1439,6 +1439,37 @@ function retained(server::Server, key::Tuple{String,String})
         i = findfirst(p -> first(p) == key, server.retained)
         i === nothing ? nothing : last(server.retained[i])
     end
+end
+
+"""
+    CesiumLink.declared(server, module_id, topic) -> Any
+
+The payload of the command the server holds under `(module_id, topic)`, or `nothing` when it holds
+none. This is what a client that connects now is sent for that pair, so it answers "what does this
+session say about X" without a wire frame in hand.
+
+The server keeps one command per pair, so the answer is one payload.
+
+Only a command is readable here. The retention table also holds the window, under
+`("core", "window")`, and a window carries no command batch — ask [`retained`](@ref) for that frame
+and read its `params`. A pair holding any other kind of frame throws an `ArgumentError`.
+
+```julia
+declare_furniture(server; timeline = false)
+CesiumLink.declared(server, "core", "furniture")["items"]["timeline"]   # false
+```
+"""
+function declared(server::Server, module_id, topic)
+    msg = retained(server, (String(module_id), String(topic)))
+    msg === nothing && return nothing
+    m = JSON.parse(msg.header)
+    # Say which frame the pair holds. Reaching for a batch that is not there fails several hops in,
+    # on a missing key that names neither the pair asked for nor the function to ask instead.
+    m["method"] == "commands" || throw(ArgumentError(
+        "($module_id, $topic) holds a $(m["method"]) frame and no command; read it with `retained`"))
+    # `only` rather than `first`: one command per pair is what `retain!` stores, and a batch here
+    # means the retention key and the frame disagree.
+    return only(m["params"]["commands"])["payload"]
 end
 
 # Every retained wire frame in replay order — oldest update first, so the most recent one is applied
