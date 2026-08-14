@@ -133,7 +133,7 @@ end
 end
 
 @testitem "the mount serves a tile and refuses a path that climbs out of it" setup=[Pyramid, FreePort] begin
-    using HTTP, JSON, Sockets
+    using HTTP, JSON
 
     mktempdir() do root
         dir = pyramid(mkpath(joinpath(root, "tiles")))

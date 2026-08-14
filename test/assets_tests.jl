@@ -71,7 +71,7 @@ end
 end
 
 @testitem "the declaration carries the base each mount answers, and not the directory" setup=[FreePort] begin
-    using HTTP, JSON, Sockets
+    using HTTP, JSON
 
     # A browser host needs none of this — a same-origin path already resolves against the page — but
     # a host whose page sits on another origin builds its own URL per mount out of it.

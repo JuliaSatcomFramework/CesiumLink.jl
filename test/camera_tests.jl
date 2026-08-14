@@ -143,7 +143,7 @@ end
 end
 
 @testitem "a ride goes out on the wire and never displaces the declared track" setup=[Furnished, FreePort] begin
-    using HTTP, JSON, Sockets
+    using HTTP, JSON
 
     # One `commands` frame carrying a `core/camera` payload with a `follow` statement in it. The
     # replay a joining client gets comes first and carries the track, so the read skips past it.

@@ -41,7 +41,7 @@
 end
 
 @testitem "a listener declares its subscription to the viewer, and it survives a reconnect" setup=[FreePort] begin
-    using HTTP, JSON, Sockets
+    using HTTP, JSON
 
     port = freeport()
     server = start_server(; host = "::1", port)
@@ -332,7 +332,7 @@ end
 end
 
 @testitem "an answered event sends one batch echoing its seq" setup=[FreePort] begin
-    using HTTP, JSON, Sockets
+    using HTTP, JSON
 
     port = freeport()
     server = start_server(; host = "::1", port)

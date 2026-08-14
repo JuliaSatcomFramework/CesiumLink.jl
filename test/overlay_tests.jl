@@ -87,7 +87,7 @@ end
 end
 
 @testitem "the overlay declaration reaches the ui module and survives a reconnect" setup=[FreePort] begin
-    using HTTP, JSON, Sockets
+    using HTTP, JSON
 
     port = freeport()
     server = start_server(; host = "::1", port)
@@ -184,7 +184,7 @@ end
 end
 
 @testitem "the float set reaches the ui module and survives a reconnect" setup=[FreePort] begin
-    using HTTP, JSON, Sockets
+    using HTTP, JSON
 
     port = freeport()
     server = start_server(; host = "::1", port)

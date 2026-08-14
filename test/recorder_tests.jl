@@ -1,5 +1,5 @@
 @testitem "a replay puts a client where the recorded session would have" setup=[DemoWindow, FreePort] begin
-    using HTTP, JSON, Sockets
+    using HTTP, JSON
 
     mktempdir() do dir
         path = joinpath(dir, "session.jsonl")
@@ -190,7 +190,7 @@ end
 end
 
 @testitem "a replayed answer carries no sequence number of its own" setup=[FreePort] begin
-    using HTTP, JSON, Sockets
+    using HTTP, JSON
 
     mktempdir() do dir
         path = joinpath(dir, "session.jsonl")
