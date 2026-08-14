@@ -421,8 +421,28 @@ end
     end
 end
 
+@testitem "declared answers a command, and says so for a pair holding anything else" setup=[DemoWindow] begin
+    using CesiumLink: declared
+
+    server = start_server(; host = "::1", port = 0)
+    try
+        @test declared(server, "heatmap", "field") === nothing      # nothing retained for the pair
+        send_command(server, "heatmap", "field", Dict("a" => 2))
+        @test declared(server, "heatmap", "field")["a"] == 2
+
+        # The window shares the retention table and carries no command batch, so the pair that holds
+        # it names the function to ask instead.
+        push_window(server, demo_payloads(); start_frame = 1, count = 2, dt_seconds = 60,
+                    total_frames = 2)
+        @test_throws "holds a window frame and no command" declared(server, "core", "window")
+        @test CesiumLink.retained(server, ("core", "window")) !== nothing
+    finally
+        stop_server(server)
+    end
+end
+
 @testitem "a window's identity is new on a replace and held across an append" setup=[DemoWindow, FreePort] begin
-    using HTTP, JSON, Sockets
+    using HTTP, JSON
 
     port = freeport()
     server = start_server(; host = "::1", port)
