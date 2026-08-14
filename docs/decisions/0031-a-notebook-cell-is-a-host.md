@@ -57,6 +57,11 @@ nothing has to be handed to it and nothing goes stale when a scene registers a m
 The Core holds the mount map the declaration carries, and this host says where a mount is
 (ADR-0021).
 
+**The render registers its own component.** Slate loads a widget's front end when a notebook *binds*
+it, and a `Server` is displayed rather than bound. So `slate_render` asks for the registration itself.
+Without it the cell holds a component descriptor that nothing on the page ever mounts, and no error
+says so.
+
 **The cell's teardown is the client's.** `slate_on_cleanup` drops the connection from the client set
 and releases the channel. It fires before the cell re-evaluates, when the cell is deleted, and before
 a namespace rebuild.

@@ -11,13 +11,9 @@ module CesiumLinkSlateExt
 # `slate_emit(channel, SlateBinary(bytes))` goes down as one binary WebSocket frame, and
 # `slateCall(channel, args, undefined, [bytes])` comes back up as one. Neither direction encodes.
 
-using CesiumLink: CesiumLink, Server, handle_msg, module_dirs, viewer_dist
+using CesiumLink: CesiumLink, Client, Server, drain_client!, drop_client!, handle_msg, module_dirs,
+                  viewer_dist
 import SlateExtensionsBase as SEB
-
-# A connection that is not a socket is written to through `send_frame`, which arrives with the
-# per-client send queue (ADR-0030). Until the package carries that seam this host can receive and
-# cannot draw, so it says so in the cell rather than mounting a viewer that stays black.
-const HAS_SEND_FRAME = isdefined(CesiumLink, :send_frame)
 
 """
 One viewer's end of a Slate channel: the notebook's emitter, and the channel the frames ride.
@@ -31,26 +27,34 @@ struct SlateConn
     emit::Any
 end
 
-if HAS_SEND_FRAME
-    CesiumLink.send_frame(c::SlateConn, bytes::Vector{UInt8}) =
-        c.emit(c.channel, SEB.SlateBinary(bytes))
-end
+CesiumLink.send_frame(c::SlateConn, bytes::Vector{UInt8}) = c.emit(c.channel, SEB.SlateBinary(bytes))
 
-# One connection per server, for the life of this process. `slate_render` runs several times per cell
-# run and again for every browser that connects, so everything it does must be idempotent — this map
-# is what makes it so.
-const CONNS = Dict{Server,SlateConn}()
-const CONNS_LOCK = ReentrantLock()
+# One client per server, for the life of this process. `slate_render` runs several times per cell run
+# and again for every browser that connects, so everything it does must be idempotent — this map is
+# what makes it so.
+const CLIENTS = Dict{Server,Client}()
+const CLIENTS_LOCK = ReentrantLock()
 # Channels are numbered and never reused. Counting the live connections instead would hand a server
 # whose cell has just re-run the channel another server is already drawing on.
 const CHANNELS = Ref(0)
 
-# The channel a server's frames ride. The process id in it is load-bearing: a page mounts an output
-# only when its bytes differ from the ones it already holds, so a replaced worker must render a
-# different channel. Without that, the cell keeps the viewer it has, and that viewer talks to a
-# process that no longer exists — a scene that goes quiet with nothing said anywhere.
-conn_for(server::Server, emit) = lock(CONNS_LOCK) do
-    get!(() -> SlateConn("cesiumlink/$(getpid())/$(CHANNELS[] += 1)", emit), CONNS, server)
+# This server's Slate client: built once, joined to the client set, and drained by the one task that
+# writes to the channel. The drain task starts before any frame can be enqueued to the client, which
+# is the order the socket host uses too.
+#
+# The process id in the channel is load-bearing: a page mounts an output only when its bytes differ
+# from the ones it already holds, so a replaced worker must render a different channel. Without that,
+# the cell keeps the viewer it has, and that viewer talks to a process that no longer exists — a
+# scene that goes quiet with nothing said anywhere.
+client_for(server::Server, emit) = lock(CLIENTS_LOCK) do
+    get!(CLIENTS, server) do
+        client = Client(SlateConn("cesiumlink/$(getpid())/$(CHANNELS[] += 1)", emit))
+        @async drain_client!(server, client)
+        lock(server.clients_lock) do
+            push!(server.clients, client)
+        end
+        client
+    end
 end
 
 # Serve the directories the viewer fetches from, under names the page builds by rule rather than
@@ -78,40 +82,35 @@ function SEB.slate_render(server::Server)
     # Outside a cell there is no emitter to capture and no page to draw on. Slate then shows the
     # server's own text form, which names the URL to open.
     ctx === nothing && return nothing
-    HAS_SEND_FRAME || return SEB.html_fragment(
-        "<em>CesiumLink: this notebook host needs the per-client send queue (ADR-0030).</em>")
-    conn = conn_for(server, ctx.emit)
+    # Register the mount component with the page. Slate does this itself for a widget the notebook
+    # binds, and a `Server` is displayed rather than bound, so the render asks for it. Without this
+    # the cell holds an empty component descriptor that nothing ever mounts.
+    SEB.ensure_widget_assets!(Server)
+    client = client_for(server, ctx.emit)
+    channel = client.conn.channel
     provide_mounts!(server)
-    attach!(server, conn)
     # Everything the viewer sends arrives here as one binary buffer, and it is the same frame a
     # socket would have carried. `handle_msg` answers `ready` with the declaration and the retained
     # scene, so a page that reloads catches up the way any mid-session client does.
-    SEB.slate_on("$(conn.channel)/up",
-                 args -> (handle_msg(server, conn, args["__slate_buffers"][1]); nothing))
+    SEB.slate_on("$channel/up",
+                 args -> (handle_msg(server, client, args.__slate_buffers[1]); nothing))
     # The teardown runs later, possibly outside any cell, so it closes over what it needs instead of
     # reading the context. It fires before the cell re-evaluates, when the cell is deleted, and
     # before a namespace rebuild.
     off = ctx.off
-    SEB.slate_on_cleanup(() -> release!(server, conn, off))
-    return SEB.component(Server; channel = conn.channel)
+    SEB.slate_on_cleanup(() -> release!(server, client, off))
+    return SEB.component(Server; channel)
 end
 
-# Join and leave the client set. A connection reaching the set is what makes the server broadcast to
-# it, and the set holds whatever the send queue wraps a connection in (ADR-0030) — so these two are
-# the pair to write when this host is rebased onto that queue.
-attach!(server::Server, conn::SlateConn) = lock(server.clients_lock) do
-    push!(server.clients, conn)
-end
-
-function release!(server::Server, conn::SlateConn, off)
-    lock(server.clients_lock) do
-        delete!(server.clients, conn)
-    end
-    lock(CONNS_LOCK) do
-        get(CONNS, server, nothing) === conn && delete!(CONNS, server)
+# Leave the client set. `drop_client!` takes the client out and closes its queue, which ends the drain
+# task started with it.
+function release!(server::Server, client::Client, off)
+    drop_client!(server, client)
+    lock(CLIENTS_LOCK) do
+        get(CLIENTS, server, nothing) === client && delete!(CLIENTS, server)
     end
     try
-        off("$(conn.channel)/up")
+        off("$(client.conn.channel)/up")
     catch
     end
     return nothing
