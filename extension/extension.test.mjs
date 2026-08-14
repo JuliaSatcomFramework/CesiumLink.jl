@@ -127,8 +127,8 @@ test("a scene row is read out of the file rather than derived from the port", ()
   const s = scene(FIXTURE);
   // The route and the host come from the file: a server bound to `::1` answers no URL naming
   // `127.0.0.1`, so the reader must never build this one itself.
-  assert.equal(s.url, "ws://127.0.0.1:50004/ws");
-  assert.equal(s.port, 50004);
+  assert.equal(s.url, "ws://127.0.0.1:54321/ws");
+  assert.equal(s.port, 54321);
   assert.equal(s.label, "the fixture scene");
   assert.equal(s.dist, "/home/somebody/.julia/artifacts/f1x7u2e/dist");
   assert.deepEqual(s.assets, { models: "/data/glb" });
@@ -140,7 +140,7 @@ test("a scene row is read out of the file rather than derived from the port", ()
 
 test("a file from a server older than the `ws` field still opens", () => {
   const { ws, ...older } = FIXTURE;
-  assert.equal(scene(older).url, "ws://localhost:50004/ws", "the route such a server answered on");
+  assert.equal(scene(older).url, "ws://localhost:54321/ws", "the route such a server answered on");
 });
 
 test("the picker's directory is the one the server writes into", () => {
