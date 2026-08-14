@@ -5,8 +5,14 @@
 // rather than overlapping. Each addControl returns a Disposable, and the Core drains every region on
 // destroy, so a module cannot leak overlay DOM. Pure DOM — no Cesium, so it unit-tests without WebGL.
 
-/** The overlay positions in use today. New regions are added as real layouts demand them (ADR-0004). */
-export type OverlayRegion = "top-left" | "top-center" | "top-right" | "bottom-right";
+/**
+ * The overlay positions in use today. Every reader of a declared region name checks it against this
+ * list. Add a new region when a real layout needs one (ADR-0004).
+ */
+export const REGIONS = ["top-left", "top-center", "top-right", "bottom-right"] as const;
+
+/** One of the positions the Core arbitrates. The wire carries a name and may carry an unknown one. */
+export type OverlayRegion = (typeof REGIONS)[number];
 
 /** The contribution surface a module sees (via `ctx.overlay`): add a control, get a Disposable back. */
 export interface OverlayControls {

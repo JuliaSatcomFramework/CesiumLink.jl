@@ -28,7 +28,7 @@
 import type { Cartesian3 } from "@cesium/engine";
 import type { Disposable, ModuleContext } from "../../core/src/module-host.ts";
 import { blockAt, isNdArray } from "../../core/src/codec.ts";
-import type { OverlayRegion } from "../../core/src/overlay.ts";
+import { REGIONS, type OverlayRegion } from "../../core/src/overlay.ts";
 import { applyStyle, build, clearWidgets, el, PANEL, type Track, type Widget,
          type WidgetSpec } from "./widgets.ts";
 import { createFloats, type Anchor, type MountFactory } from "./floating.ts";
@@ -36,8 +36,6 @@ import { createTooltip } from "./tooltip.ts";
 
 export { defineWidget } from "./widgets.ts";
 export type { Mount, MountFactory, MountSite } from "./floating.ts";
-
-const REGIONS: OverlayRegion[] = ["top-left", "top-center", "top-right", "bottom-right"];
 
 // A group's own chrome, under whatever the declaration adds: a column of its children, so laying
 // two legends side by side costs the one property `flex-direction` and no new widget kind.
