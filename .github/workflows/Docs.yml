@@ -12,9 +12,10 @@ name: Docs
 # A burst of pushes costs two builds and not one per push: the concurrency group below holds one
 # run and one waiting behind it, and GitHub drops the waiting run when a newer one arrives.
 #
-# A pull request builds the site and deploys nothing. `makedocs` is the only thing that reads a
-# `@ref` in a docstring, so a link to a name nobody documented is found here or after the merge, on
-# `main`, where it stops the deploy.
+# A pull request builds the site and deploys it to `previews/PR<n>/`. Two things come of that.
+# `makedocs` is the only thing that reads a `@ref` in a docstring, so a link to a name nobody
+# documented is found here rather than after the merge, on `main`, where it stops the deploy. And a
+# reviewer reads the page a change makes, and not the Markdown that makes it.
 on:
   push:
     branches: [main]
@@ -28,16 +29,12 @@ on:
 # `gh-pages`, so a second run pushing over the first loses whichever snapshot lands second. Queue
 # them instead of cancelling: a cancelled run may stop in the middle of that push.
 #
-# A pull request build pushes nothing, so it needs none of that. It takes a group of its own per
-# branch, where a new commit supersedes the build of the one before it.
-#
-# That holds only while `docs/make.jl` leaves `push_preview` unset. Turning it on makes a pull
-# request amend and force-push `gh-pages` like any other deploy, and this group must go back to
-# `docs` in the same change — a preview racing a deploy is the case the single group exists for.
-# The site is already *built* under the base `previews/PR##`; it is the push alone that is off.
+# A pull request is one of those runs: `push_preview` in `docs/make.jl` puts its site at
+# `previews/PR<n>/`, which amends and force-pushes the same branch. So every run this workflow starts
+# shares the one group, and `DocPreviewCleanup.yml` joins it for the same reason.
 concurrency:
-  group: docs-${{ github.event_name == 'pull_request' && github.ref || 'deploy' }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: docs
+  cancel-in-progress: false
 
 jobs:
   docs:
@@ -74,8 +71,9 @@ jobs:
       # the path `NOTICE` promises. Documenter writes no such marker, and one inside `dev/` does not
       # count: Pages reads the root alone. This step writes nothing when the marker is already
       # there, and it stands after the deploy, which is what creates the branch.
-      # A pull request deploys nothing, so there is no branch for this to write to, and the token a
-      # run from a fork carries cannot write one.
+      # Not for a pull request. Pages reads the marker at the root alone, and a preview sits under
+      # `previews/`, so the marker a deploy from `main` maintains already covers one. The token a run
+      # from a fork carries could not write it in any case.
       - name: Keep Jekyll off the published site
         if: github.event_name != 'pull_request'
         env:

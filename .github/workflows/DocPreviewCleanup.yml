@@ -1,0 +1,47 @@
+name: Doc Preview Cleanup
+
+# Take a pull request's preview site off `gh-pages` when the pull request closes. Nothing else ever
+# would: a deploy skips `previews` when it clears the branch, which is what lets a preview outlive
+# the deploys that follow it, and what leaves it there for good once its pull request is gone.
+#
+# The weight is the reason to bother. Each preview is a whole site, and the site carries the built
+# viewer and about 1.2 MB of recordings, so a directory per merged branch is the branch growing
+# without limit.
+on:
+  pull_request:
+    types: [closed]
+
+# The same group `Docs.yml` uses, and for the same reason: this force-pushes `gh-pages`, and a deploy
+# that overlapped it would lose one of the two snapshots. Queue rather than cancel — a cancelled run
+# may stop in the middle of the push.
+concurrency:
+  group: docs
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+      - name: Remove the preview of this pull request
+        env:
+          PREVIEW_DIR: previews/PR${{ github.event.number }}
+        run: |
+          if [ ! -d "$PREVIEW_DIR" ]; then
+            echo "no preview at $PREVIEW_DIR"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -rqf "$PREVIEW_DIR"
+          git commit -qm "Remove the preview of pull request ${{ github.event.number }}"
+          # One commit, as `deploydocs(; forcepush = true)` leaves it. Committing the tree on its own
+          # is what drops the removed site from the history as well as from the branch — a removal
+          # that only added a commit would keep every byte of it in what a clone fetches.
+          git branch gh-pages-squashed $(git commit-tree HEAD^{tree} -m "Documentation")
+          git push -q --force origin gh-pages-squashed:gh-pages
