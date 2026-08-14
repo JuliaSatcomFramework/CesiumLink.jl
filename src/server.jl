@@ -1083,9 +1083,9 @@ and its siblings are served same-origin with the page. There is no privileged lo
 module shipped inside the viewer dist is registered exactly like anyone else's.
 
 **Registration order is the order the viewer draws and stacks the modules in**, and decides nothing
-else: a module reaching another through `ctx.modules` may be registered either side of it. The set
-is established per connection — it is declared once, on `ready` — so registering after a client has
-connected has no effect on that client until it reconnects.
+else: a module reaching another through `ctx.modules` may be registered either side of it. A client
+hears the set once, on `ready`. A **new** id registered after that is declared to the clients
+already connected, so a scene that registers its modules after its server starts reaches them all.
 
 An id registered twice keeps its place in that order and takes the last entry given for it, so a
 scene installed again on one server registers its modules again without error. Two packages that
