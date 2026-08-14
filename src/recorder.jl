@@ -34,19 +34,23 @@ stop_recording!(server)
 ```
 """
 function record!(server::Server, path)
-    lock(server.clients_lock) do
+    # The scene under the server's lock, the sink under the recording's own — the two are never held
+    # at once, and this is the only function that takes both.
+    header = lock(server.clients_lock) do
+        (; recording = RECORDING_VERSION,
+         modules = [(; m.id, path = m.path, apiVersion = m.api_version) for m in server.modules],
+         recorded_scene(server)...)
+    end
+    held = retained_messages(server)
+    lock(server.record_lock) do
         # Opened only once the previous sink is closed: recording twice to one path would otherwise
         # truncate the file a live handle still points into.
         server.record === nothing || close(server.record)
         io = open(String(path), "w")
-        header = (; recording = RECORDING_VERSION,
-                  modules = [(; m.id, path = m.path, apiVersion = m.api_version)
-                             for m in server.modules],
-                  recorded_scene(server)...)
         println(io, JSON.json(header))
         server.record = io
         server.record_t0 = time()
-        for msg in retained_messages(server)
+        for msg in held
             record_frame!(server, msg; at = 0.0)
         end
     end
@@ -91,7 +95,7 @@ recorded_imagery(imagery) =
 Close the recording sink, if any. Idempotent, and called for you by [`stop_server`](@ref).
 """
 function stop_recording!(server::Server)
-    lock(server.clients_lock) do
+    lock(server.record_lock) do
         server.record === nothing && return nothing
         close(server.record)
         server.record = nothing
@@ -99,17 +103,24 @@ function stop_recording!(server::Server)
     return server
 end
 
-# Append one broadcast frame to the open recording, `at` seconds into it. Called with `clients_lock`
-# held, so the recorded order is the order clients received. Flushed per frame: a recording is
-# readable while the session it describes is still running, and survives the process being killed.
+# Append one broadcast frame to the open recording, `at` seconds into it. Takes `record_lock` alone:
+# a recording is a sink and not a client, so a slow disk holds up nothing the server's own lock
+# guards. Two frames broadcast from one task are recorded in the order that task sent them. Two
+# tasks broadcasting at the same instant may reach the file in one order and the client queues in
+# the other, which is an order neither task states anyway.
+#
+# Flushed per frame: a recording is readable while the session it describes is still running, and
+# survives the process being killed.
 function record_frame!(server::Server, msg::Frame; at = time() - server.record_t0)
-    io = server.record
-    io === nothing && return nothing
-    # The header is spliced in rather than parsed and re-serialized: that keeps it byte-for-byte
-    # what the clients received, and spares a multi-megabyte window a round trip through JSON.
-    println(io, "{\"t\":", round(at; digits = 3), ",\"msg\":", msg.header,
-            ",\"blobs\":\"", base64encode(msg.blobs), "\"}")
-    flush(io)
+    lock(server.record_lock) do
+        io = server.record
+        io === nothing && return nothing
+        # The header is spliced in rather than parsed and re-serialized: that keeps it byte-for-byte
+        # what the clients received, and spares a multi-megabyte window a round trip through JSON.
+        println(io, "{\"t\":", round(at; digits = 3), ",\"msg\":", msg.header,
+                ",\"blobs\":\"", base64encode(msg.blobs), "\"}")
+        flush(io)
+    end
     return nothing
 end
 
