@@ -10,7 +10,7 @@ of arrays — and cost about **0.9 ms and 33% of the wire per 168 KB**, on both 
 107 ms and 6.8 MB of extra wire.
 
 Three things made it worth removing. The target is a **remote host**, and this WebSocket has no
-compression — `gzipped()` in `server.jl` serves HTTP assets only. The `heatmap` module drapes baked
+compression — `gzipped()` in `static.jl` serves HTTP assets only. The `heatmap` module drapes baked
 RGBA, and a 1024x512 raster is 2 MB per keyframe per layer. And **a notebook host** encodes an
 ordinary push as a serialisation, then base64, then JSON — so a JSON frame that already holds base64
 arrays is encoded twice, about 1.78x expansion over five passes.

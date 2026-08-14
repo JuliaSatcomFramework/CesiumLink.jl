@@ -6,8 +6,9 @@ status: accepted
 
 Each vendored browser module's payload vocabulary is a submodule: `CesiumLink.Primitives`,
 `CesiumLink.UI`, `CesiumLink.Heatmap` and `CesiumLink.ModelFamilies`. The wire-and-server half of the
-package — `codec.jl`, `messages.jl`, `server.jl`, `events.jl`, `recorder.jl`, `camera.jl`,
-`furniture.jl`, `colormap.jl` and `geodesy.jl` — stays flat at package top level.
+package — `codec.jl`, `messages.jl`, `server.jl` and the six files the server was split into,
+`events.jl`, `recorder.jl`, `camera.jl`, `furniture.jl`, `colormap.jl` and `geodesy.jl` — stays flat
+at package top level.
 
 **CesiumLink re-exports the vocabularies.** `using CesiumLink` alone supplies `Nodes`, `Title` and
 the rest, so a consumer writes one line and no scene, test or script carries an import of its own.

@@ -6,7 +6,7 @@ status: accepted
 
 The server served a file from one of three places, and each had its own rule. The viewer dist is the
 fallback root. A registered module's own directory answers `/modules/<id>/`. A directory of basemap
-tiles answers `/imagery/`. `mount_for` in `src/server.jl` holds all three.
+tiles answers `/imagery/`. `mount_for` in `src/static.jl` holds all three.
 
 A scene that draws a glTF model needs a fourth place: a folder of models the author owns. A fourth
 branch beside the other three would make four idioms for one idea, and only one of the three —
