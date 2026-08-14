@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { ModuleContext } from "../../core/src/module-host.ts";
+import { windowCoverage } from "../../core/src/testing.ts";
 import { Timeline, type WindowInfo } from "../../core/src/windows.ts";
 
 // The whole path from a delivered window to what a model is drawn with, against a stubbed Cesium and
@@ -190,7 +191,7 @@ function viewer(payload: unknown, opts: Options = {}) {
   const windows: ((w: WindowInfo, payload: unknown) => void)[] = [];
   const keyframes: ((index: number) => void)[] = [];
   const frames: (() => void)[] = [];
-  const covers = new Map<number, WindowInfo>();
+  const covers = windowCoverage();
   const entities = new FakeEntities();
   const warnings: string[] = [];
   const said = console.warn;
@@ -204,15 +205,12 @@ function viewer(payload: unknown, opts: Options = {}) {
     onWindow: (cb: (w: WindowInfo, p: unknown) => void) => (windows.push(cb), () => {}),
     onKeyframe: (cb: (index: number) => void) => (keyframes.push(cb), () => {}),
     onFrame: (cb: () => void) => (frames.push(cb), () => {}),
-    placement: (index: number) => {
-      const w = covers.get(index);
-      return w ? { window: w, k: index - w.startFrame } : null;
-    },
+    placement: covers.placement,
     perWindow: <T>() => new Timeline<T>(),
   } as unknown as ModuleContext;
   const teardown = models.setup(ctx);
   const deliver = (p: unknown, info = window()) => {
-    for (let k = 0; k < info.count; k++) covers.set(info.startFrame + k, info);
+    covers.deliver(info);
     for (const cb of windows) cb(info, p);
     for (const cb of keyframes) cb(info.startFrame);
   };

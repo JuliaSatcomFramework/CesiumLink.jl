@@ -5,8 +5,6 @@
 // rather than overlapping. Each addControl returns a Disposable, and the Core drains every region on
 // destroy, so a module cannot leak overlay DOM. Pure DOM — no Cesium, so it unit-tests without WebGL.
 
-import { scrubRegionStyle } from "./furniture";
-
 /** The overlay positions in use today. New regions are added as real layouts demand them (ADR-0004). */
 export type OverlayRegion = "top-left" | "top-center" | "top-right" | "bottom-right";
 
@@ -40,6 +38,31 @@ const REGION_STYLE: Record<OverlayRegion, string> = {
 
 /** The band the Core's timeline ruler occupies, which the `bottom-right` region starts clear of. */
 const DEFAULT_BOTTOM_INSET = 34;
+
+// The Core owns placement (ADR-0004), so a declared region style may not set any of these.
+const PLACEMENT = ["position", "top", "right", "bottom", "left", "transform", "z-index", "inset"];
+
+/**
+ * A region's declared CSS with the placement properties removed. A refusal warns, names the
+ * property, and drops that property only — the rest of the bag still applies. Keys arrive in CSS
+ * spelling (`flex-direction`, not `flex_direction`). The refusal compares the key in lower case,
+ * because `setProperty` lowers it too: `Top` and `top` reach the same declaration.
+ */
+export function scrubRegionStyle(
+  region: string,
+  bag: Record<string, string>,
+  warn: (message: string) => void = console.warn,
+): Record<string, string> {
+  const kept: Record<string, string> = {};
+  for (const [property, value] of Object.entries(bag)) {
+    if (PLACEMENT.includes(property.toLowerCase())) {
+      warn(`overlay: region ${region} may not set '${property}' — the Core owns placement (ADR-0004)`);
+      continue;
+    }
+    kept[property] = value;
+  }
+  return kept;
+}
 
 /** Create the overlay over `container` (the viewer's DOM parent). Regions are created on first use. */
 export function createOverlay(container: HTMLElement): Overlay {
