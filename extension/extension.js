@@ -107,13 +107,19 @@ function isRunning(pid) {
 
 // A process that still runs is no proof that the server inside it runs: a REPL reset takes the
 // server away and leaves the process, and the two look identical on disk. Only the port tells them
-// apart, so ask it. One connection, no bytes — a port that accepts has answered. `localhost` is the
-// address the relay dials, so a port this cannot reach is one the panel could not have used either.
+// apart, so ask it. One connection, no bytes — an address that accepts has answered.
+//
+// The scene's own URL states the address, and the relay dials that same URL, so an address this
+// cannot reach is one the panel could not have used either. A probe of `localhost` alone would miss
+// a server bound to `::1`, which many machines do not resolve `localhost` to.
 const PROBE_TIMEOUT_MS = 500;
 
-function answers(port) {
+function answers(url) {
+  const { hostname, port } = new URL(url);
+  // A URL keeps an IPv6 address in the brackets it needs there. A socket takes the address alone.
+  const host = hostname.replace(/^\[|\]$/g, '');
   return new Promise((resolve) => {
-    const socket = net.connect({ port, host: 'localhost' });
+    const socket = net.connect({ port, host });
     const done = (ok) => { socket.destroy(); resolve(ok); };
     socket.setTimeout(PROBE_TIMEOUT_MS, () => done(false));
     socket.on('connect', () => done(true));
@@ -144,7 +150,7 @@ async function liveScenes() {
       log.appendLine(`skipped ${name}: ${e.message}`);
     }
   }
-  const answered = await Promise.all(candidates.map((s) => answers(s.port)));
+  const answered = await Promise.all(candidates.map((s) => answers(s.url)));
   for (const [i, s] of candidates.entries()) {
     if (!answered[i]) log.appendLine(`port ${s.port} answers nothing; its server stopped`);
   }

@@ -7,6 +7,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import Module from "node:module";
+import net from "node:net";
 import { mkdtempSync, mkdirSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -156,5 +157,17 @@ test("liveness asks the pid first and the port last", async () => {
   // A pid nothing can be running under. `isRunning` answers for the pid alone, and the port is what
   // decides — so a scene on a port that answers nothing is never shown, whatever the pid says.
   assert.equal(isRunning(0x7fffffff), false);
-  assert.equal(await answers(1), false, "port 1 is privileged, so no scene of ours holds it");
+  assert.equal(await answers("ws://localhost:1/ws"), false,
+               "port 1 is privileged, so no scene of ours holds it");
+
+  // The probe dials the address the scene's URL names. A server bound to `::1` answers nothing on
+  // `127.0.0.1`, and many machines resolve `localhost` to that address alone.
+  const server = net.createServer();
+  await new Promise((done) => server.listen(0, "::1", done));
+  try {
+    const { port } = server.address();
+    assert.equal(await answers(`ws://[::1]:${port}/ws`), true, "an IPv6 loopback server answers");
+  } finally {
+    server.close();
+  }
 });
