@@ -731,8 +731,27 @@ function retain!(server::Server, key::Tuple{String,String}, msg::Frame)
     return nothing
 end
 
-# The retained wire frame under `key`, or `nothing`. Reads under the lock; the lock is re-entrant, so
-# a caller already holding it may call this.
+"""
+    CesiumLink.retained(server, key) -> Union{Frame,Nothing}
+
+The wire frame the server holds under `key`, a `(module_id, topic)` pair, or `nothing` when it holds
+none. This is the frame a client that connects now is replayed for that pair.
+
+Read the payload of a command with [`declared`](@ref CesiumLink.declared) instead. This returns the
+whole frame, which is what the window needs: the window is retained under `("core", "window")` and
+carries no command, so `declared` refuses that pair.
+
+A [`Frame`](@ref CesiumLink.Frame) carries its JSON-RPC text as `header`, so reading one field of a
+window is a parse
+away:
+
+```julia
+frame = CesiumLink.retained(server, ("core", "window"))
+JSON.parse(frame.header)["params"]["count"]
+```
+
+Reads under the server's lock, which is re-entrant, so a caller already holding it may call this.
+"""
 function retained(server::Server, key::Tuple{String,String})
     lock(server.clients_lock) do
         i = findfirst(p -> first(p) == key, server.retained)
