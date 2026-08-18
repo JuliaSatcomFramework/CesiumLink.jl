@@ -101,6 +101,14 @@ From then on the user owns where that box sits.
 - **A declared rect seeds a box when the box is created. It cannot move a box already on screen.**
   A new `anchor` or `style` for a float the user dragged changes nothing they can see.
 
+Two mechanisms hold that last rule, and each covers what the other cannot:
+
+- The server never sends your new anchor. [`declare_floating`](@ref) stamps the recorded rect over
+  the anchor and the size of every float it holds one for.
+- The viewer applies its own copy of the rect after everything a declaration writes. This catches a
+  declaration that was built before the rect arrived and was already in flight when the pointer came
+  up, which would otherwise snap the box back.
+
 To put a dragged box back where your declaration says, declare the set without that float and declare
 it again. A rect lives exactly as long as its float, and every rect is forgotten when
 [`install_scene!`](@ref) replaces the scene.
