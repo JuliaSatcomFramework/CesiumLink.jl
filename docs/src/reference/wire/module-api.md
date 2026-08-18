@@ -765,7 +765,7 @@ float stays in the declared set, so a later declaration still reconciles against
 
 Per-keyframe data reaches a mounted module through **the window addressed to that module**, not
 through the float. So a keyframe crossing leaves the mount standing rather than rebuilding it. A
-float that shows HTML keyframes its fragment through `ui`'s own window instead, as below.
+float that shows HTML takes its fragment from `ui`'s own window instead, as below.
 
 `ui` reads a window payload of its own. A declared widget carrying `keyframed` names the fields a
 window may supply, and the window carries one value per keyframe for each, addressed by the widget's

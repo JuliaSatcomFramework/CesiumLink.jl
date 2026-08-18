@@ -115,9 +115,9 @@ it again. A rect lives exactly as long as its float, and every rect is forgotten
 
 ## Change the content on every keyframe
 
-An `html` float keyframes its content by default. Supply one value per keyframe in the window
-addressed to `:ui`, keyed by the float's id. The values are positional from that window's first
-frame:
+`html` is the only field a window can drive per keyframe, and a float declared with `html` accepts
+one by default. Put the values under `tracks` in the window addressed to `:ui`, keyed by the float's
+id and positional from that window's first frame:
 
 ```julia
 push_window(server, Dict(:ui => (; tracks = Dict("pinned" => (; html = fragments))),
@@ -125,20 +125,20 @@ push_window(server, Dict(:ui => (; tracks = Dict("pinned" => (; html = fragments
             start_frame = 1, count = 24, dt_seconds = 600, total_frames = 24)
 ```
 
-The viewer applies the value on each crossing, with no event and no round trip. A keyframe a track
-says nothing about keeps the value it had.
+The viewer applies each value at its crossing, with no event and no round trip. A keyframe with no
+value keeps the one it had.
 
 Two conditions to plan for:
 
-- A float declared while a scene plays shows its declared content until a window that carries its
-  track arrives. Every buffered window was built before the float existed. If you declare one in
-  answer to an event, push a `:replace` window over where the clock is.
-- A mounted float keyframes no field here. Its per-keyframe data reaches it through the window
-  addressed to that module.
+- A float declared while a scene plays shows its declared content until a window carrying its values
+  arrives. Every buffered window was built before the float existed. Push a `:replace` window over
+  the clock's position when you declare a float in answer to an event.
+- A mounted float reads no `tracks` entry. Its per-keyframe data arrives in the window addressed to
+  that module.
 
 Watch the size. An SVG plot is easily 20–50 KB, and one per keyframe is a large share of a window
-otherwise measured in hundreds of kilobytes. The track carries only the frames the window covers, so
-you choose how finely the content changes.
+otherwise measured in hundreds of kilobytes. A window carries values only for the frames it covers,
+so you choose how often the content changes.
 
 ## Next
 

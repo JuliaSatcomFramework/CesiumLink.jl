@@ -178,8 +178,8 @@ end
                                                             html = "<b>x</b>", mount = :charts)
     @test_throws "only keyframed field is html" Floating(:x; anchor = Screen(0, 0),
                                                          html = "<b>x</b>", keyframed = (:style,))
-    @test_throws "keyframes no field here" Floating(:x; anchor = Screen(0, 0), mount = :charts,
-                                                    keyframed = (:html,))
+    @test_throws "takes no keyframed field here" Floating(:x; anchor = Screen(0, 0),
+                                                         mount = :charts, keyframed = (:html,))
     @test_throws "1-based" Entity(:primitives, :sat, 0)
 end
 

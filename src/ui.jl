@@ -447,7 +447,7 @@ struct Floating
             throw(ArgumentError("a float's only keyframed field is html (got $(join(bad, ", ")))"))
         mount === nothing || isempty(fields) ||
             throw(ArgumentError("a mounted float takes its per-keyframe data from the window " *
-                                "addressed to that module, so it keyframes no field here"))
+                                "addressed to that module, so it takes no keyframed field here"))
         return new(String(id), anchor, html === nothing ? nothing : String(html),
                    mount === nothing ? nothing : String(mount), Bool(closable), Bool(adjustable),
                    fields, overlay_style(style))
