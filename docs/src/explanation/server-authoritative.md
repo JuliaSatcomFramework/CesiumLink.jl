@@ -122,8 +122,7 @@ A server can answer a control event at three depths, in ascending cost.
 The click path is defined to reach re-derive and stop, which bounds its latency to array work over
 results the server already holds. It costs memory: the server must retain each buffered frame's
 simulation output, so buffer depth is bounded by memory as well as by production rate. Re-simulation
-is an explicitly slower path with an affordance of its own, so that nobody reaches it by ticking a
-box.
+is slower again, and it needs a control of its own, so nobody starts a run by ticking a box.
 
 The Julia API is in the [events reference](../reference/events.md), and the message shapes are in
 the [protocol](../reference/wire/protocol.md).

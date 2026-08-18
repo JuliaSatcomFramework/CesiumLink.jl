@@ -324,7 +324,7 @@ The three depths at which a server can answer a control event, in ascending cost
 changes ("hide feeder links"). *Re-derive* — allocations stand but aggregation
 changes, so derived values genuinely differ ("only count satellites over Europe").
 *Re-simulate* — the run itself is redone. The click path is defined to reach re-derive
-and stop; re-simulation is an explicit slower path with its own affordance.
+and stop. Re-simulation is slower again and needs a control of its own.
 
 **Coordinate-sample**:
 The picking modality where a module reports a value sampled at the cursor's globe

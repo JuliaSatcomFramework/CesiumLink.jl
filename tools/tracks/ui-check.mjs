@@ -42,7 +42,7 @@ const TEE_WINDOWS = `
 // every float, each read out of the shadow root its content is mounted in.
 const OVERLAY = `(() => {
   const app = document.getElementById("app");
-  // Only the fragments: a float's other child is its close affordance, which holds no content.
+  // Only the fragments: a float's other child is its close button, which holds no content.
   const content = (box) => box && box.style.display !== "none"
     ? [...box.children].filter((f) => f.shadowRoot).map((f) => f.shadowRoot.textContent) : null;
   const box = app.querySelector('input[type=checkbox]');
