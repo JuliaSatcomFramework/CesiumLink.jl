@@ -1,18 +1,16 @@
 # Arrays on the wire
 
 A scene is mostly numbers. Positions, colours, link endpoints and raster grids are all arrays, and
-they dominate every message the server sends. How they travel is the wire's main design question,
-and the answer changed once (ADR-0016).
+they dominate every message the server sends. How they travel is the wire's main design question
+(ADR-0016).
 
-## What base64 cost
+## Why not base64
 
-Arrays used to travel as base64 strings inside the JSON message. Measured against a recorded
-end-to-end session, base64 was **95% of the whole session**: 224,496 bytes of a 236,274-byte
-recording, carrying 168,372 bytes of actual arrays. Encoding and decoding together cost about
-**0.9 ms and 33% of the wire per 168 KB**, which is roughly 190 MB/s. It scales linearly, so 20 MB
-of arrays costs 107 ms and 6.8 MB of extra wire.
-
-Three things made that worth removing.
+Base64 inside the JSON message is the obvious alternative. It adds **a third to the wire** whatever
+the machine, and its encode and decode together cost milliseconds per hundred kilobytes of array.
+Both costs scale linearly with the data: 20 MB of arrays adds 6.8 MB of wire, and its encode and
+decode reach the hundred-millisecond range. Three properties of this system make that worth
+avoiding.
 
 - **The target is a remote host**, and this WebSocket has no compression. Asset serving is gzipped;
   the socket is not.
@@ -20,8 +18,8 @@ Three things made that worth removing.
 - **A notebook host encodes an ordinary push twice.** A JSON frame that already holds base64 arrays
   goes through serialisation, base64 and JSON again — about 1.78× expansion over five passes.
 
-On the same scene, the change took the wire from 239,275 to 183,520 bytes, 23% less, with 31 draw
-commands per frame unchanged.
+On a recorded satellite scene, the binary region carries the session in 23% fewer bytes than base64
+carries the same scene.
 
 ## The frame
 
@@ -66,11 +64,11 @@ adds indirection to describe what one offset already says.
 The browser reads each array as a **view** into the region. `data.buffer` is the whole received
 frame, and `data.byteOffset` is where that array sits in it. The bytes are never copied.
 
-Copying costs about 1 ms per megabyte, 20 ms on a 20 MB window, and that is most of what this design
-saves. It costs a lifetime coupling: a module that keeps a slice past its window keeps the whole
-frame alive with it. The coupling is bounded, because a module's per-window store is keyed on the
-window object and `primitives` holds two windows across a seam. A module that wants a detached copy
-makes one explicitly.
+Copying costs on the order of a millisecond per megabyte, so tens of milliseconds on a 20 MB window,
+and that is most of what this design saves. It costs a lifetime coupling: a module that keeps a
+slice past its window keeps the whole frame alive with it. The coupling is bounded, because a
+module's per-window store is keyed on the window object and `primitives` holds two windows across a
+seam. A module that wants a detached copy makes one explicitly.
 
 ## The row-major label reversal
 
@@ -108,12 +106,12 @@ what it needs and the transport stays a one-directional pipe.
 
 ## Only the downward half exists
 
-The framing is symmetric, and **only the downward array encoder is built**. Nothing puts an array in
-an upward payload today: pointer events, buffer requests, control input and the ellipsoid
-confirmation are all scalars. A browser sends an empty region and refuses a typed array in an event
-payload, naming the conversion that would fix it. The server is authoritative, so bulk data flowing
-upward inverts the model, and building the upward half later writes an encoder against a contract
-that already describes it.
+The frame layout is defined for both directions, and **only the downward array encoder is built**.
+Nothing puts an array in an upward payload today: pointer events, buffer requests, control input and
+the ellipsoid confirmation are all scalars. A browser sends an empty region and refuses a typed
+array in an event payload, naming the conversion that would fix it. The server is authoritative, so
+bulk data that flows upward inverts the model. Building the upward half later means writing an
+encoder against a contract that already describes it, and changing nothing else.
 
 ## What was declined, and why
 
@@ -123,9 +121,8 @@ that already describes it.
 - **A transport that substitutes bytes into payload internals**, so that the Core sees no change.
   That logic would be written once per transport instead of once in the codec. A transport splits
   the frame and passes both parts up; it never reads a payload.
-- **MsgPack.** An earlier version of the protocol named it as the eventual binary transport. The
-  contract did survive the move, but MsgPack is a dependency on each side plus hand-written
-  extension handlers, to buy what a framed blob region gives for nothing.
+- **MsgPack.** A dependency on each side, plus hand-written extension handlers, to buy what a
+  framed blob region gives for nothing.
 - **A magic number or a per-frame version byte.** Redundant with a handshake that has to exist, and
   a viewer that does not know the format will not look for the magic number either. The handshake is
   the only place the disagreement can be named, which is why a version mismatch closes the socket
