@@ -115,8 +115,9 @@ whose attitude stands through the window, `4 × N × count` for one that varies 
 the `:velocity` frame with no quaternion needs no attitude in Julia at all; one in `:ecef` with a
 quaternion is the fully explicit case.
 
-`axes` is one fixed `(heading, pitch, roll)` in degrees, applied last, for the file's own convention:
-Cesium takes a model's +X as forward and most files disagree. `scale` multiplies the model's own
+`axes` is one fixed `(heading, pitch, roll)` in degrees for the file's own convention: Cesium takes a
+model's +X as forward and most files disagree. The three rotations compose as
+`frame × orientation × axes`, so `axes` turns the model's own vertices first. `scale` multiplies the model's own
 size, and `minimum_pixel_size` is the width in pixels below which the model is not allowed to shrink.
 
 **A model at mission range is smaller than a pixel.** A spacecraft a few metres across, seen from a

@@ -4,8 +4,12 @@ A [`Models`](@ref CesiumLink.Models) family draws one glTF model per entity of a
 carries no position of its own: a model stands where its anchor stands, and a click on it reports
 that entity in the `primitives` namespace.
 
-**Give a self-contained `.glb`.** A file that fetches its textures from another host needs that host
-in `trusted_origins`, or the textures never arrive.
+**The `.glb` itself must be same-origin.** `uri` is a path under an `assets` mount, and the
+constructor refuses anything else.
+
+**Prefer a self-contained `.glb`.** A file that fetches its textures from another host needs that
+host in `trusted_origins`, or a VSCode panel never gets them: its webview runs under a content
+security policy that the list widens. A browser page runs under none.
 
 **Do not expect a model to point the right way without `axes`.** Cesium takes a model's +X as
 forward, and most files disagree.
@@ -25,8 +29,9 @@ The server serves the folder under the last element of its path, so `/data/glb/s
 start_server(; assets = Dict("models" => "/data/glb", "textures" => "/data/png"))
 ```
 
-Mounts are fixed at `start_server`. A VSCode panel is given the folders it may read when the panel is
-created, so a mount added later needs a new panel — which drops the scene and the socket.
+Mounts are fixed at `start_server`, so serving another folder means starting a new server. The set is
+frozen because a VSCode panel is given the folders it may read when it is created, and cannot be
+given more later.
 
 ## 2. Declare both modules
 
@@ -35,8 +40,8 @@ register_module!(server, vendored(:primitives))
 register_module!(server, vendored(:models))
 ```
 
-Declare both, in either order. `of` names a family in the `primitives` payload, and the `models`
-module draws nothing alone.
+Declare both, in either order. The `of` keyword of the `Models` constructor names a family in the
+`primitives` payload, so the `models` module draws nothing alone.
 
 ## 3. Declare the family
 
@@ -56,13 +61,16 @@ the distance beyond which a model is a smudge.
 
 ## 4. Turn it
 
-Three keywords turn a model, and they apply in this order:
+Three rotations turn a model, and each answers a different question:
 
-| keyword | what it does |
-|---|---|
-| `frame` | the reference frame, built from the position the anchor carries: `:ecef`, `:enu`, `:nadir` or `:velocity` |
-| `orientation` | the attitude inside that frame, as quaternions `(x, y, z, w)` |
-| `axes` | one fixed `(heading, pitch, roll)` in degrees, for the file's own convention |
+| keyword | what it answers | varies with |
+|---|---|---|
+| `frame` | which way is up, and which way is along-track, where the entity is now | the anchor's position |
+| `orientation` | where the entity points inside that frame | the entity, and the keyframe |
+| `axes` | which way the file was modelled | nothing: one value per family |
+
+They compose as `frame × orientation × axes`, so `axes` turns the model's own vertices first and
+`frame` turns the result last.
 
 Reach for `frame` first. A spacecraft that flies the way it points needs `frame = :velocity` and no
 attitude in Julia. One that holds an attitude a simulation computed needs `frame = :ecef` and a
@@ -71,7 +79,9 @@ quaternion per entity. `:nadir` points +Z at the centre of the body, and `:enu` 
 `orientation` takes `4 × N` for an attitude that stands through the window, and `4 × N × count` for
 one that varies across it.
 
-`axes` is the file's own convention and nothing else. Set it once, by eye, and leave it.
+`axes` corrects the file, not the scene. Cesium takes a model's +X as forward and most files
+disagree, so `axes` states how this `.glb` was built and says nothing about where the entity points.
+It is one `(heading, pitch, roll)` for the whole family. Set it once, by eye, and leave it.
 
 ## What a model costs
 
