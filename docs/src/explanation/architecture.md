@@ -77,13 +77,16 @@ whether a late answer is still worth having.
 
 ## Why the line falls there
 
-The alternative was a viewer that knows the domain: a satellite type, a filter language, and a new
-wire field for every new question anyone asks of the data.
+This package is for Julia users, and it assumes the computation is Julia's. The Julia side produces
+a frame faster than playback consumes it, and the socket delivers that frame faster still. A viewer
+that decides anything must first be sent what it decides with, and much of that is never drawn. One
+authority also keeps the contract small.
 
-It lost on one case. A mask cannot express a filter that changes *derived* values: a constellation
-restricted to one shell leaves cells unserved, and no per-entity visibility flag says that. The
-server recomputes the answer anyway, so the viewer's filter machinery is a second copy of a decision
-it cannot make correctly.
+The alternative was a viewer that knows the domain: a satellite type, a filter language, and a new
+wire field for every new question anyone asks of the data. It also fails outright on one case. A
+mask cannot express a filter that changes *derived* values: a constellation restricted to one shell
+leaves cells unserved, and no per-entity visibility flag says that. [Why the server
+decides](server-authoritative.md) states the argument in full.
 
 The line costs a round trip. The server answers a tooltip, a toggle and a click, so each costs a
 message up and a message down: a few milliseconds on the same host, and visible over a wide-area
