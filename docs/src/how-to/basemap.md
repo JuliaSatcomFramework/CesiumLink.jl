@@ -120,7 +120,7 @@ start_server(; lighting = true, stars = true)
 night side goes dark. `stars` draws the star field, the sun and the moon around it, at that same
 time. Both are off by default. The [Satellites](../examples/satellites.md) example turns both on.
 
-Three conditions to know:
+Four conditions to know:
 
 - **Leave `lighting` off for a scene whose colours carry its data.** A shaded globe dims a value by
   where it sits rather than by what it says.
@@ -128,6 +128,10 @@ Three conditions to know:
   a synthetic epoch and the terminator lands somewhere arbitrary — see [`push_window`](@ref).
 - **A star field needs Earth.** The field is Cesium's own, and Cesium draws it on a WGS84 globe only.
   A session on another body gets black whatever `stars` says.
+- **Lighting needs Earth as well.** Cesium computes the sun's direction from Earth's position and
+  expresses it in Earth's rotating frame, whatever ellipsoid the session declares. On another body
+  the terminator is Earth's, in both where it falls and how fast it sweeps. Leave `lighting` off
+  there.
 
 ## Two things that bite
 

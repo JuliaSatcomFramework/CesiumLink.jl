@@ -64,9 +64,15 @@ builds its globe on it before it decodes any payload.
 server = start_server(; ellipsoid = Ellipsoids.MARS)
 ```
 
-Left alone, nothing is declared and the viewer keeps its own WGS84 default. A strongly
-flattened shape has a drawing limit, and one whose limit is within the camera's reach warns.
-It is not refused.
+Left alone, nothing is declared and the viewer keeps its own WGS84 default.
+
+!!! warning "A strongly flattened shape stops the render loop"
+    Cesium computes the local curvature under the camera every frame, and that computation
+    has no solution once the camera is `|z| ≥ b / |a²/b² − 1|` from the equatorial plane.
+    Past that height the viewer stops drawing. `start_server` warns when this limit falls
+    within four semi-major axes of the equatorial plane, and states the limit in metres.
+    It does not refuse the shape, because the limit may sit beyond anywhere this session's
+    camera goes. Julia reports it once; nothing in the browser reports it at all.
 
 You need no geodesy package for this. If your scene already loads one, convert with it
 instead, on the same two radii.
