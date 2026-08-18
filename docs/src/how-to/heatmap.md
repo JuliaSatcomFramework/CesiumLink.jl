@@ -52,8 +52,12 @@ push_window(server, Dict(:heatmap => heatmap_payload(
             start_frame = 1, count = 1, dt_seconds = 60, total_frames = 1)
 ```
 
-A raster is declared per window. A window that says nothing about the heatmap leaves the
-screen as it is, so a scene that pushes a run of windows states its rasters in each one.
+A window that carries no `:heatmap` payload leaves the rasters where they are, so a standing
+field is stated once and survives every later window.
+
+A window that does carry one replaces the whole stack for the keyframes it covers. State
+every raster you still want, not only the one that changed: a payload naming one of three
+rasters draws that one and takes the other two off the globe.
 
 Add the colorbar from the same colormap and range.
 
@@ -131,15 +135,15 @@ end
 
 [`heatmap_index`](@ref) is the exact inverse of the mapping [`rgba_grid`](@ref) bakes in, so
 the number the tooltip states and the pixel the eye reads cannot disagree. It answers
-`nothing` outside the box. The far edge belongs to the last cell, so a coordinate on the
-boundary of the box indexes rather than misses.
+`nothing` for a coordinate outside the box. The box divides into `W × H` equal cells, and a
+coordinate on its eastern or northern edge reads the last cell rather than answering
+`nothing`.
 
 With several rasters, search them in reverse declared order: the raster on top is the one
 the eye sees. Skip a raster whose texel is `NaN` there, and the answer falls through to the
 raster visible underneath.
 
-The globe raycast is an opt-in. A session where no listener asks for the coordinate never
-pays for it.
+The viewer computes the raycast only if a listener is registered with `coordinate = true`.
 
 ## Is `heatmap_index` the right tool for a value per cell?
 

@@ -55,8 +55,8 @@ goes on following the cursor.
 | `ev.screen` | The cursor, as `(; x, y)` in container pixels |
 | `ev.coordinate` | The globe point under the cursor, or `nothing` |
 
-`ev.coordinate` is `nothing` unless some listener registers with `coordinate = true`. The raycast is
-an opt-in, so a session that never asks never pays for it.
+`ev.coordinate` is `nothing` unless a listener is registered with `coordinate = true`. The viewer
+computes the raycast only then, so a session that never asks never pays for it.
 
 Scan `ev.entities` when several families overlap. A highlight drawn over the shape it belongs to is
 nearest and is rarely what the user aimed at:
