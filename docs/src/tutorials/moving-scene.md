@@ -1,11 +1,11 @@
 # A scene that moves
 
 You turn the static scene of [tutorial 1](first-scene.md) into a run of 36 keyframes. Eight
-satellites travel east around the equator while the five cities stand still. It takes about fifteen
+satellites travel east around the equator, and the five cities stand still. It takes about fifteen
 minutes.
 
-Close the Julia session from the previous tutorial first. It holds the port this one needs. Then
-start a fresh session.
+Close the Julia session from the previous tutorial: it holds the port this one needs. Then start a
+fresh session.
 
 ```julia
 using CesiumLink
@@ -45,13 +45,12 @@ for k in 1:nframes, s in 1:nsat
 end
 ```
 
-This is the shape convention: a position array is `3 × N` when the family stands still for the whole
-window, and `3 × N × K` when it moves over the window's `K` keyframes. The `cities` array has no
-keyframe axis, so those five points hold their place; the `satellites` array has one, so the renderer
-blends each satellite between one keyframe and the next.
+The shape of a position array says whether the family moves: `3 × N` for a family that stands still,
+and `3 × N × K` for one that moves over the window's `K` keyframes. So the five cities hold their
+place, and the renderer blends each satellite between one keyframe and the next.
 
 Read [Windows, keyframes and identity](../explanation/windows.md) for what a window holds and why
-column `i` means the same satellite in every keyframe of it.
+column `i` means the same satellite in every keyframe.
 
 ## 4. Declare the caption
 
@@ -77,11 +76,11 @@ One window carries both families, and five keyword arguments give the run its ti
 
 | Keyword | What it says |
 |---|---|
-| `count` | How many keyframes this window carries |
-| `total_frames` | How many keyframes the whole run has, which is what the ruler spans |
-| `dt_seconds` | The mission time between one keyframe and the next: ten minutes here |
+| `count` | Keyframes in this window |
+| `total_frames` | Keyframes in the whole run; the ruler spans them |
+| `dt_seconds` | Mission time from one keyframe to the next: ten minutes here |
 | `start_time` | The instant of keyframe 1, as ISO 8601 |
-| `interval_seconds` | The wall-clock time one step plays over: half a second here |
+| `interval_seconds` | Wall-clock time one step plays over: half a second here |
 
 `start_frame` is 1, so this window starts the run. `count` equals `total_frames`, so it carries the
 whole run at once.
@@ -94,9 +93,8 @@ viewer_url(server)
 
 ## What you see
 
-The scene plays below. It is a recording of the script at the end of this page, and no Julia
-process is behind it. Read [Record and replay a session](../how-to/record-replay.md) for what a
-recording holds.
+The scene below is a recording of the script at the end of this page. Read
+[Record and replay a session](../how-to/record-replay.md) for what a recording holds.
 
 ```@raw html
 <iframe src="../viewer/player.html?rec=../recordings/moving-scene.jsonl&modules=modules"
@@ -106,15 +104,14 @@ recording holds.
 </iframe>
 ```
 
-- Eight blue points that travel east around the equator, and five yellow cities that do not move.
-- The clock at the bottom left, which counts from midnight on 1 January 2026.
-- The timeline ruler, which spans the whole run: keyframe 1 to keyframe 36, midnight to 05:50. The
-  playhead crosses it in about eighteen seconds, then the run repeats.
-- The keyframe readout above the ruler, which names the keyframe the positions come from.
+- Eight blue points travel east around the equator; five yellow cities do not move.
+- The clock at the bottom left counts from midnight on 1 January 2026.
+- The timeline ruler spans the whole run: keyframe 1 to keyframe 36, midnight to 05:50. The playhead
+  crosses it in about eighteen seconds, then the run repeats.
+- The keyframe readout above the ruler names the keyframe the positions come from.
 
-Drag the playhead along the ruler. The satellites follow it, backwards as readily as forwards.
-Julia sent every keyframe up front, so the browser plays and scrubs the run without asking Julia
-for anything.
+Drag the playhead along the ruler. The satellites follow it, forwards and backwards. Julia sent
+every keyframe up front, so the browser plays and scrubs the run on its own.
 
 ## Stop the server
 

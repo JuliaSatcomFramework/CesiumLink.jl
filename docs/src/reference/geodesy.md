@@ -9,12 +9,12 @@ Geodetic coordinates and ECEF metres, on the ellipsoid the session runs on. Lati
 differ by up to 0.19° on WGS84, some 21 km at the surface.
 
 The viewer places every position through Cesium's own conversion on the declared shape. A scene that
-computes ECEF for itself therefore agrees with what is drawn only if it converts against the same
-ellipsoid. Both directions here take a [`Server`](@ref) as their `ellipsoid`, which resolves to the
-shape that session declared.
+computes ECEF itself agrees with what is drawn only if it uses the same ellipsoid. Both functions
+here take a [`Server`](@ref) as their `ellipsoid`, which resolves to the shape that session
+declared.
 
-CesiumLink itself calls neither function. Both are here so that a scene needs no geodesy dependency
-to place a point, and so the package needs none to offer one.
+CesiumLink calls neither function, and depends on no geodesy package. Both are here so a scene needs
+no such dependency to place a point.
 
 ## The ellipsoid
 

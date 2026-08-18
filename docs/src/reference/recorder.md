@@ -11,10 +11,10 @@ the scene it declared them into.
 The file is JSON Lines. A line holds the frame's header as an inline object and its region as base64
 beside it, so `jq` reads one directly.
 
-Replaying a recording drives a real viewer through the session with whatever produced the data
-absent. A recording holds everything the session sent, the answers its listeners gave included. A
-replay does not *run* those listeners, so a control the recorded overlay declares reaches nobody
-unless a listener is registered against the replaying server.
+A replay drives a real viewer through the session with whatever produced the data absent. A
+recording holds everything the session sent, the answers its listeners gave included. A replay does
+not *run* those listeners, so a control the recorded overlay declares reaches nobody unless a
+listener is registered against the replaying server.
 
 ## Recording a session
 

@@ -376,8 +376,9 @@ A directory of basemap tiles is the reserved mount `imagery`, so `imagery = "/da
 unchanged and answers `assets/imagery/`. An `assets` key of `"imagery"` throws rather than shadowing
 it. Every directory must exist, and a name is one path element.
 
-Mounts are fixed here. A VSCode webview is given the directories it may read when its panel is
-created, and taking a new one needs a new panel — which drops the scene and the socket.
+Mounts are fixed here, so serving another folder means a new server. The set is frozen because a
+VSCode webview is given the directories it may read when its panel is created, and cannot be given
+more later.
 
 `trusted_origins` lists the origins the page may reach off-site, and widens both the image and the
 connection policy the editor's webview runs under. Both, because one asset needs both: Cesium fetches
@@ -388,7 +389,10 @@ nothing else declares nothing here.
 `lighting` lights the globe from the sun at the clock's time, so a terminator runs across it and the
 night side goes dark. It is off by default: a scene whose colours carry its data wants an evenly lit
 globe, since a shaded one dims a value by where it sits rather than by what it says. Turn it on for
-a scene about where the sun is — an orbit view above all, where the terminator is the picture.
+a scene about where the sun is — an orbit view above all, where the terminator is the picture. Leave
+it off on another body: Cesium computes the sun's direction from Earth's position and expresses it in
+Earth's rotating frame, whatever `ellipsoid` says, so the terminator on a Moon or Mars globe is
+Earth's.
 
 The sun's position follows the clock, so it is only where the scene's own time puts it when the
 window carries a real `start_time` (see [`push_window`](@ref)). Without one the viewer picks a

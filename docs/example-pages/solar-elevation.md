@@ -1,7 +1,7 @@
 # 1 · Solar elevation
 
-How high the sun stands over every point of the globe, at one instant, as colour on the surface —
-with five coarse regions drawn over it, each filled by its own mean.
+How high the sun stands over every point of the globe at one instant, drawn as colour on the
+surface. Five coarse regions lie over it, each filled by its own mean.
 
 ```sh
 julia examples/solar_elevation.jl
@@ -23,35 +23,31 @@ The scene below is a recording of that program, played in the browser.
 </iframe>
 ```
 
-There is no clock, and the section below says why. The camera still moves: the example declares a
-three-stop [camera track](../how-to/camera-tour.md), paced with `after` because a scene of one
-keyframe has no keyframe axis to key on. The stops come 8 s and 20 s after the scene loads, and the
-globe stands still after the last one. A wall-paced tour runs once, so reload the page to watch it
-from the start. Drag to turn the globe and the tour stops; the **Rejoin** button gives the camera
-back.
+There is no clock. The camera still moves: a three-stop
+[camera track](../how-to/camera-tour.md) paced with `after`, because one keyframe gives no keyframe
+axis to key on. The stops come 8 s and 20 s after load, then the globe stands still. A wall-paced
+tour runs once, so reload the page to see it again. Drag the globe and the tour stops; **Rejoin**
+gives the camera back.
 
 ## One file, one dependency
 
 The whole program is one file. It imports `CesiumLink` and `Dates`, and nothing else. There is no
-`Project.toml`, no package to install, and no orbit propagator: the position of the sun is a closed
-form of six lines, and the field is a comprehension over it.
-
-That is what the first rung of the ladder is for. A scene that draws a field over the globe needs
-one Julia file and no JavaScript at all.
+`Project.toml` and no orbit propagator: the sun's position is a closed form of six lines, and the
+field is a comprehension over it. The first rung of the ladder needs no JavaScript at all.
 
 ## The scene has no clock
 
-The picture is a statistic on the globe, not a state at a time. Nothing plays, nothing steps and
-there is nothing to scrub. So the example asks for none of the time furniture:
+The picture is a statistic on the globe rather than a state at a time. Nothing plays, so the example
+asks for none of the time furniture:
 
 ```julia
 declare_furniture(server; timeline = false, animation = false, keyframe = false)
 ```
 
 That takes the ruler, the clock face and the keyframe readout off the screen together. **This one
-call is the whole difference between a timeless scene and a scene of one instant.** The wire carries
-the furniture set, not the reason for it, and a window of one keyframe is not a reason: a scene that
-shows a real instant still wants its clock. Only the author knows which kind the scene is.
+call is the whole difference between a timeless scene and a scene of one instant.** The frame count
+does not say which one this is: a scene that shows a real instant still wants its clock, so only the
+author knows.
 
 [Show a scene with no clock](../how-to/static-scene.md) covers the rest of the shape.
 
@@ -67,15 +63,15 @@ Raster(:elevation; extent = (-180.0, -90.0, 180.0, 90.0),
 
 `values` is `180 × 90`: longitude first and west to east, then latitude and south to north, sampled
 at the centre of each two-degree cell. `range` is stated rather than left to the data, so the
-colours answer to the legend beside them. It is symmetric — `(-90, 90)` — which puts the middle
-colour of the map on zero, and that is the terminator you see between day and night.
+colours answer to the legend beside them. It is symmetric, `(-90, 90)`, so the middle colour falls
+on zero: that line is the terminator between day and night.
 
-Julia bakes every shade. The browser reads no value and picks no colour.
+Julia bakes every shade. The browser picks no colour.
 
 ## The regions are rings
 
 The five patches over the field are one [`Areas`](@ref) family, built from vertices rather than from
-centres and a radius:
+a centre and a radius:
 
 ```julia
 Areas(:region; boundary = REGIONS, outline = "#000000d9",
@@ -83,11 +79,11 @@ Areas(:region; boundary = REGIONS, outline = "#000000d9",
 ```
 
 `boundary` takes one entry per region, each a `2 × V` matrix of longitude and latitude in degrees.
-A ring is open: the last vertex joins the first, so do not repeat it. The rings here are written out
-by hand and are deliberately coarse — they show what `boundary` takes, and they are not a map.
+A ring is open: the last vertex joins the first, so do not repeat it. The rings are written by hand
+and coarse, there to show what `boundary` takes and not to be a map.
 
-Each region is filled from the same colormap and the same range as the field under it, so a region
-whose fill matches its surroundings is a region whose mean agrees with them.
+Each region takes its fill from the colormap and the range of the field under it, so a fill that
+matches its surroundings means a mean that agrees with them.
 
 ## Full source
 

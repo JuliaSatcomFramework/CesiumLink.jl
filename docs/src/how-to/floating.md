@@ -2,8 +2,8 @@
 
 A [`Floating`](@ref) object is a box of server-authored content at a point on screen, with an
 identity of its own and a lifetime you control. Use one when the content must stay while the cursor
-moves on. For content that follows the cursor and is replaced on the next move, use the tooltip
-instead — see [Show a value on hover](tooltips.md).
+moves on. For content that follows the cursor, use the tooltip instead — see
+[Show a value on hover](tooltips.md).
 
 The `ui` module draws the boxes, so register it once:
 
@@ -25,15 +25,20 @@ declare_floating(server, [
 
 A float shows either `html` or a `mount`, never both and never neither:
 
-- `html` is a fragment mounted in its own shadow root. Its `<style>` reaches nothing else, and no
-  `<script>` in it runs.
-- `mount` names a module, which is handed a plain element and owns everything inside it. Reach for
-  this when a plotting library installs its own stylesheet in `document.head`, which gets nothing of
-  it across a shadow boundary.
+- `html` is a server-authored fragment in its own shadow root. Its `<style>` reaches nothing else,
+  and no `<script>` in it runs, so `html` carries static markup and nothing more.
+- `mount` names a module. The `ui` module hands it a plain element, and that module owns everything
+  inside it. Use a mount whenever the box needs code to run in it: a chart, a canvas, a widget that
+  answers the pointer, or content that redraws itself on a keyframe. A mounted module also reports
+  under the float's own id, so the Julia side cannot tell it from a built-in control.
+
+The mounted element is plain rather than shadowed, because a library that installs its stylesheet in
+`document.head` gets nothing of it across a shadow boundary. The
+[Satellites over a region](../examples/region-count.md) example mounts a chart this way.
 
 The set is retained, so a browser that connects later comes back to the same boxes. A float whose
-declaration is unchanged keeps the box it already has. A move or a restyle therefore does not tear
-down a mounted module.
+declaration is unchanged keeps the box it already has, so a move or a restyle does not tear down a
+mounted module.
 
 ## Choose an anchor
 
@@ -48,10 +53,9 @@ point and flips near an edge. `Screen` is the top-left exactly.
 
 `idx` is **1-based**, like every entity index in the Julia API.
 
-An `Entity` anchor is a module capability. The viewer asks that module where the entity is, so a
-module is anchorable exactly when it exports `positionOf(kind, idx)`. The vendored `primitives`
-module does. A float that names a module which does not, or a point that no longer projects, hides
-its box rather than failing.
+The viewer asks the anchor's module where the entity is, so a module is anchorable exactly when it
+exports `positionOf(kind, idx)`. The vendored `primitives` module does. A float that names a module
+without it, or a point that no longer projects, hides its box rather than failing.
 
 ## Pin a box on a click
 
@@ -69,14 +73,15 @@ on_pointer(server; type = :click) do ev, reply
     declare_floating(server, values(pins))
 end
 
-# The close affordance asks. This is what makes the box leave.
+# The close button sends `ui/close` with the float's id. The viewer removes nothing.
+# This listener drops the float from the set, then declares the set again.
 on_event(server, "ui", "close") do ev, reply
     delete!(pins, parse(Int, replace(ev.payload.id, "pin" => "")))
     declare_floating(server, values(pins))
 end
 ```
 
-`closable` defaults to `true` and draws the close affordance. A click on it notifies the server and
+`closable` defaults to `true` and draws the close button. A click on it notifies the server and
 removes nothing locally. Without the `close` listener the box never goes away.
 
 ## Let the user move the box
@@ -94,8 +99,15 @@ From then on the user owns where that box sits.
   every later declaration of that float. The anchor becomes the screen point, and the size joins the
   float's own `style`. You need no listener for this.
 - **A declared rect seeds a box when the box is created. It cannot move a box already on screen.**
-  A new `anchor` or `style` for a float the user has dragged changes nothing they can see. This is
-  deliberate: a declaration already in flight when the pointer came up must not snap the box back.
+  A new `anchor` or `style` for a float the user dragged changes nothing they can see.
+
+Two mechanisms hold that last rule, and each covers what the other cannot:
+
+- The server never sends your new anchor. [`declare_floating`](@ref) stamps the recorded rect over
+  the anchor and the size of every float it holds one for.
+- The viewer applies its own copy of the rect after everything a declaration writes. This catches a
+  declaration that was built before the rect arrived and was already in flight when the pointer came
+  up, which would otherwise snap the box back.
 
 To put a dragged box back where your declaration says, declare the set without that float and declare
 it again. A rect lives exactly as long as its float, and every rect is forgotten when
@@ -103,9 +115,9 @@ it again. A rect lives exactly as long as its float, and every rect is forgotten
 
 ## Change the content on every keyframe
 
-An `html` float keyframes its content by default. Supply one value per keyframe in the window
-addressed to `:ui`, keyed by the float's id. The values are positional from that window's first
-frame:
+`html` is the only field a window can drive per keyframe, and a float declared with `html` accepts
+one by default. Put the values under `tracks` in the window addressed to `:ui`, keyed by the float's
+id and positional from that window's first frame:
 
 ```julia
 push_window(server, Dict(:ui => (; tracks = Dict("pinned" => (; html = fragments))),
@@ -113,20 +125,20 @@ push_window(server, Dict(:ui => (; tracks = Dict("pinned" => (; html = fragments
             start_frame = 1, count = 24, dt_seconds = 600, total_frames = 24)
 ```
 
-The viewer applies the value on each crossing, with no event and no round trip. A keyframe a track
-says nothing about keeps the value it had.
+The viewer applies each value at its crossing, with no event and no round trip. A keyframe with no
+value keeps the one it had.
 
 Two conditions to plan for:
 
-- A float declared while a scene is already playing shows its declared content until a window that
-  carries its track arrives. Every buffered window was built before the float existed. If you declare
-  one in answer to an event, push a `:replace` window over where the clock is.
-- A mounted float keyframes no field here. Its per-keyframe data reaches it through the window
-  addressed to that module.
+- A float declared while a scene plays shows its declared content until a window carrying its values
+  arrives. Every buffered window was built before the float existed. Push a `:replace` window over
+  the clock's position when you declare a float in answer to an event.
+- A mounted float reads no `tracks` entry. Its per-keyframe data arrives in the window addressed to
+  that module.
 
 Watch the size. An SVG plot is easily 20–50 KB, and one per keyframe is a large share of a window
-otherwise measured in hundreds of kilobytes. The track carries only the frames the window covers, so
-how finely the content changes is your choice.
+otherwise measured in hundreds of kilobytes. A window carries values only for the frames it covers,
+so you choose how often the content changes.
 
 ## Next
 

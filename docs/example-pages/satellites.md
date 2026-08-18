@@ -28,13 +28,13 @@ The scene below is a recording of that program, played in the browser.
 Watch one trail as it crosses the terminator. Then wait: at keyframe 12 the camera leaves the whole
 sky and rides satellite 1 for the rest of the mission.
 
-The mission is short on purpose — 30 keyframes, fifteen minutes of orbit. Every keyframe carries a
-position for each of 60 satellites and for each of the nine vertices of its trail, so a mission long
-enough to cover a whole orbit would be several megabytes on this page.
+The mission is short on purpose: 30 keyframes, fifteen minutes of orbit. Every keyframe carries a
+position for 60 satellites and nine trail vertices each, so a whole orbit would weigh several
+megabytes here.
 
 ## The trail hangs off points nobody sees
 
-The trail is the whole trick of this example, and it is three families:
+The trail is three families:
 
 ```julia
 Nodes(:sat; position = scene.position[:, :, frames], size = 6, color = SAT_COLOR),
@@ -43,15 +43,14 @@ Edges(:trail; from = :track, to = :track, pairs = scene.segments, style = :glow,
       width = 1.0, color = TRAIL_COLOR),
 ```
 
-The `track` family carries `show = false`, so nothing draws it. It exists to hold the vertices the
-`trail` lines are strung between. An edge draws from a masked endpoint, and a mask reads only its own
-family, so the lines stand while the points under them stay invisible. See
+The `track` family carries `show = false` and holds the vertices the `trail` lines are strung
+between. An edge draws from a masked endpoint, and a mask reads only its own family, so the lines
+stand while the points stay invisible. See
 [Draw points, lines and areas](../how-to/primitives.md).
 
-The layout is what lets one `pairs` matrix stand for the whole window. Vertex `s + (j - 1) · S` is
-satellite `s` at trail vertex `j`, in every keyframe, so a segment joining two consecutive vertices of
-one satellite is written once and never rebuilt. The lines never change, so the `trail` family carries
-no `show` and is never torn down.
+The layout lets one `pairs` matrix stand for the whole window: vertex `s + (j - 1) · S` is satellite
+`s` at trail vertex `j` in every keyframe, so a segment is written once and never rebuilt. The
+`trail` family carries no `show` and is never torn down.
 
 ## A vertex is an offset, not an instant
 
@@ -59,18 +58,17 @@ no `show` and is never torn down.
 const TRACK_OFFSETS = (-TRAIL_SECONDS):DT_SECONDS:LEAD_SECONDS
 ```
 
-Each vertex stands at a fixed offset **from the keyframe**, not at a fixed instant of the mission. So
-the whole ladder slides along the orbit with the satellite rather than staying put while the satellite
-leaves it. Nine vertices: six behind the satellite, the satellite, and two ahead of it.
+Each vertex stands at a fixed offset **from the keyframe**, not at a fixed instant of the mission,
+so the ladder slides along the orbit with the satellite. Nine vertices: six behind the satellite,
+the satellite, and two ahead of it.
 
-It slides smoothly because a position is the one thing the viewer blends between keyframes. Every
-other knob switches at the crossing. The vertex at offset zero rides the same blend as the marker, so
-the head of the trail cannot drift off the satellite it belongs to.
+It slides smoothly because a position is the one thing the viewer blends between keyframes; every
+other knob switches at the crossing. The vertex at offset zero rides the same blend as the marker,
+so the head of the trail cannot drift off its satellite.
 
-The ladder is also what the window costs: one position per satellite per offset per keyframe. That is
-why the window is eight keyframes and the offsets are one keyframe interval apart. A 30-second chord
-of a low orbit stands about 1 km inside the arc it cuts, which is well under one pixel at any range
-the whole globe is visible from.
+The ladder is what the window costs: one position per satellite per offset per keyframe. So the
+window is eight keyframes and the offsets sit one keyframe apart. A 30-second chord of a low orbit
+stands about 1 km inside the arc it cuts, well under one pixel at globe range.
 
 ## The globe is lit and the sky is drawn
 
@@ -78,10 +76,9 @@ the whole globe is visible from.
 start_server(; imagery = IMAGERY, lighting = true, stars = true)
 ```
 
-`lighting` puts the sun where the clock says, so a terminator runs across the globe and the night side
-goes dark. `stars` draws the sky around it. Both are off by default, and this is the scene they are
-for: an orbit view, where the terminator is the picture rather than a shadow over the data. The
-windows carry a real `start_time`, so the sun stands where the mission's own epoch puts it. See
+`lighting` puts the sun where the clock says, so a terminator runs across the globe and the night
+side goes dark. `stars` draws the sky around it. Both are off by default. The windows carry a real
+`start_time`, so the sun stands where the mission's epoch puts it. See
 [Choose what the globe is textured with](../how-to/basemap.md).
 
 ## The camera rides a satellite
@@ -94,30 +91,29 @@ declare_camera(server,
                          label = "Riding $(scene.names[RIDE_SAT])"))
 ```
 
-Two stops. The first is a fixed viewpoint over the whole sky. The second names an entity, so the
-camera flies to it at keyframe 12 and then stays with it: the marker holds still in the frame while
-the ground and the other orbits sweep under it.
+Two stops. The second names an entity, so the camera flies to it at keyframe 12 and then stays with
+it: the marker holds still in the frame while the ground and the other orbits sweep under it. A drag
+steers around the satellite and keeps riding it.
 
-A drag while the camera rides steers around the satellite and keeps riding it. The track is declared
-**after** the window that establishes the keyframe grid, because `at` counts in keyframes. See
-[Give a recording a tour](../how-to/camera-tour.md).
+The track is declared **after** the window that establishes the keyframe grid, because `at` counts
+in keyframes. See [Give a recording a tour](../how-to/camera-tour.md).
 
 ## The elements are real
 
 `leo-20200122.tle` holds 60 near-circular low orbits out of a CelesTrak catalogue snapshot, and SGP4
-propagates each one. The mission runs at the snapshot's own epoch, not at today's date: SGP4 drifts by
-kilometres a day away from the epoch its elements were fitted at. Point `TLE_FILE` at a fresh download
-to fly today's sky.
+propagates each one. The mission runs at the snapshot's own epoch, because SGP4 drifts by kilometres
+a day away from the epoch its elements were fitted at. Point `TLE_FILE` at a fresh download to fly
+today's sky.
 
 The rotation into ECEF is TEME to PEF, and it reads no Earth orientation parameters. Reading them
-needs the network, and what they correct — polar motion, and the difference between UT1 and UTC —
-moves a satellite by a few metres, far under one pixel at this scale.
+needs the network, and what they correct — polar motion, and UT1 against UTC — moves a satellite by
+a few metres, far under one pixel here.
 
 ## What it does not do
 
-The scene holds the whole mission in memory: fifteen minutes of 60 satellites is a small array, so
-it is propagated once at construction. A mission long enough for that to matter propagates per
-window instead, which is what [Constellation](constellation.md) does.
+The scene holds the whole mission in memory: fifteen minutes of 60 satellites is a small array,
+propagated once at construction. A longer mission propagates per window instead, which is what
+[Constellation](constellation.md) does.
 
 ## Full source
 

@@ -623,7 +623,7 @@ test("a float's keyframed content follows the clock, and its close reports its i
                "a keyframe the track is silent about keeps what it showed");
   assert.equal(v.sent.length, 0, "and none of it asks the server anything");
 
-  // The close affordance says the user asked; the float leaves when the server declares without it.
+  // The close button says the user asked; the float leaves when the server declares without it.
   box.children.at(-1)!.onclick!();
   assert.deepEqual(v.sent.at(-1), { topic: "close", payload: { id: "pin" } });
   assert.equal(v.floats().size, 1, "and not before");
@@ -722,7 +722,7 @@ test("a float leaves nothing behind when the module unloads", () => {
   assert.equal(v.box(), null);
 });
 
-// A box the user may move and resize. Closable too, since the close affordance moves into the strip.
+// A box the user may move and resize. Closable too, since the close button moves into the strip.
 const PANE = { id: "pane", anchor: { anchor: "screen", x: 320, y: 180 }, html: "<b>Sat 12</b>",
                closable: true, adjustable: true };
 
@@ -749,7 +749,7 @@ test("an adjustable float is dragged by its strip, and says where it landed on r
   box.offsetHeight = 100;
   const strip = dragStrip(box)!;
   assert.match(strip.style.cssText, /cursor:move/);
-  assert.equal(strip.children.at(-1)!.textContent, "×", "the close affordance sits in the strip");
+  assert.equal(strip.children.at(-1)!.textContent, "×", "the close button sits in the strip");
   assert.match(box.style.cssText, /resize:both/);
   // The corner only resizes on a box whose overflow is not visible, and `hidden` is what keeps the
   // box itself from scrolling: a bar on the box runs its whole height and takes the strip's width
@@ -798,7 +798,7 @@ test("an adjustable float is dragged by its strip, and says where it landed on r
   assert.equal(styleTag(v), null, "and the grip rule leaves with the module");
 });
 
-test("the close affordance of an adjustable float outranks the drag strip under it", () => {
+test("the close button of an adjustable float outranks the drag strip under it", () => {
   const v = fakeViewer();
   v.floating([PANE]);
   const box = v.floats().get("pane")!;

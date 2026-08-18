@@ -1,10 +1,10 @@
 # CesiumLink wire protocol — version 1
 
 Normative contract between the viewer (`lib/`) and a driving server (the Julia package here, or an
-implementation of your own). A server implementation must follow this document byte-for-byte.
+implementation of your own). A server must obey this document byte-for-byte.
 
-The other half of the picture is [`module-api.md`](module-api.md): what the ES modules this
-protocol declares must implement, and what the Core hands them.
+[`module-api.md`](module-api.md) states what the ES modules this protocol declares must implement,
+and what the Core hands them.
 
 ## Framing
 
@@ -18,22 +18,18 @@ for same-origin `/ws`). Either side may send. Every frame is **binary**, and car
 [region]          the array bytes the header points into
 ```
 
-The region starts at `(4 + headerLen + 7) & ~7`. All integers are little-endian, which every target
-platform is. A message carrying no arrays has an empty region.
+The region starts at `(4 + headerLen + 7) & ~7`. All integers are little-endian. A message with no
+arrays has an empty region.
 
 The header is JSON-RPC-2.0-shaped, without the `jsonrpc` field. A message with an `id` is a request
 expecting `{id, result}`; without one it is a notification.
 
-**The protocol uses no requests.** Everything is a notification in one direction or the other,
-because every answer is either a command batch or a window — both of which may arrive later, more
-than once, or not at all.
+**The protocol uses no requests.** Every message is a notification, because every answer may arrive
+later, more than once, or not at all.
 
-The framing is symmetric, and **only the upward half of the array _encoder_ is missing**. Nothing
-puts an array in an upward payload today, so a viewer sends an empty region and refuses a typed
-array in an event payload, naming `Array.from()`. The receiving half is built: the server splits an
-inbound frame into header and region exactly as it splits an outbound one, and decodes an event's
-payload against the region it arrived with. So a host that encodes an array upward is read, and
-building that encoder writes code rather than amending this contract.
+The framing is symmetric, and **only the upward half of the array _encoder_ is missing**. A viewer
+sends an empty region and refuses a typed array in an event payload, naming `Array.from()`. The
+server decodes an inbound event's payload against the region it arrived with.
 
 Three methods travel down (server → viewer), two travel up.
 
@@ -52,11 +48,8 @@ Unknown methods are ignored.
 The viewer *announces* on `ready`; the server *decides*. **On a version it does not support the
 server closes the socket with a reason.** The number bumps only on breaking changes.
 
-Refusing is the point. A viewer built against a different framing receives a frame it cannot read,
-hands it to `JSON.parse` inside a `catch { return; }`, and says nothing — no error, no console
-line, no closed socket. The session reads to a user as a server that never sent anything. A magic
-number inside the frame cannot catch that, because a viewer that does not know the format will
-never look for one. The handshake is the only place the disagreement can be named.
+A viewer built against a different framing drops the frame it cannot read and reports nothing, so
+the handshake is the only place to name a disagreement.
 
 ## Encoded arrays
 
@@ -69,21 +62,15 @@ sit in the frame's region:
 
 - `$wire` ∈ `f32 | f64 | u8 | u32 | i32`.
 - `shape` is row-major, the last dimension varying fastest, and is **mandatory**. A flat array
-  states `shape: [N]`. The two sides enforce it differently: the server rejects a `$wire` object
-  without it, while the viewer does not recognise one as an encoded array at all and leaves it in
-  the payload as an ordinary value. Emit it always; do not rely on either failure. Row-major is the reverse of Julia's column-major, so a Julia `3 × 264`
-  position array states `shape: [264, 3]`. The bytes are untouched: only the labels turn around,
-  which is what lets each side read the array in its own idiom. The example above is therefore a
-  `264 × 3` array on the Julia side.
-- **`off` counts bytes from the start of the region**, never from the start of the frame. A host
-  that hands the region over on its own would otherwise need a fixup on one transport and not the
-  other.
-- **`off` is always a multiple of 8**, whatever the dtype. One rule instead of a table per dtype,
-  the waste is at most 7 bytes per array, and 8 is what a `Float64Array` view needs — so every
-  array can be a view.
+  states `shape: [N]`. The server refuses a `$wire` object without it; the viewer does not recognise
+  one as an encoded array and leaves it in the payload as an ordinary value. Always emit it. Only
+  the labels turn around between the two sides, so a Julia `3 × 264` position array states
+  `shape: [264, 3]`, and the example above is a `264 × 3` array on the Julia side.
+- **`off` counts bytes from the start of the region**, never from the start of the frame.
+- **`off` is always a multiple of 8**, whatever the dtype, so every array can be a `Float64Array`
+  view.
 - **The length is not carried.** It is `prod(shape) × bytesPerElement($wire)`. A reader must check
-  `off + length ≤ region.byteLength` and refuse the frame when it does not hold. That bound is what
-  stands between a malformed frame and a read past the bytes that arrived.
+  `off + length ≤ region.byteLength` and refuse the frame when it does not hold.
 
 The Core walks every inbound payload and replaces each such object with
 
@@ -91,18 +78,16 @@ The Core walks every inbound payload and replaces each such object with
 { data: Float32Array, shape: [3, 264] }
 ```
 
-before handing the payload to its module. **This is the whole of the Core's payload knowledge.**
-Nothing else about a payload's structure is interpreted anywhere in the browser, so a decoder never
-needs to know the schema to decode.
+before it hands the payload to the module. **This is the whole of the Core's payload knowledge.**
+The browser interprets nothing else about a payload's structure.
 
-Each array is a **view into the region**, not a copy of it — `data.buffer` is the whole received
-frame. See [`module-api.md`](module-api.md) for what a module keeping one past its window
-keeps alive with it.
+Each array is a **view into the region**, not a copy: `data.buffer` is the whole received frame.
+[`module-api.md`](module-api.md) states what a module keeps alive when it holds one past its window.
 
 ### What a Julia server converts before sending
 
-Five dtypes travel, so a server holding an array of some other numeric type converts it to the one
-that carries it without loss. CesiumLink does this on the way out:
+Five dtypes travel. A server holding another numeric type converts it to the dtype that carries it
+without loss. CesiumLink does this on the way out:
 
 | Julia eltype | travels as | |
 |---|---|---|
@@ -115,9 +100,8 @@ that carries it without loss. CesiumLink does this on the way out:
 | any other `<: Number` | error | `Complex`, `Rational`, `Int128` and the like |
 | anything not `<: Number` | JSON list | strings, nested payload objects, `Array{Any}` |
 
-A value the target dtype cannot hold is an error rather than a wrap-around, so the bytes on the wire
-always mean what the sender held. An `Int64` past `Int32` is carried by converting it to `Float64`,
-exact for `|v| ≤ 2^53`; there is no 64-bit integer dtype.
+A value the target dtype cannot hold is an error, never a wrap-around. There is no 64-bit integer
+dtype: an `Int64` past `Int32` is carried as `Float64`, exact for `|v| ≤ 2^53`.
 
 ## ↓ `modules`
 
@@ -144,54 +128,45 @@ The session declaration. Sent once per connection, before anything else, and ret
   }}
 ```
 
-- **`modules` order is draw order.** The viewer builds the modules in the order sent, which is what
-  decides what is drawn over what and how overlay contributions stack. It is not a dependency
-  ordering: `ctx.modules.get` reaches every module of the same declaration whatever the order.
-- `ellipsoid` is the shape the scene's coordinates are on: the semi-major axis `a` and the
-  semi-minor axis `b`, in metres. The viewer builds its globe on it and every conversion it does
-  runs against it. **Optional; absent means WGS84**, which is what the viewer uses on its own.
+- **`modules` order is draw order.** The viewer builds the modules in the order sent, which decides
+  what draws over what and how overlay contributions stack. This is not a dependency order:
+  `ctx.modules.get` reaches every module of the same declaration whatever the order.
+- `ellipsoid` is the shape the scene's coordinates are on: semi-major axis `a`, semi-minor axis `b`,
+  in metres. The viewer builds its globe on it and runs every conversion against it. **Optional;
+  absent means WGS84.**
 - `furniture` is the set of the Core's own on-screen items, in the shape the `core/furniture`
-  command carries. The viewer builds that set before it paints, so a session that hides the ruler
-  never shows one. **Optional; absent means the viewer builds its default set**, which is what a
-  session that declares no furniture shows, and what a recording made before this field carries.
-  The server states the same set again as a retained command on `ready`; the viewer applies that
-  restatement as a no-op, building and destroying nothing.
-- `assets` names each directory the server serves, mapping the mount name to the same-origin base it
-  answers. A payload points at a file by that path — `assets/models/sat.glb` — and a module resolves
-  it through `ctx.assetUrl`. **Optional; absent means the server serves no directory of its own.** A
-  browser host needs the map for nothing, because a same-origin path already resolves against the
-  page; a host whose page sits on another origin builds its own URL per mount out of it. A directory
-  of basemap tiles is the reserved mount `imagery`, so the `imagery` declaration's own `url` is a
-  path into this same map and not a second idiom (ADR-0021).
+  command carries. The viewer builds that set before it paints. **Optional; absent means the viewer
+  builds its default set**, which is what a recording made before this field gets. The server states
+  the same set again as a retained command on `ready`, and the viewer applies that as a no-op.
+- `assets` maps each assets mount name to the same-origin base the server answers it on. A payload
+  points at a file by that path, `assets/models/sat.glb`, and a module resolves it through
+  `ctx.assetUrl`. **Optional; absent means the server serves no directory of its own.** A browser
+  host needs the map for nothing; a host on another origin builds its own URL per mount out of it.
 - `imagery` is what the globe is textured with: one source as `url`, `layout` (`"xyz"` or `"tms"`),
-  `tiling`, and optionally `maxLevel` and `credit`. It has **three** states, and they differ.
-  Absent means the viewer keeps its bundled Earth texture. `false` means no base layer at all.
-  An object means that tile source. A directory of tiles served by this server is the reserved
-  `imagery` mount, so its `url` is a path into the `assets` map above and not a second idiom
-  (ADR-0021).
+  `tiling`, and optionally `maxLevel` and `credit`. It has **three** states. Absent means the viewer
+  keeps its bundled Earth texture. `false` means no base layer at all. An object means that tile
+  source. A directory of tiles this server serves is the reserved `imagery` mount, so its `url` is a
+  path into the `assets` map above (ADR-0021).
 - `lighting` is a boolean. It lights the globe from the sun at the clock's time, so a terminator
   runs across it. **Optional; absent leaves the globe evenly lit.**
 - `stars` is a boolean. It draws the sky around the globe: the star field, the sun and the moon.
   **Optional; absent leaves black behind the globe.**
 - `apiVersion` is checked against the viewer's own **before** the import, so a mismatched module
   never executes. A mismatch is warned about and skipped; the rest of the list still loads.
-- `url` is same-origin and always `/modules/<id>/<basename of the registered file>`; the server
+- `url` is same-origin and always `/modules/<id>/<basename of the registered file>`. The server
   mounts that file's whole directory, so sibling chunks and assets resolve normally. The shape is
-  part of the contract: a bundle may mark a dependency `external` and alias it to that URL, and
-  since the browser keys module instances by resolved URL, both modules then share one live instance
-  rather than each carrying a copy. That route resolves in the browser, so it never reaches the
-  `apiVersion` gate — a module reads another declared module's exports through `ctx.modules`.
+  part of the contract: a bundle may alias an `external` dependency to that URL, and the browser keys
+  module instances by resolved URL, so both modules share one live instance. That route never reaches
+  the `apiVersion` gate. A module reads another declared module's exports through `ctx.modules`.
 - The module set is established per connection: a second declaration is refused, and changing the
   set means the client must reconnect.
 - **A browser host connecting to a server does not build its widget until this message arrives**, so
-  the globe is never constructed on a shape the server did not name and the ellipsoid cannot be
-  applied too late for a decoded payload. The page shows its background meanwhile. A server that
-  sends nothing within the host's timeout gets a WGS84 globe and a console line saying so, so a
-  `?ws` pointing at nothing still leaves a usable page. A viewer opened with no `?ws` at all builds
+  the globe is never built on a shape the server did not name. A server that sends nothing within the
+  host's timeout gets a WGS84 globe and a console line. A viewer opened with no `?ws` builds
   immediately, on WGS84.
 
-What a declared module must export, and everything it is handed, is the
-[module API](module-api.md).
+The [module API](module-api.md) states what a declared module must export and everything it is
+handed.
 
 ## ↓ `window`
 
@@ -227,41 +202,35 @@ The only carrier of time-varying scene data.
 | `startTime` | ISO-8601 UTC epoch of **absolute frame 0**, not of this window's first frame. Optional; absent → the viewer uses a synthetic epoch and the ruler shows real spacing but not real dates |
 | `payloads` | `moduleId → opaque payload`, dispatched to each module's `onWindow` |
 
-A window is the unit within which entity identity holds, interpolation never spans two windows, and
-a `replace` is what a control re-push uses because the user asked for a visible change (ADR-0008).
+A window is the unit within which entity identity holds, and interpolation never spans two windows.
+A control re-push uses `replace` (ADR-0008).
 
-**Every module's data for the same frames arrives in one message**, so the scene and any overlay
-drawn on it cannot disagree about which window they describe. A module absent from `payloads` simply
-is not updated by this window.
+**Every module's data for the same frames arrives in one message**, so the scene and an overlay
+drawn on it cannot disagree. This window does not update a module absent from `payloads`.
 
 A static scene is a window with `count: 1`, `totalFrames: 1`.
 
-Which time controls are on screen is not this message's to say. The server states that with
+This message does not say which time controls are on screen. The server states that with
 `core/furniture`, and a scene whose one keyframe names no instant declares the band off.
 
-The clock, the timeline ruler and scrubbing operate on the declared range even when only part of it
-has been delivered; interpolation operates on what has. An instant the viewer holds no frame for
-stops the clock there, so the last delivered frame stays on screen and starvation reads as a pause
-rather than as a stutter; the viewer asks for the covering window (`core/need`) and resumes when it
-installs.
-
-Dragging the ruler is itself a pause, in the same sense the widget's play button is: the clock stops
-where the user put it and stays stopped once the window arrives. Only a clock that ran off the end of
-the buffer on its own resumes by itself.
+The clock, the timeline ruler and scrubbing work on the declared range even when only part of it is
+delivered; interpolation works on what is delivered. An instant the viewer holds no frame for stops
+the clock there, so the last delivered frame stays on screen. The viewer asks for the covering
+window (`core/need`) and resumes when it installs. A drag of the ruler is itself a pause: the clock
+stays stopped when the window arrives. Only a clock that ran off the end of the buffer on its own
+resumes by itself.
 
 An `append` extends the buffer only if it *continues* it, at **either** end: its `startFrame` is one
-past the last frame delivered, or its last frame is one before the first — a clock running backwards
-consumes the buffer downwards and is served windows that extend it that way. One that leaves a gap or
-overlaps cannot be interpolated across, and is treated as a `replace`: the buffer is cleared and
-re-based on it. So a server answering a `core/need` for an instant far from what it has already sent
-may send `append` regardless — the mode states the intent, and the viewer never claims coverage of
-frames it does not hold.
+past the last frame delivered, or its last frame is one before the first, which is how a clock that
+runs backwards is served. An `append` that leaves a gap or overlaps is treated as a `replace`: the
+viewer clears the buffer and re-bases it. A server may therefore answer any `core/need` with an
+`append`: the mode states only the intent, and the viewer never claims coverage of frames it does
+not hold.
 
-The delivered buffer is **bounded**, and travels with the clock: an extension that would push it past
-the bound drops frames from the end playback is moving away from, so the frames held follow the clock
-whichever way it runs and reversing direction moves nothing until an edge is approached. Only an
-extension is bounded — a server that delivers a whole run in one window is not made to give any of it
-up. A dropped frame is simply re-requested if the clock returns to it.
+The delivered buffer is **bounded** and travels with the clock: an extension that would push it past
+the bound drops frames from the end playback moves away from. Only an extension is bounded, so a
+server that delivers a whole run in one window gives up none of it. The viewer re-requests a dropped
+frame if the clock returns to it.
 
 ## ↓ `commands`
 
@@ -278,37 +247,32 @@ Everything else. A batch of addressed commands, applied in order (ADR-0010).
   }}
 ```
 
-- `seq` is present only when the batch answers an `event`, and echoes that event's `seq`. Modules
-  that care about staleness compare it against the last event they saw. The Core does not drop
-  stale batches: a late reply to a click can still be valid, a late reply to a hover usually is not,
-  and only the module knows which it is holding.
+- `seq` is present only when the batch answers an `event`, and echoes that event's `seq`. A module
+  that cares about staleness compares it against the last event it saw. The Core never drops a stale
+  batch.
 - The pseudo-module id `"core"` addresses the Core itself. Its topics are `subscribe`, `furniture`,
   `regions`, `camera` and `dropped`.
 - `ui/tooltip` takes two fields. `bare` is a boolean: it drops the `ui` module's own chrome, so one
-  contributor owns the whole box. An empty `html`, or `"html": null`, hides the box — an empty box
-  left standing on the globe says nothing and covers something.
+  contributor owns the whole box. An empty `html`, or `"html": null`, hides the box.
 - `ui/tooltip`'s `html` is a **list of fragments**, one per contributing listener, in chain order.
-  The `ui` module mounts each in its own shadow root so one contributor's CSS cannot reach another's;
-  joining them into a string would throw away the only boundary there is to mount on. **Trust:** the
-  fragments are injected with `innerHTML` and are never sanitized, so a server drives the page's DOM.
-  `<script>` does not execute that way, but everything else does. This is a trusted local viewer;
-  revisit before ever pointing it at a remote or shared server.
+  The `ui` module mounts each in its own shadow root, so one contributor's CSS cannot reach
+  another's. **Trust:** the `ui` module injects the fragments with `innerHTML` and never sanitizes
+  them, so a server drives the page's DOM. `<script>` does not run that way; everything else does.
+  This is a trusted local viewer. Revisit this before you point it at a remote or shared server.
 - Unknown module or topic → warn, skip that command, continue the batch.
 - A throwing handler kills its own command only.
 
 ### Retention
 
 The server retains **the last command per `(module, topic)`**, in recency order, and replays them on
-`ready`. So a declaration-shaped topic (`ui/declare`, `core/subscribe`, `core/furniture`,
-`core/regions`) is automatically restored on reconnect, while an event-shaped one (`ui/tooltip`) is
-harmless to replay because the next pointer move overwrites it.
+`ready`. A declaration-shaped topic (`ui/declare`, `core/subscribe`, `core/furniture`,
+`core/regions`) is therefore restored on reconnect. An event-shaped one (`ui/tooltip`) is harmless to
+replay, because the next pointer move overwrites it.
 
-Retention holds **one** message per `(module, topic)`. So every declaration states its whole set,
-never a patch: a stream of partial patches would replay only its last frame to a client that
-reconnects.
+Retention holds **one** message per `(module, topic)`, so every declaration states its whole set and
+never a patch: a stream of partial patches replays only its last frame to a reconnecting client.
 
-Commands whose payload should *not* survive a reconnect are the caller's problem — in practice only
-the tooltip, and re-showing a stale tooltip is invisible.
+A command whose payload must *not* survive a reconnect is the caller's problem.
 
 ### `core/subscribe`
 
@@ -334,10 +298,9 @@ The Core forwards a pointer event if it matches **any** entry:
 | `debounceMs` | `hover` only; the smallest value among matching entries wins. Default 5 |
 
 An empty list forwards nothing. The server derives this list from its registered listeners and
-re-sends it whenever the set changes, so no author writes it by hand.
+re-sends it whenever the set changes.
 
-`coordinate` keeps the raycast an opt-in (ADR-0003): a session that never asks never pays for the
-ray-globe intersection.
+`coordinate` keeps the raycast opt-in (ADR-0003).
 
 ### `core/furniture`
 
@@ -367,21 +330,20 @@ command states the whole set.
 | `navHelp` | **off** | The navigation instructions |
 | `inspector` | **off** | The Cesium inspector panel |
 
-These defaults are what a viewer shows before any declaration arrives, and what an item the
-declaration does not name falls back to. The viewer owns them; a server's own keyword arguments
-mirror this table rather than defining it.
+A viewer shows these defaults before any declaration arrives, and an item the declaration does not
+name falls back to them. The viewer owns them; a server's keyword arguments mirror this table.
 
-The same payload rides the session declaration (§ ↓ `modules`), which is what the viewer builds its
-first set from. This command states the set at any time after that.
+The same payload rides the session declaration (§ ↓ `modules`), which builds the first set. This
+command states the set at any time after that.
 
 `items` carries the whole set. The first four are the **band**, fixed to the bottom edge. The other
 six are one **group**, a column of buttons that travels whole into the region `region` names — one of
-the four overlay regions, defaulting to `top-right`. An unknown name warns and falls back to
-`top-right`. `style` is CSS merged over the group's own rule, in the spelling the browser reads
+the four overlay regions, default `top-right`. An unknown name warns and falls back to `top-right`.
+`style` is CSS merged over the group's own rule, in the spelling the browser reads
 (`flex-direction`, not `flex_direction`).
 
-An item turned off is destroyed rather than hidden, and one turned on is built when the declaration
-asks for it. So a session that never asks for the inspector never pays for it.
+The viewer destroys an item turned off rather than hides it, and builds one turned on when the
+declaration asks for it.
 
 The viewer **obeys** a declaration that takes the ruler down, and warns where that strands frames:
 
@@ -406,9 +368,9 @@ the payload returns to its Core default.
 The regions are `top-left`, `top-center`, `top-right` and `bottom-right`. An unknown name warns and
 is ignored.
 
-The Core owns placement (ADR-0004), so eight properties are refused: `position`, `top`, `right`,
+The Core owns placement (ADR-0004), so it refuses eight properties: `position`, `top`, `right`,
 `bottom`, `left`, `transform`, `z-index` and `inset`. A refusal warns, names the property, and drops
-that property only — the rest of the bag still applies.
+that property only; the rest of the bag still applies.
 
 ```
 overlay: region top-right may not set 'top' — the Core owns placement (ADR-0004)
@@ -417,8 +379,8 @@ overlay: region top-right may not set 'top' — the Core owns placement (ADR-000
 ### `core/camera`
 
 The **camera track**: the ordered set of viewpoints the server declares, each saying where to look
-and when it applies (ADR-0018). Whole set as well — one command carries the track, and re-declaring
-replaces it. An empty `track` clears it.
+and when it applies (ADR-0018). Whole set as well: one command carries the track, and a
+re-declaration replaces it. An empty `track` clears it.
 
 ```json
 { "module": "core", "topic": "camera",
@@ -435,7 +397,7 @@ replaces it. An empty `track` clears it.
 
 | Field | Meaning |
 |---|---|
-| `destination` | A point on the globe, `{lon, lat, height}`, or a rectangle to frame, `{west, south, east, north}`. Degrees, and `height` is metres above the ellipsoid, defaulting to 0. An entry states this or `follow` |
+| `destination` | A point on the globe, `{lon, lat, height}`, or a rectangle to frame, `{west, south, east, north}`. Degrees, and `height` is metres above the ellipsoid, default 0. An entry states this or `follow` |
 | `follow` | What to ride, in place of standing at a destination: `{module, target}`. See **Riding an anchor** below |
 | `range` | Metres from the anchor. Only an entry that rides one reads it |
 | `orientation` | `heading`, `pitch` and `roll` in degrees. Each angle is optional, and one left out keeps the angle Cesium chooses. An entry that rides an anchor reads `heading` and `pitch` in the anchor's own east-north-up frame |
@@ -443,45 +405,43 @@ replaces it. An empty `track` clears it.
 | `at` | Absolute keyframe index, **0-based** like every index on this wire. Excludes `after` |
 | `after` | Seconds after the track arrives. Absolute per entry, not cumulative. Excludes `at` |
 | `take` | Take the camera back from the user before this entry applies |
-| `label` | What the **stop list** calls this stop. A non-string `label` is dropped with a warning and the entry stands: a label is decoration, and a destination is not |
+| `label` | What the **stop list** calls this stop. A non-string `label` is dropped with a warning and the entry stands |
 
 `at`, `after` and neither are the **three schedules**:
 
-- `at` runs on the scene clock. The viewer applies the entry when the clock crosses that keyframe,
-  so pausing holds the camera and scrubbing back returns it to the viewpoint that keyframe was
-  authored with. This is what makes a recorded tour survive the viewer's own controls.
+- `at` runs on the scene clock. The viewer applies the entry when the clock crosses that keyframe, so
+  a pause holds the camera and a scrub back returns it to that keyframe's viewpoint.
 - `after` runs on the wall clock, from the moment the track arrives. It is for a scene of one
-  keyframe, which has no keyframe axis to schedule against.
+  keyframe, which has no keyframe axis.
 - Neither applies on arrival, which seeds the opening view.
 
 The two are **mutually exclusive per entry**. Both is an authoring error: the Core warns and takes
 `at`. A non-integer `at` is dropped with a warning, and so is an entry that states neither a usable
 destination nor a follow anchor. An `at` past the declared range warns and never applies.
 
-The Core applies the **latest** entry whose moment passed and that is not applied already. So the
-order of the list does not schedule anything; each entry's own field does.
+The Core applies the **latest** entry whose moment passed and that is not applied already. The order
+of the list schedules nothing; each entry's own field does.
 
 **A re-grid drops the track**, with a warning. Keyframe 120 means `epoch + 120 × dtSeconds`, so only
 a change of `startTime` or of `dtSeconds` moves it. A `replace` does not, and neither does a grown
 `totalFrames`. A server that re-grids must re-declare the track, and must declare it **after** the
 window that establishes the new grid.
 
-The viewer shows the whole track beside the scene as the **stop list**, one row per entry in declared
-order, and it marks the row that applies now. A row reads its `label`; a row with no label falls back
-to its schedule — `at keyframe 19`, `after 8 s`, `on arrival`. The list is display-only: no row is a
-click target. It is part of the `cameraFollow` furniture item, so it appears when the first viewpoint
-applies and a session that declares the item off gets neither the status line nor the list.
+The viewer shows the track as the **stop list**, one row per entry in declared order, with the row
+that applies now marked. A row reads its `label`, or falls back to its schedule — `at keyframe 19`,
+`after 8 s`, `on arrival`. A click on a row puts the tour at that stop and gives the camera to the
+server, the way the indicator's way back does. It belongs to the
+`cameraFollow` furniture item, so a session that declares that item off gets neither the status line
+nor the list.
 
-The camera is **user state** (ADR-0017). A viewpoint is applied only while the server holds the
-camera. Pointer input on the canvas — a drag or a wheel — takes the camera and cancels any flight in
-progress; a key press does not, and no furniture button does. Detachment is sticky: only the
-camera-follow indicator's way back, or an entry carrying `take`, gives the camera to the server
-again.
+The camera is **user state** (ADR-0017). The viewer applies a viewpoint only while the server holds
+the camera. Pointer input on the canvas, a drag or a wheel, takes the camera and cancels a flight in
+progress; a key press does not. Detachment is sticky: only the camera-follow indicator's way back, a
+click on a stop row, or an entry carrying `take`, gives the camera to the server again.
 
 #### Riding an anchor
 
-A viewpoint that states `follow` holds station on a moving thing instead of standing at a point. The
-camera then moves relative to that thing, and the scene sweeps below it.
+A viewpoint that states `follow` holds station on a moving thing instead of standing at a point.
 
 ```json
 { "module": "core", "topic": "camera",
@@ -490,12 +450,9 @@ camera then moves relative to that thing, and the scene sweeps below it.
 ```
 
 `follow` is the **second statement** on this topic. It sets the frame and leaves a declared track
-alone, so a listener answering a click puts the camera on a satellite without wiping a tour it did
-not author. `"follow": null` clears the frame and leaves the track alone in the same way. A payload
-may carry `track` and `follow` together, and each does its own half.
-
-An entry inside a `track` carries the same `follow`, `range` and `orientation`, which is how a
-**tour** rides something. Both go through one path in the viewer.
+alone, and `"follow": null` clears the frame the same way. A payload may carry `track` and `follow`
+together, and each does its own half. An entry inside a `track` carries the same `follow`, `range`
+and `orientation`, which is how a **tour** rides something.
 
 | Field | Meaning |
 |---|---|
@@ -516,14 +473,12 @@ Three failures cost the entry and nothing else. Each warns once, and none throws
 to; `serverHolds` says whether an arriving viewpoint applies. The two are independent:
 
 - A **drag detaches and does not dismount**. Canvas input takes the hold, so a tour stops advancing,
-  and the frame stays. The user keeps riding the satellite and now steers around it.
+  and the frame stays.
 - **A flight lets go first.** A flight to a destination, a rejoin, a click on a stop and the home
-  button all clear the frame before they start, so nothing the camera does next is relative to a
-  thing it has flown away from.
+  button all clear the frame before they start.
 
 `duration` flies into the ride; `0` or absent cuts straight in. An entry that states no `range` and
-no angle mounts the camera exactly where it stands, which is how "hold station on that" reads when
-the author says nothing more.
+no angle mounts the camera exactly where it stands.
 
 **Nothing travels upward.** There is no camera event: the viewer never reports where the user
 looked, and a recording carries the camera only as the commands the server broadcast. A track is an
@@ -538,12 +493,11 @@ ordinary retained command, so a replay flies the tour with no listener behind it
 The server queued `n` frames for this client that its queue could not hold, and dropped them. The
 server holds one send queue per client, drained by one task, so a client that stops reading fills its
 own queue and blocks nothing else (ADR-0030). The marker rides in front of the first frame that fits
-again, so it always arrives, and it is addressed to one client rather than broadcast.
+again, so it always arrives, and it goes to one client rather than to all.
 
-**Answer it with a `core/replay` event.** The frames are gone and the server does not re-send them of
-its own accord. What it holds is the last message per `(module, topic)` and the current window, which
-is what a `core/replay` asks for — so whatever the drop lost comes back, however many frames it was.
-A viewer that ignores this keeps drawing the scene it last received, with nothing to say it is stale.
+**Answer it with a `core/replay` event.** The frames are gone and the server does not re-send them on
+its own. A viewer that ignores this keeps drawing the scene it last received, with nothing to say it
+is stale.
 
 This command is never retained and never recorded: it describes one connection at one moment.
 
@@ -553,24 +507,21 @@ This command is never retained and never recorded: it describes one connection a
 { "method": "ready", "params": { "protocol": 1 } }
 ```
 
-Sent once the socket opens. A version mismatch closes the socket with a reason (§ Version policy).
-The server answers by replaying retained state in order: `modules`, then each retained command,
-then the current window. The furniture therefore arrives twice — in the declaration, and again as
-the retained `core/furniture` command. The second statement is the same set, and the viewer applies
-it as a no-op.
+The viewer sends this once the socket opens. A version mismatch closes the socket with a reason
+(§ Version policy). The server answers by replaying retained state in order: `modules`, then each
+retained command, then the current window. The furniture therefore arrives twice, in the declaration
+and again as the retained `core/furniture` command, and the viewer applies the second statement as a
+no-op.
 
 **The current window is replayed only if it is a `replace`.** An `append` extends a window this
-client has never received, and may omit anything that window established — an area family's
-footprint centres above all, which ride only the replacing window. So when the scene is on an append
-the server asks it for a replacement covering the same frames instead, and broadcasts that. The
-clients already watching are re-based on it and ask for what they are then missing, which costs one
-round trip per join and is why nothing here tries to send a rebuilt window to one client alone.
+client never received, and may omit anything that window established — an area family's footprint
+centres above all. So when the scene is on an append, the server asks it for a replacement covering
+the same frames and broadcasts that. The clients already watching are re-based on it and ask for what
+they then miss.
 
-With nothing installed that can answer for keyframes — no window handler and no `core/need` listener
-— there is nothing to ask, and the retained window is replayed as it stands. Same if the ask produces
-no window: a producer that throws or pushes nothing costs a warning rather than the session, and the
-client is sent the retained append rather than nothing, since the viewer raises no request of its own
-until a first window has landed and so has no way back from silence.
+With no window handler and no `core/need` listener there is nothing to ask, and the server replays
+the retained window as it stands. A producer that throws or pushes nothing costs a warning rather
+than the session, and the client gets the retained append rather than nothing.
 
 ## ↑ `event`
 
@@ -602,86 +553,68 @@ The only thing the viewer ever sends after `ready`.
 | `window` | Identity of the window on screen |
 | `payload` | The topic's own content, and the only part of an event the Core does not author |
 | `entities` | Every owned entity under the cursor, nearest first; `[]` on a miss. `module` is the owner that stamped the pick id |
-| `mods` | For a `click`, the modifiers held when the button went **down** — a gesture carries the ones it began with, and letting go of alt just before the button must not turn an alt-click into a bare one. For a `hover`, the ones held now: a hover has no beginning to latch |
+| `mods` | For a `click`, the modifiers held when the button went **down**, so a release of alt just before the button does not turn an alt-click into a bare one. For a `hover`, the ones held now |
 
 `seq`, `frame` and `window` sit beside `module` and `topic`, never inside `payload`. The Core stamps
-them on every event including a module's own `notify`, and a module's payload is opaque to it — there
-may be no object there to merge them into.
+them on every event, a module's own `notify` included.
 
 Core-produced topics:
 
 - **`core/pointer`** — as above, subject to the subscription. The viewer reports the whole stack
-  under the cursor rather than deciding which entity the gesture was about: a highlight drawn over
-  the shape it belongs to is nearest and is rarely what the user aimed at, and only the server knows
-  what these kinds mean. A listener that cares scans `entities` for the kind it wants. The nearest
-  one is simply the first of the list, so the wire carries the list and nothing else. A `hover` does
-  not always have a mouse event behind it: crossing a keyframe under a resting cursor raises one at
-  the position the cursor last moved to, re-picked, so a tooltip follows the clock rather than the
-  pointer. Such a hover carries the modifier set last seen from a real mouse event, since a key
-  pressed over a still cursor raises none. A clock-driven hover resolving nothing where the last one
-  also resolved nothing is not sent: the cursor has not moved, so the position and the coordinate are
-  the ones already sent too, and a cursor parked over empty globe would otherwise cost a round trip
-  every keyframe. A hover from a real move is always sent, empty or not — its position is new, which
-  is what a listener subscribing with `coordinate` asked for.
-- **`core/need`** — `{ "startFrame": 18, "count": 1 }`. The buffer should cover `count` frames from
-  this index, because playback is nearing the edge it is heading for or the clock has been scrubbed
-  past coverage. `count` is 1 where the window continues the buffer at either end and 2 where it
-  lands somewhere new — the fewest frames interpolation can run across. The count travels with the
-  request so the server needs no memory of what it has sent. The request also names the `mode` the
-  window is wanted in, `append` unless stated otherwise; only the server itself ever asks for a
-  `replace`, on the `ready` path above. A viewer never sends `mode`, and never needs to: it is
-  always extending what it holds.
-- **`core/ellipsoid`** — `{ "a": 6378137.0, "b": 6356752.3142451793 }`. The radii the globe was
-  actually built on, sent once, as soon as it exists. It answers nothing and expects no reply: the
-  server declared these numbers, so this only ever confirms them. A server that receives different
-  ones should say so loudly — a scene drawn on a shape other than the one its coordinates were
-  computed against looks entirely plausible and is wrong by kilometres.
+  under the cursor. A listener scans `entities` for the kind it wants, and the nearest one is the
+  first of the list. A keyframe crossing
+  under a resting cursor also raises a `hover`, at the position the cursor last moved to, re-picked,
+  so a tooltip follows the clock. Such a hover carries the modifier set last seen from a real mouse
+  event. The viewer drops a clock-driven hover that resolves nothing where the last one also resolved
+  nothing, and sends every hover from a real move, empty or not.
+- **`core/need`** — `{ "startFrame": 18, "count": 1 }`. The buffer must cover `count` frames from
+  this index. `count` is 1 where the window continues the buffer at either end, and 2 where it lands
+  somewhere new. The request also names the `mode` wanted, `append` unless stated otherwise. Only the
+  server asks for a `replace`, on the `ready` path above; a viewer never sends `mode`.
+- **`core/ellipsoid`** — `{ "a": 6378137.0, "b": 6356752.3142451793 }`. The radii the globe is built
+  on, sent once, as soon as it exists. It expects no reply; it confirms the numbers the server
+  declared. A server that receives different ones must say so loudly: a scene drawn on the wrong
+  shape looks plausible and is wrong by kilometres.
 
 - **`core/replay`** — `{}`. Send this client the retained scene again: every retained
-  `(module, topic)` in recency order, and the window. It is what a client sends after a
-  `core/dropped` command told it that frames were lost, and it is answered by the server itself — no
-  listener sees the pair, and a scene cannot answer one. The reply is the same set of frames a client
-  connecting now is replayed, so the server needs no memory of which frames this client missed. Ask
-  for it as often as needed: a replay costs the retained set and changes no server state.
+  `(module, topic)` in recency order, and the window. A client sends it after a `core/dropped`
+  command, and the server answers it itself; no listener sees the pair. The reply is the same set a
+  client connecting now is replayed. Ask for it as often as needed: a replay changes no server
+  state.
 
 - **`core/stop`** — `{}`. Stop this server. The server removes its discovery file, then drops every
   client socket and frees the port, exactly as `stop_server` does. No listener sees this pair, so a
   scene cannot refuse a stop. A second `core/stop` does nothing. Any client on the socket may send
-  it: the socket binds to loopback, so this grants nothing that reaching the socket did not already
-  grant. Send no `ready` first. An `event` needs no handshake, and a `ready` makes the server declare
-  its modules and replay the whole retained scene to a client that is about to close.
+  it: the socket binds to loopback. Send no `ready` first: it makes the server replay the whole
+  retained scene to a client that is about to close.
 
-Module-produced topics come from `ctx.notify(topic, payload)`; the Core stamps `module`, `seq`,
-`frame` and `window` and forwards it, subject to no subscription (a module only sends what its own
-code decided to send). One of them is answered by the server itself rather than by a scene:
+Module-produced topics come from `ctx.notify(topic, payload)`. The Core stamps `module`, `seq`,
+`frame` and `window` and forwards the event, subject to no subscription. The server itself answers
+one of them, rather than a scene:
 
 - **`ui/rect`** — `{ "id": "panel", "x": 120, "y": 60, "w": 360, "h": 240 }`. Where the user left a
-  floating box, in whole container pixels, sent once when the pointer comes up. The `ui` module
-  sends it only for a float declared `adjustable: true`, which is what draws the drag strip and the
-  resize corner. `x`/`y` are the box's top-left.
+  float, in whole container pixels, sent once when the pointer comes up. The `ui` module sends it
+  only for a float declared `adjustable: true`, which is what draws the drag strip and the resize
+  corner. `x`/`y` are the box's top-left.
 
   A rect belongs to the user, so the server records it per float id and states it in every later
   declaration of that float: the anchor becomes `{"anchor": "screen", "x": …, "y": …}` and the size
-  joins the float's own `style` as CSS `width` and `height`. Nothing new travels downward, and the
-  server re-sends the declared set as soon as it records a rect, so the copy it retains for a client
-  connecting later carries where the boxes were left.
+  joins the float's own `style` as CSS `width` and `height`. Nothing new travels downward. The server
+  re-sends the declared set as soon as it records a rect, so the retained copy carries where the
+  boxes were left.
 
-  **A declared rect seeds a box when the box is created and moves no box already on screen.** This
-  is the one place a declaration does not overrule what the viewer shows (ADR-0013). It is what
-  stops a declaration already in flight when the pointer came up from snapping the box back — a race
-  a full round trip wide. Nothing is filtered by where a box sits, so a viewer showing one rect
-  while the server believes another misleads nobody.
+  **A declared rect seeds a box when the box is created and moves no box already on screen.** This is
+  the one place a declaration does not overrule what the viewer shows (ADR-0013).
 
 - **`ui/close`** — `{ "id": "panel" }`. The user pressed a float's close button, which the `ui`
-  module draws only for a float declared `closable: true`. The server answers nothing on its own:
-  what a dismissal means belongs to the scene, so a listener decides whether to re-declare the
-  float without it, and a scene with no listener leaves the box where it is.
+  module draws only for a float declared `closable: true`. The server answers nothing on its own: a
+  listener decides whether to re-declare the float without it, and a scene with no listener leaves
+  the box where it is.
 
 ## Index bases
 
-Non-negotiable: **the wire is 0-based, the Julia API is 1-based.** Conversion happens in exactly one
-place per direction, at the CesiumLink boundary. Entity numbers shown to a user are 1-based, and with
-Julia the only author of tooltip text there is one formatter to keep honest.
+Non-negotiable: **the wire is 0-based, the Julia API is 1-based.** The conversion happens in exactly
+one place per direction, at the CesiumLink boundary. Entity numbers shown to a user are 1-based.
 
 ## Flows
 
@@ -725,14 +658,11 @@ sequenceDiagram
     S->>C: commands {[{ui, declare, [...controls with new value]}]}
 ```
 
-Playback runs on through the round trip: the scene the user asked to change stays on screen until
-the replacement window installs, and a `replace` clears the buffer and re-bases the clock on what it
-delivers. Nothing holds the clock for the answer.
+Playback runs on through the round trip: the scene stays on screen until the replacement window
+installs, and a `replace` re-bases the clock on what it delivers.
 
-A widget reports the user's input and goes on showing the value it was declared with, so an input
-that no listener acts on needs no answer — the panel is never ahead of the scene. The re-declaration
-is what moves it, and a scene that re-declares after every push keeps the two in step for a few
-hundred bytes against a window's hundreds of kilobytes.
+A widget reports the user's input and goes on showing the value it was declared with, so an input no
+listener acts on needs no answer. The re-declaration moves the widget.
 
 ### Streaming advance
 
@@ -751,12 +681,10 @@ sequenceDiagram
 ## What stays a convention
 
 Everything the viewer draws rides a window, pinning included: a pin is a pointer event answered by a
-`replace` whose families are populated for it, at the same cost as any other control round trip. The
-structural guarantee therefore holds everywhere — there is no content arriving for frames the viewer
-already holds, and so no identity to check.
+`replace` whose families are populated for it. No content arrives for frames the viewer already
+holds, so there is no identity to check.
 
-The escape hatch, if a full re-push ever proves too coarse, is content addressed at a module as a
-`commands` batch whose payload carries the window identity it was computed against, with the
-receiving module dropping it once that identity is no longer current — the ADR-0008 guard. Nothing
-uses it today, and every event already carries `window`, so adopting it costs a module-side check
-rather than a wire change.
+If a full re-push ever proves too coarse, the escape hatch is a `commands` batch whose payload
+carries the window identity it was computed against, and the receiving module drops the batch once
+that identity is no longer current — the ADR-0008 guard. Nothing uses it today, and every event
+already carries `window`, so adopting it costs a module-side check rather than a wire change.

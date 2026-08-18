@@ -153,8 +153,8 @@ export function buildFurniture(
   rejoinEl.textContent = "Rejoin";
   rejoinEl.title = "Give the camera back to the scene and fly to the viewpoint that applies now.";
   rejoinEl.style.cssText = BTN;
-  // The discoverable way off a ride. The home button also gets off, because a flight clears the
-  // frame, but that is a consequence of flying away and not an affordance anything advertises.
+  // The labelled way off a ride. The home button also gets off, because a flight clears the frame,
+  // but that is a side effect of flying away and nothing on screen says so.
   const getOffEl = document.createElement("button");
   getOffEl.type = "button";
   getOffEl.textContent = "Get off";

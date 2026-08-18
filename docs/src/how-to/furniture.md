@@ -1,8 +1,8 @@
 # Choose the on-screen furniture
 
 **Furniture** is an item the Core puts on screen itself: the timeline ruler, the animation clock, the
-keyframe readout and the corner buttons. It needs no module, and it is there in a session that
-declares none. [`declare_furniture`](@ref) states which items are on screen:
+keyframe readout and the corner buttons. It needs no module. [`declare_furniture`](@ref) states which
+items are on screen:
 
 ```julia
 declare_furniture(server; timeline = false, animation = false, keyframe = false,
@@ -47,8 +47,7 @@ that travels whole into one region.
 | `nav_help` | **off** | The navigation instructions |
 | `inspector` | **off** | The Cesium inspector panel |
 
-The band is fixed to the bottom edge, because Cesium builds its ruler as a bottom bar. Only the group
-takes a `region` and a `style`:
+The band is fixed to the bottom edge. Only the group takes a `region` and a `style`:
 
 ```julia
 declare_furniture(server; region = :bottom_right, style = (; flex_direction = "row"))
@@ -62,8 +61,8 @@ asks for it. A session that never asks for the inspector never pays for it.
 
 !!! warning "The ruler is what reaches the other keyframes"
     Do not take `timeline` down over a run of more than one keyframe. The viewer obeys the
-    declaration. It then warns in the browser console that the frames after the first are
-    unreachable. A run of one keyframe is the case this is for — see
+    declaration, then warns in the browser console that the frames after the first are unreachable.
+    A run of one keyframe is the case this is for — see
     [Show a scene with no clock](static-scene.md).
 
 ## Style the regions the widgets sit in
@@ -84,7 +83,7 @@ The Core owns placement, so the viewer refuses `position`, `top`, `right`, `bott
 only. The rest of that region's bag still applies.
 
 Reach for this when a corner holds more than one thing and the stacking is wrong. With one child a
-region looks the same as a row or as a column, so check the change against a corner that holds two.
+region looks the same as a row or a column, so check the change against a corner that holds two.
 
 ## Next
 

@@ -1,16 +1,14 @@
 # Write a viewer module
 
-In this tutorial you write a **module**: one ES module the viewer's Core loads because your server
-declared it. A module is the unit that draws in the scene, and it is how anything reaches the globe
-that the vendored modules cannot draw.
+In this tutorial you write a **module**: one ES module the Core loads because your server declared
+it. A module is the unit that draws in the scene.
 
-You will build a module called `poles`. It draws one vertical line per ground site, from the surface
-up to a height the server sends. Then you make the server change a pole's colour, and answer a click
-on one. At the end you have four coloured poles over Europe, and a click on one turns it orange.
+You build a module called `poles`. It draws one vertical line per ground site, from the surface up
+to a height the server sends. Then the server changes a pole's colour, and answers a click on one by
+turning it orange.
 
 The vendored `primitives` module draws points, lines between two families, and ground footprints. It
-does not draw a line from the surface up to an altitude that a value decides, so this module is
-worth writing.
+draws no line from the surface up to an altitude a value decides, so this module is worth writing.
 
 Before you start, finish [Your first scene](first-scene.md). You need CesiumLink installed and the
 viewer served.
@@ -95,21 +93,21 @@ export default {
 };
 ```
 
-Three things in that file carry the whole contract.
+Three things in that file carry the contract.
 
 - **The default export is an object with a `setup(ctx)`.** `setup` runs once, when the module loads.
   Everything the module may use arrives in `ctx`: the shared Cesium namespace, the scene, the window
   payloads, the topics and the pointer.
 - **The payload is yours.** The Core routes it to your module and never reads inside it. It decodes
   the arrays and nothing else, so `lon` arrives as `{ data: Float64Array, shape: [4] }`, and the
-  strings in `label` arrive as a plain JavaScript array.
-- **`setup` returns a teardown.** The Core drains your registrations for you. The primitives you add
-  to the scene are yours to remove, and that is what the returned function is for.
+  strings in `label` as a plain JavaScript array.
+- **`setup` returns a teardown.** The Core drains your registrations. The primitives you add to the
+  scene are yours to remove, and the returned function does that.
 
 ## 2. Serve the module
 
-Start Julia in the `poles-demo` directory, in the environment where CesiumLink is installed. Start a
-server and register the module:
+Start Julia in the `poles-demo` directory, in the environment where CesiumLink is installed. Then
+start a server and register the module:
 
 ```julia
 using CesiumLink
@@ -118,23 +116,22 @@ server = start_server()
 register_module!(server, :poles, "poles.js")
 ```
 
-[`register_module!`](@ref) resolves the path at once, against the working directory, and refuses a
-file that is not there. The server then mounts the file's **containing directory** under
-`/modules/poles/`, and declares the URL `/modules/poles/poles.js`. The browser imports the module
+[`register_module!`](@ref) resolves the path at once against the working directory, and refuses a
+file that is not there. The server mounts the file's **containing directory** under
+`/modules/poles/` and declares the URL `/modules/poles/poles.js`. The browser imports the module
 from that URL, same-origin with the page, so a sibling file beside `poles.js` resolves too.
 
-Register every module before a browser connects. The module set is established per connection: the
-server declares it once, and a module registered later reaches that client only after a reload.
+Register every module before a browser connects. The server declares the module set once per
+connection, so a module registered later reaches that client only after a reload.
 
-Now open the viewer at the URL [`viewer_url`](@ref) gives:
+Open the viewer at the URL [`viewer_url`](@ref) gives:
 
 ```julia
 viewer_url(server)
 ```
 
-The `?ws=auto` it carries tells the page to connect to the server that served it. You see a globe
-and no poles. The browser console names the server it connected to, and names any module it refused
-to load.
+You see a globe and no poles. The browser console names the server it connected to, and any module
+it refused.
 
 ## 3. Push a window
 
@@ -153,8 +150,8 @@ push_window(server, Dict(:poles => (; lon, lat, height = value .* 100_000, label
 Four cyan poles stand over Europe, the tallest of them over London. This scene has one keyframe, so
 nothing moves.
 
-The key `:poles` is the id you registered, and it is what addresses this payload to your module. A
-module absent from a window's payloads is not called for that window.
+The key `:poles` is the id you registered, and it addresses this payload to your module. A module
+absent from a window's payloads is not called for that window.
 
 ## 4. Send it a command
 
@@ -167,12 +164,12 @@ send_command(server, "poles", "highlight", (; names = ["London"]))
 
 The London pole turns orange. Send the command again with another name, and the orange moves.
 
-[`send_command`](@ref) also retains what it sent. A browser that connects later is replayed the
-window and then the highlight, so it comes back to the scene you are looking at.
+[`send_command`](@ref) retains what it sent. The server replays the window and then the highlight to
+a browser that connects later.
 
 ## 5. Answer a click
 
-Your module reports a click on a pole upward, on its own `picked` topic. Register a listener for it:
+Your module reports a click on a pole on its own `picked` topic. Register a listener for it:
 
 ```julia
 on_event(server, "poles", "picked") do ev, reply
@@ -183,11 +180,11 @@ end
 Click a pole. It turns orange, and the pole that was orange goes back to cyan.
 
 That is the round trip: the module reports, the server decides, and the answer comes back as a
-command. The module changes nothing on its own. The server is the only author of what the scene
-shows, so the next window it pushes cannot disagree with what a click did.
+command. The module changes nothing on its own, so the next window cannot disagree with what a click
+did.
 
 `ev.payload` is the object your module passed to `ctx.notify`. The pole's index never travels here:
-the name is your module's own vocabulary, and a name survives a window that renumbers the poles.
+the name is your module's own vocabulary, and it survives a window that renumbers the poles.
 
 Stop the server when you are finished:
 
@@ -197,13 +194,12 @@ stop_server(server)
 
 ## What the Core cleans up
 
-Every registration `ctx` offers hands back a **Disposable** — a function that undoes it. The Core
-records each one against your module and drains them all on unload, whether or not you collect them.
-A module cannot leave a handler behind in a shared service.
+Every registration `ctx` offers hands back a **Disposable**: a function that undoes it. The Core
+records each one against your module and drains them on unload, whether or not you collect them. A
+module cannot leave a handler behind in a shared service.
 
-What the Core does not know about is what you build yourself. This module adds a
-`PolylineCollection` to the scene, so this module removes it. That is the work of the function
-`setup` returns.
+The Core does not know what you build yourself. This module adds a `PolylineCollection` to the
+scene, so this module removes it. The function `setup` returns does that.
 
 ## Where to go next
 

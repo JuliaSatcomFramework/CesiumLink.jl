@@ -83,8 +83,9 @@ Which texel of a `W × H` grid over `extent` holds the coordinate, as an index i
 
 This is the exact inverse of the mapping [`rgba_grid`](@ref) bakes in, so a listener answers a
 tooltip out of the array it sent and the number cannot disagree with the pixel. A texel covers a
-cell of the box, and a field sampled at cell centres therefore inverts exactly. The far edge belongs
-to the last cell, so a coordinate on the boundary of the box indexes rather than misses.
+cell of the box, and a field sampled at cell centres therefore inverts exactly. The box divides into
+`W × H` equal cells, and a coordinate on the eastern or northern edge reads the last cell rather
+than `nothing`.
 
 ```julia
 ij = heatmap_index(extent, size(values), lon, lat)

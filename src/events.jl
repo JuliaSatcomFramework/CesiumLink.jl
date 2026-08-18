@@ -156,7 +156,7 @@ writes that list by hand:
 | `type` | `:hover` or `:click`; `nothing` for either |
 | `alt`, `ctrl`, `shift` | `true` requires that modifier held, `false` requires it not held, `nothing` does not care |
 | `coordinate` | Ask for the globe coordinate under the cursor; the raycast is skipped when nobody does |
-| `debounce_ms` | Hovers are forwarded at most this often; the smallest among matching listeners wins |
+| `debounce_ms` | Hovers are forwarded at most this often; listeners on one interest share the smallest asked for |
 
 Each modifier is its own keyword rather than a set, so a modifier cannot be named twice, has no order
 to get wrong, and a misspelling is an unknown keyword Julia rejects at the call site. All three left

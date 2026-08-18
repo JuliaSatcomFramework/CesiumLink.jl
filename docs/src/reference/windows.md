@@ -5,12 +5,12 @@ CurrentModule = CesiumLink
 # Windows and scenes
 
 A **window** is a contiguous run of keyframes pushed together. One window message carries every
-module's payload for those frames and installs them together. Every window carries an identity the
-server assigns: a `:replace` takes a new identity and may re-index the entities its indices address,
-an `:append` keeps the identity of the window it extends and preserves that index space.
+module's payload for those frames and installs them together. The server gives each window an
+identity. A `:replace` takes a new identity and may re-index the entities its indices address. An
+`:append` keeps the identity of the window it extends, and preserves that index space.
 
-A **scene** is whatever builds those windows and answers the events they raise. One server drives at
-most one scene.
+A **scene** builds those windows and answers the events they raise. One server drives at most one
+scene.
 
 ## Pushing a window
 

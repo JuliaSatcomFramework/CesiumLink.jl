@@ -1,10 +1,8 @@
 # Choose what the globe is textured with
 
-The globe wears the viewer's bundled Earth texture unless you say otherwise. `imagery` says
-otherwise. It takes a URL, a directory of tiles on disk, an [`Imagery`](@ref) for the rest, or
-`:none`.
-
-The server declares it once, and it holds for the session.
+The globe wears the viewer's bundled Earth texture unless you say otherwise. `imagery` takes a URL,
+a directory of tiles on disk, an [`Imagery`](@ref) for the rest, or `:none`. The server declares it
+once, and it holds for the session.
 
 ## 1. Point at a basemap on the web
 
@@ -15,11 +13,11 @@ row:
 start_server(; imagery = "https://host/tiles/{z}/{x}/{y}.png")
 ```
 
-Nothing is fetched here. The server declares the template as it stands, and the browser is what asks
-for a tile.
+Nothing is fetched here. The server declares the template as it stands, and the browser asks for the
+tiles.
 
 `tiling` is the projection the pyramid is cut in. Leave it alone for a basemap published on the web:
-`{z}/{x}/{y}` means Web Mercator, which is the default. Set it for a pyramid cut the other way:
+`{z}/{x}/{y}` means Web Mercator, the default. Set it for a pyramid cut the other way:
 
 ```julia
 start_server(; imagery = Imagery(url; tiling = :geographic))
@@ -43,11 +41,10 @@ Then name the directory:
 start_server(; imagery = "/data/moon_tiles")
 ```
 
-The server mounts it under `assets/imagery/` and declares that relative URL, so the page fetches
-the tiles from the same origin it came from and no CORS header is needed anywhere.
+The server mounts it under `assets/imagery/` and declares that relative URL, so the page fetches the
+tiles from its own origin and no CORS header is needed.
 
-State nothing else. The directory already knows what it is, and the server reads it once, at
-`start_server`:
+State nothing else. The server reads the directory once, at `start_server`:
 
 - **The layout.** A `tilemapresource.xml` in the directory makes it TMS. A numeric level directory
   and no such file makes it XYZ. gdal2tiles writes TMS by default and XYZ under `--xyz`.
@@ -70,7 +67,7 @@ basemap for, and for a data-only globe where coastlines would read as meaning.
 
 ## 4. Put satellites around the Moon
 
-The two halves are the shape and the surface. Declare both:
+Declare the shape and the surface together:
 
 ```julia
 using CesiumLink
@@ -90,10 +87,9 @@ coordinates](coordinates.md) covers what `ecef` does with the declared ellipsoid
 
 ### The same globe, live
 
-The scene below is that Moon basemap over `Ellipsoids.MOON`. No Julia process is running: the page
-is the viewer with the same basemap, the same shape and the same credit in its own address, which is
-what `?imagery=`, `?ellipsoid=` and `?credit=` are for. Drag to turn it, and scroll to zoom in —
-deeper tiles arrive as you go, and the attribution stays in the corner of the globe.
+The scene below is that Moon basemap over `Ellipsoids.MOON`, with no Julia process behind it. The
+page carries the basemap, the shape and the credit in its own address: `?imagery=`, `?ellipsoid=`
+and `?credit=`. Drag to turn it and scroll to zoom in. Deeper tiles arrive as you go.
 
 ```@raw html
 <!-- The Moon tiles come from OpenPlanetary's CDN, which nothing here controls. A grey globe on this
@@ -108,23 +104,23 @@ deeper tiles arrive as you go, and the attribution stays in the corner of the gl
 The globe's own credit is plain text, so the link belongs here: the Moon basemap is
 [OpenPlanetary](https://www.openplanetary.org/), from LOLA/USGS data.
 
-`?imagery=` reads the layout off the URL, because there is no directory for a page to look inside: a
-`{z}` in it means an XYZ template, and anything else means a TMS pyramid. A server that declares a
-basemap wins, so these parameters build the globe only where no declaration does.
+`?imagery=` reads the layout off the URL: a `{z}` in it means an XYZ template, and anything else
+means a TMS pyramid. A server that declares a basemap wins, so these parameters build the globe only
+where no declaration does.
 
 ## 5. Light the globe and put a sky behind it
 
-Two more keywords decide what the globe looks like, and neither one touches the basemap:
+Two more keywords change what the globe looks like. Neither touches the basemap:
 
 ```julia
 start_server(; lighting = true, stars = true)
 ```
 
 `lighting` lights the globe from the sun at the clock's time, so a terminator runs across it and the
-night side goes dark. `stars` draws the sky around it: the star field, the sun and the moon, at that
-same time. Both are off by default. The [Satellites](../examples/satellites.md) example turns both on.
+night side goes dark. `stars` draws the star field, the sun and the moon around it, at that same
+time. Both are off by default. The [Satellites](../examples/satellites.md) example turns both on.
 
-Three conditions to know:
+Four conditions to know:
 
 - **Leave `lighting` off for a scene whose colours carry its data.** A shaded globe dims a value by
   where it sits rather than by what it says.
@@ -132,27 +128,31 @@ Three conditions to know:
   a synthetic epoch and the terminator lands somewhere arbitrary — see [`push_window`](@ref).
 - **A star field needs Earth.** The field is Cesium's own, and Cesium draws it on a WGS84 globe only.
   A session on another body gets black whatever `stars` says.
+- **Lighting needs Earth as well.** Cesium computes the sun's direction from Earth's position and
+  expresses it in Earth's rotating frame, whatever ellipsoid the session declares. On another body
+  the terminator is Earth's, in both where it falls and how fast it sweeps. Leave `lighting` off
+  there.
 
 ## Two things that bite
 
 **A template with no `max_level` keeps asking past the end of the pyramid.** The server probes the
-depth of a directory. It cannot probe a remote host, so zoom in far enough and the browser requests
-levels that are not there — one failed request per tile, and the globe stops sharpening without
-saying why. Give `max_level` for any URL-backed basemap.
+depth of a directory, and it cannot probe a remote host. So zoom in far enough and the browser
+requests levels that are not there: one failed request per tile, and the globe stops sharpening
+without saying why. Give `max_level` for any URL-backed basemap.
 
 **The credit is yours.** The viewer draws the `credit` string over the bottom right of the globe, as
-text and nothing else. It does not know what your tiles are, where they came from, or what their
+text and nothing else. It knows nothing about your tiles, where they came from, or what their
 licence asks of you. Nothing is drawn if you state nothing.
 
 ## When a basemap does not build
 
 A source that will not build gives the bundled Earth texture, one console message naming the URL,
-and no credit line — the scene is worth more than the texture under it. So a globe wearing
-Earth's coastlines under a Moon scene is a message in the browser console, not a mystery.
+and no credit line. So a globe wearing Earth's coastlines under a Moon scene is explained in the
+browser console.
 
 The fallback catches a source that fails to **build**. A TMS pyramid is fetched to be built, so a
-dead one falls back. A `{z}/{x}/{y}` template is not: it builds without asking for anything, and a
-dead host behind it gives blank tiles and one console error per tile.
+dead one falls back. A `{z}/{x}/{y}` template builds without asking for anything, so a dead host
+behind it gives blank tiles and one console error per tile.
 
 ## Next
 

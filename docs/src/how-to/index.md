@@ -1,8 +1,8 @@
 # How-to guides
 
 Each guide solves one problem and assumes you can already start a server and push a window. If you
-cannot yet, read the [tutorials](../tutorials/index.md) first. For the whole surface of a function,
-go to [Reference](../reference/index.md). For why the system is shaped this way, go to
+cannot, read the [tutorials](../tutorials/index.md) first. For the whole surface of a function, go to
+[Reference](../reference/index.md). For why the system is shaped this way, go to
 [Explanation](../explanation/index.md).
 
 ## Put something on the globe
@@ -20,7 +20,7 @@ go to [Reference](../reference/index.md). For why the system is shaped this way,
 - [Show a value on hover](tooltips.md) — a hover listener that writes the tooltip for the entity
   under the cursor.
 - [Put controls in the overlay](overlay-controls.md) — the caption, the colour bar, the checkbox, the
-  dropdown, and the box that holds several of them.
+  dropdown, and the box that holds several.
 - [Put a box on screen](floating.md) — a box anchored to the screen, to an entity, or to a point on
   the globe.
 

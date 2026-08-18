@@ -4,8 +4,8 @@ CurrentModule = CesiumLink
 
 # Furniture and regions
 
-**Furniture** is an item the Core puts on screen itself, before any module loads. It exists in a
-session that declares no modules at all. The server states the whole set in one declaration.
+**Furniture** is an item the Core puts on screen itself. It exists in a session that declares no
+modules at all. The server states the whole set in one declaration.
 
 An **overlay region** is a corner the Core positions and stacks widgets within. A region exists with
 no `ui` module loaded, so both entry points here are flat in `CesiumLink` rather than in

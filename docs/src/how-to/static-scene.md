@@ -17,7 +17,7 @@ steps, so any positive value does. Leave `start_time` alone: without it the view
 epoch, which nobody sees.
 
 The viewer holds the whole declared range, so it never asks for more. You need no `core/need`
-listener for a scene like this.
+listener.
 
 ## 2. Declare no time furniture
 
@@ -26,12 +26,11 @@ declare_furniture(server; timeline = false, animation = false, keyframe = false)
 ```
 
 That takes the whole band down: the ruler, the clock face and the keyframe readout. The corner
-buttons stay, and the region below them moves down to the bottom edge with no gap where the ruler
-was.
+buttons stay, and the region below them moves down to the bottom edge with no gap.
 
 **This is the only statement the scene makes about time.** The wire carries the furniture set, not
-the reason for it. A frame count says nothing on its own, because a scene of one keyframe that shows
-a real instant still wants its clock — and only you know which kind yours is.
+the reason for it. A scene of one keyframe that shows a real instant still wants its clock, so the
+frame count says nothing on its own.
 
 Both calls are retained, so a browser that connects later comes back to the same scene and the same
 furniture.
@@ -46,13 +45,12 @@ push_window(server, payload; start_frame = 1, count = 1, dt_seconds = 60, total_
 declare_furniture(server)
 ```
 
-The readout and the ruler then say something true. The ruler spans one keyframe and scrubs nowhere,
-which is correct rather than broken.
+The readout and the ruler then say something true. The ruler spans one keyframe and scrubs nowhere.
 
 ## Answer a control with another still scene
 
-A static scene takes controls like any other. Answer the event with a fresh one-keyframe `:replace`
-window, then declare the overlay again so the widget shows the value the scene is actually in:
+Answer the event with a fresh one-keyframe `:replace` window, then declare the overlay again so the
+widget shows the value the scene is in:
 
 ```julia
 on_event(server, "ui", "control") do ev, reply
@@ -69,7 +67,7 @@ A `:replace` pushed from inside a listener voids that listener's reply. So call
 
 ## Going back to a run
 
-Nothing is one-way. Push a window over the longer range and declare the band on again:
+Push a window over the longer range and declare the band on again:
 
 ```julia
 push_window(server, payload(1:24); start_frame = 1, count = 24, dt_seconds = 600, total_frames = 24)

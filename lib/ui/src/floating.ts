@@ -3,7 +3,7 @@
 // without and a client connecting later is replayed the set as it stands. Nothing about a float is
 // remembered on the server beyond the declaration itself.
 //
-// `ui` owns the box — placement, chrome, the close affordance, the lifetime. What goes inside it is
+// `ui` owns the box — placement, chrome, the close button, the lifetime. What goes inside it is
 // one of two kinds, and the isolation is what they differ in:
 //
 //   `html`   a server-authored fragment in its own shadow root, as a tooltip fragment is: its
@@ -129,11 +129,11 @@ export interface FloatDeps {
   screenOf(anchor: Anchor): { x: number; y: number } | null;
   /** The mount factory a module exports, or null when nothing loaded under that id exports one. */
   mountOf(module: string): MountFactory | null;
-  /** Report upward, as `ui` itself: the close affordance and a mounted module both travel this way. */
+  /** Report upward, as `ui` itself: the close button and a mounted module both travel this way. */
   notify(topic: string, payload: unknown): void;
 }
 
-// Takes the pointer, unlike the tooltip: a float carries a close affordance and may carry a module
+// Takes the pointer, unlike the tooltip: a float carries a close button and may carry a module
 // that is interacted with.
 const BOX = "position:absolute;z-index:6;pointer-events:auto;max-width:480px";
 
@@ -279,7 +279,7 @@ export function createFloats(deps: FloatDeps): Floats {
     keep(one);
   };
 
-  // The drag strip and the close affordance. Both are rebuilt whenever a declaration changes, which
+  // The drag strip and the close button. Both are rebuilt whenever a declaration changes, which
   // costs nothing — neither holds state between two of them.
   const handles = (id: string, one: Live, adjustable: boolean) => {
     one.strip?.remove();

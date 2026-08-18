@@ -4,15 +4,9 @@ CurrentModule = CesiumLink
 
 # Reference
 
-This section describes what CesiumLink offers, one page per part of the package. The Julia pages
-carry the docstring of every symbol the package documents. The two JavaScript pages are the
-normative contracts the browser side implements, and both sides of the wire are written against
-them.
-
-The page order follows the shape of the package. The server comes first, then what travels over its
-connection: windows, events and commands. The vocabulary pages after those are what a scene builds a
-payload out of, one page per vendored module. The last pages hold the support code a scene reaches
-for, and the wire codec beneath all of it.
+The reference covers one part of the package per page. The Julia pages carry the docstring of every
+symbol the package documents. The two JavaScript pages are the normative contracts the browser side
+implements, and both sides of the wire obey them.
 
 ## The package
 
