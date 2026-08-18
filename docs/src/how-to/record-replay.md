@@ -32,11 +32,16 @@ killed process.
 
 ## What the file holds
 
-JSON Lines. The first line is the header:
+JSON Lines. The first line is the header, printed here over several lines:
 
 ```json
-{"recording":2,"modules":[{"id":"primitives","path":"…/primitives.js","apiVersion":1}],
- "ellipsoid":{"a":1737400,"b":1737400},"lighting":true,"stars":true}
+{ "recording": 2,
+  "modules": [
+    { "id": "primitives", "path": "…/primitives.js", "apiVersion": 1 }
+  ],
+  "ellipsoid": { "a": 1737400, "b": 1737400 },
+  "lighting": true,
+  "stars": true }
 ```
 
 `ellipsoid`, `imagery`, `furniture`, `lighting` and `stars` are the scene the session
@@ -46,10 +51,24 @@ default. The player builds its globe and its furniture from them before the firs
 `furniture` is in the file twice: here, and as the retained `core/furniture` command under the
 header. The retained command stays the one source of the set.
 
-A basemap joins them only when its tiles travel with the file — an absolute URL, or `false`
-for a globe with no base layer. A directory this server mounts is declared as
-`assets/imagery/…`, which answers nothing once the server stops, so [`record!`](@ref) drops
-it and says so. Point the player at the copied tiles with `?imagery=`.
+The header carries `imagery` only when the tiles travel with the file. Two values do:
+
+- an absolute URL, which is reachable from any machine;
+- `false`, a globe with no base layer, which names no tiles.
+
+A basemap this server mounts is a relative URL under `assets/imagery/…`. It answers nothing
+once the server stops, so [`record!`](@ref) drops it from the header and warns. Copy the tiles
+beside the recording, then name them with `?imagery=`, which takes a URL relative to the player
+page:
+
+```
+player.html?rec=session.jsonl&assets=../assets/&imagery=../assets/imagery/moon/
+```
+
+`?assets=` cannot name a basemap. It resolves the `assets/<mount>/<file>` URIs a payload
+carries, and the dropped basemap leaves the header with no `imagery` field to resolve. The two
+parameters also take different folders: `?assets=` takes the folder the mounts sit in, and
+`?imagery=` takes the mount folder itself.
 
 Every line after it is one broadcast frame:
 
