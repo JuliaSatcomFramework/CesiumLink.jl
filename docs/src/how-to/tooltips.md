@@ -38,8 +38,10 @@ end
 [`on_pointer`](@ref) is the whole registration. The viewer forwards a hover only because a listener
 asked for one: the subscription is derived from the registered set.
 
-Hide the box yourself on a miss. Nothing else does it. An empty reply sends no command, so the box
-keeps its last content and goes on following the cursor.
+Note how the listener explicitly returns `html = nothing` when the hover picks no entity. Nothing
+else hides the box. The `ui` module hides it only when a `ui/tooltip` command arrives with null
+content, so a listener that replies with no command leaves the last content in place, and the box
+goes on following the cursor.
 
 ## What the event carries
 
