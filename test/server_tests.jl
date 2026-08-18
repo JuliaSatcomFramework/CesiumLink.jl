@@ -840,6 +840,7 @@ end
             try
                 second = start_server(; dist_dir = nothing, port = bound_port(held))
             catch e
+                @test e isa ArgumentError
                 @test occursin("could not listen on", sprint(showerror, e))
             end
             if second !== nothing
