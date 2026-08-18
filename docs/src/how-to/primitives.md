@@ -103,7 +103,9 @@ Two rules the browser imposes:
 - Pass the image itself. `marker_image` returns a `data:` URI, and the viewer runs under a policy
   that refuses an image fetched from a server. A refused image draws nothing at all.
 
-The per-entity colour multiplies the image, and the default white leaves it as you drew it.
+`color` tints the image: the browser scales each of the image's channels by yours. White, the
+default, leaves the image as you drew it, and a colour with a lower alpha fades it. Scaling only
+darkens a channel, so draw the glyph light and let `color` do the rest.
 
 ## Hide entities instead of dropping them
 
