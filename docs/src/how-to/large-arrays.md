@@ -71,8 +71,8 @@ A module knows the **base rank** of the form it expects: 1 for a value per entit
 So `3 × N` stands still through the window, and `3 × N × count` is interpolated across it. A colour
 is `4 × N`, or `4 × N × count`. A raster is `4 × W × H`, or `4 × W × H × count`.
 
-The leading axis must equal the window's `count`. A payload that claims seven keyframes inside a
-window of five throws in the browser.
+The **per-keyframe** axis must equal the window's `count`. A payload that claims seven keyframes
+inside a window of five throws in the browser.
 
 **This is the largest saving available.** An array that does not change across the window costs one
 keyframe instead of `count`. Send a fixed constellation's colours once.
