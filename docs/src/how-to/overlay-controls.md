@@ -24,31 +24,33 @@ declare_overlay(server, [
 
 The list is retained, so a browser that connects later comes back to the same overlay.
 
-## Offer a choice out of several
+## Dropdown selection
 
-[`Select`](@ref) is a dropdown. It takes the option list as `value => label` pairs, and the value the
+[`Select`](@ref) is a dropdown. It takes the options as `value => label` pairs, then the value the
 server declares:
 
 ```julia
 Select("cells", "Cells", "served", ["all" => "All", "served" => "Served", "idle" => "Idle"])
 ```
 
-The declared value must be one of the options. A declaration that rejects its own value is refused at
-the constructor.
+The constructor refuses a declared value that is not one of the options.
 
-An option's value travels as JSON. A `Symbol` option is recorded as a `String`, and the listener
-reports one of the options you declared:
+An option's value travels as JSON, so a `Symbol` option arrives as a `String`. The listener reports
+one of the options you declared:
 
 ```julia
 on_event(server, "ui", "control") do ev, reply
     ev.payload.id == "cells" || return nothing
-    filter[] = ev.payload.value      # "all", "served" or "idle"
-    declare!()
-    push_scene!()
+    # `filter`, `declare!` and `push_scene!` are your own code, not CesiumLink names.
+    filter[] = ev.payload.value  # your Ref, now holding "all", "served" or "idle"
+    declare!()                   # your helper: calls `declare_overlay` with the new value
+    push_scene!()                # your helper: calls `push_window` for the chosen filter
 end
 ```
 
-## Put related controls in one box
+[Tutorial 3](../tutorials/controls.md) defines both helpers in full.
+
+## Group controls in a box
 
 [`Group`](@ref) draws several controls inside one box:
 
@@ -75,8 +77,7 @@ A group does not nest.
 
 Every control takes `region`, one of `:top_left`, `:top_center`, `:top_right` and `:bottom_right`.
 Each region stacks its own controls in declaration order. `Title` sits at `:top_center`, `Legend` at
-`:top_left`, and every other control at `:bottom_right`, so a list you write without regions already
-lands in sensible places.
+`:top_left`, and every other control at `:bottom_right`.
 
 `style` is CSS merged over the widget's own rule, with `_` lowered to `-`:
 
