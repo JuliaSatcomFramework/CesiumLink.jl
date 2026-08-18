@@ -73,7 +73,7 @@ on_pointer(server; type = :click) do ev, reply
     declare_floating(server, values(pins))
 end
 
-# The close affordance sends `ui/close` with the float's id. The viewer removes nothing.
+# The close button sends `ui/close` with the float's id. The viewer removes nothing.
 # This listener drops the float from the set, then declares the set again.
 on_event(server, "ui", "close") do ev, reply
     delete!(pins, parse(Int, replace(ev.payload.id, "pin" => "")))
@@ -81,7 +81,7 @@ on_event(server, "ui", "close") do ev, reply
 end
 ```
 
-`closable` defaults to `true` and draws the close affordance. A click on it notifies the server and
+`closable` defaults to `true` and draws the close button. A click on it notifies the server and
 removes nothing locally. Without the `close` listener the box never goes away.
 
 ## Let the user move the box
