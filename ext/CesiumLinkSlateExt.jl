@@ -38,6 +38,10 @@ SlateConn(channel, emit, server) = SlateConn(channel, emit, server, Ref(0))
 # new module to the clients that are already connected, and the viewer then imports it from
 # `/ext-assets/CesiumLink-module-<id>/`. A module registered after the render has no route until
 # here. Only the drain task of this client calls `send_frame`, so the count needs no lock.
+#
+# Do not write to `bytes` after this call. `SlateBinary` holds a dense array by reference, so the
+# frame carries what the array holds when Slate encodes it. `pack` gives a new vector for each
+# frame, and a broadcast hands one vector to several clients and writes to none of them.
 function CesiumLink.send_frame(c::SlateConn, bytes::Vector{UInt8})
     n = length(c.server.modules)
     if c.provided[] != n
@@ -47,9 +51,11 @@ function CesiumLink.send_frame(c::SlateConn, bytes::Vector{UInt8})
     return c.emit(c.channel, SEB.SlateBinary(bytes))
 end
 
-# One client for each server, for the life of this process, with the cell that draws it.
-# `slate_render` runs several times for one cell run, and again for each browser that connects. All
-# that it does must therefore be safe to repeat, and this map makes it so.
+# One client for each server, for the life of this process, with the cell that draws it. The render
+# repeats: a cell can display one server more than one time, and a `showable` that Slate answers
+# outside a display shares nothing with the display that follows. All that the render does must
+# therefore be safe to repeat, and this map makes it so. The map also holds the cell that claimed
+# the server, which is what a render from a second cell refuses against.
 const CLIENTS = Dict{Server,Tuple{String,Client}}()
 const CLIENTS_LOCK = ReentrantLock()
 # Each channel gets a new number, and no number comes back. A count of the live connections can give

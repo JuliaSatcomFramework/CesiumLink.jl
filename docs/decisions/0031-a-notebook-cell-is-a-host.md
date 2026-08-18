@@ -39,13 +39,15 @@ script of that output runs again on the page, and the `ready` frame of the viewe
 that the first render registered. A reload thus catches up on the same path as a client that connects
 in mid-session.
 
-**One connection for each server, and the channel names the process.** `slate_render` runs more than
-one time for each cell run, because the `showable` of Slate answers by a call to the render and then
-drops the result. The host therefore finds the connection by `Server`, and builds it only when it is
-absent. The channel is `cesiumlink/<pid>/<n>`. The channel must contain the process id. A page mounts
-an output only when its bytes are different from the bytes that it holds, so a new worker must render
-a different channel. If not, the cell keeps a viewer that speaks to a process that stopped. The scene
-then stops, and no message says why.
+**One connection for each server, and the channel names the process.** `slate_render` repeats. Slate
+shares one render between the `showable` scan and the `show` of one display, and this host asks for
+SlateExtensionsBase 0.9.1 to get that. Two other paths still repeat it. A cell can display one
+server more than one time. A `showable` answered outside a display shares nothing with the display
+that follows. The host therefore finds the connection by `Server`, and builds it only when it is
+absent. The channel is `cesiumlink/<pid>/<n>`. The channel must contain the process id. A page
+mounts an output only when its bytes are different from the bytes that it holds, so a new worker
+must render a different channel. If not, the cell keeps a viewer that speaks to a process that
+stopped. The scene then stops, and no message says why.
 
 **A worker reset needs no hook.** The reset signal of Slate exists on both sides, but nothing sends
 it. A host that waited for it would wait forever. A new worker marks every cell stale, and the cell
