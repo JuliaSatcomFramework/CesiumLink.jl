@@ -4,8 +4,9 @@ Three things in this system are easy to confuse. Each lives in a different place
 lifetime.
 
 - A **module** is JavaScript. It renders. It runs in the browser.
-- A **payload vocabulary** is Julia types. The payloads a module reads are built from them, and they
-  live inside CesiumLink so that every caller can reach them.
+- A **payload vocabulary** is Julia types. The payloads a module reads are built from them. Each
+  vendored module's vocabulary lives inside CesiumLink, so that every caller can reach it. A module
+  you ship yourself carries its own.
 - A **glue package** is a Julia package. It turns a simulation's own types into the messages a
   module understands.
 
@@ -65,7 +66,7 @@ session declaration.
 tooltip are the vocabulary of `ui`. `Models` is the vocabulary of `models`. `Raster` and the colour
 grid are the vocabulary of `heatmap`.
 
-The vocabularies live inside CesiumLink rather than in a package of their own
+The vendored modules' vocabularies live inside CesiumLink rather than in a package of their own
 (ADR-0011). Roughly a thousand lines
 of the package are the vocabulary of the vendored modules, and a split was declined on two grounds.
 The consumer count was too low for the seam to be real. And a split would turn the module API
@@ -77,6 +78,10 @@ Each vendored module's vocabulary is a submodule — `CesiumLink.Primitives`, `C
 `CesiumLink.Heatmap` — and the file, the submodule and the wire id agree three ways
 (ADR-0012). A reader then sees what a
 500-line vocabulary file needs from the rest of the package before reading any of it.
+
+A module that ships from a package of your own carries its vocabulary in that package, beside the
+module and the entry that declares it. See
+[Ship a module from a Julia package](../tutorials/package-with-module.md).
 
 `models` is the one exception, forced by a language rule: a module and a type inside it cannot share
 a name, because a `module Models` holding a `struct Models` makes the module binding win in the
@@ -102,9 +107,13 @@ payloads a module reads. A package that draws its own constellation through the 
 `primitives` module is one, and a glue package that targets only vendored modules ships no
 JavaScript, no module folder and no build step.
 
-The vocabulary is `Nodes(...)`. The glue is the function that knows a constellation has satellites
-and turns them into that call. Every glue package must reach the vocabulary, which is why it is in
-CesiumLink; the glue knows one domain, which is why it is not.
+Take `Nodes(...)`. The call is the vocabulary, and the glue is the function that knows a
+constellation has satellites and turns them into that call. Every glue package that targets
+`primitives` makes the same call, so `Nodes` sits in CesiumLink. Each glue package knows one domain,
+so the glue stays in the package that owns that domain.
+
+A glue package that ships a module of its own holds that module's vocabulary too. What lives in
+CesiumLink is the vocabulary of the modules CesiumLink vendors.
 
 ## What may cross between two modules
 
@@ -124,10 +133,6 @@ The rule is: **one owner per entity; other modules get read-only accessors; writ
 module boundary.** A module may draw over what another draws, and may never restyle or mutate it: a
 viewer-side mutation has no author on the server, so the next window silently overwrites it, and the
 bug is invisible until a window arrives.
-
-The Core-owned registry that one module published positions into and another read is retired. It had
-one publisher and one reader, and neither remains: `primitives` draws the scene, and route
-highlighting is three edge families inside that same module's payload.
 
 ## Declared over the wire
 
@@ -150,31 +155,28 @@ The `apiVersion` gate survives, and it is checked **before** the import, so a mo
 a different contract never has its code run. A mismatch is warned about and skipped, and the rest of
 the declaration still loads.
 
-## Why declaration order stopped being binding
+## What declaration order decides
 
-Order used to decide reachability: a module could only reach one declared before it. That broke on a
-real case. One module both **feeds** `ui`, with a float mount or a `positionOf` an anchor names, and
-**extends** it with a widget kind, so it had to be declared both before and after `ui`. Two entries
-did not work either: `ui` applies its own retained declaration during its `setup`, so a widget kind
-registered by a later module arrived too late.
+**Order carries one meaning: draw order and overlay stacking.** That is an authorial choice about
+what is drawn over what. It says nothing about reachability, and every module reaches every other
+module the same declaration named, wherever each one sits in the list.
 
-The Core now loads a declaration in three passes: it imports every module concurrently, running no
-`setup`; then runs each `setup`, in declaration order; then replays the retained commands.
+The Core loads a declaration in three passes. It imports every module concurrently and runs no
+`setup`. It then runs each `setup`, in declaration order. It then replays the retained commands.
 
-**Order keeps one meaning: draw order and overlay stacking.** That is an authorial choice about what
-is drawn over what. A dependency declaration stays unbuilt, because removing the ordering constraint
-makes it unnecessary.
+So one entry in the list is enough for a module that both **feeds** `ui`, with a float mount or a
+`positionOf` an anchor names, and **extends** it with a widget kind. There is no dependency
+declaration, because nothing needs one.
 
-Three consequences were accepted.
+Three costs come with it.
 
 - **A module's `setup` must not call a peer's functions.** Every module's exports exist by then, but
   an accessor reading state the peer builds in its own `setup` answers `undefined`. The Core warns
   and names both modules, and still hands back the exports.
 - **The exports view is live**, so unloading a provider drops it out from under a consumer that kept
   the id. Nothing on the wire unloads a single module, so this is recorded rather than guarded.
-- **A hanging import delays every module's `setup`**, where a serial loader delayed only the modules
-  behind it. The same server serves the modules and sent the declaration, and the last-declared
-  module already carried that risk, so there is no timeout and no retry.
+- **A hanging import delays every module's `setup`.** The same server serves the modules and sent
+  the declaration, so there is no timeout and no retry.
 
 ## The one hard rule: one Cesium
 
