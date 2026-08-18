@@ -1,8 +1,8 @@
 # Show a scene in a VSCode tab
 
-Your Julia runs on a server and your editor is on your laptop. The CesiumLink extension runs beside
-the Julia process and relays every frame to a webview panel, so **a scene on a remote machine needs
-no forwarded port**. The panel shows the same viewer a browser gets.
+The CesiumLink extension runs beside the Julia process and relays every frame to a webview panel,
+so **a scene on a remote machine needs no forwarded port**. The panel shows the same viewer a
+browser gets.
 
 ## 1. Install the extension
 
@@ -11,10 +11,10 @@ Search the Extensions view for **CesiumLink**, or install
 the marketplace page. It needs VSCode 1.102 or later.
 
 Over Remote-SSH, install it **from the remote window**. VSCode installs the extension on the host
-that owns the workspace, which is the remote one only when the window is.
+that owns the workspace, and only a remote window owns a remote workspace.
 
-The extension ships no Cesium: it reads the built viewer tree the server records. **The extension
-host and the Julia process must share a filesystem.** A scene on a third machine reports the path it
+**The extension host and the Julia process must share a filesystem.** The extension ships no Cesium:
+it reads the built viewer tree the server records. A scene on a third machine reports the path it
 looked for and opens nothing.
 
 ### Building it from this repository instead
@@ -26,8 +26,8 @@ cd extension
 npx @vscode/vsce package
 ```
 
-Install the `.vsix` it writes with **Extensions: Install from VSIX…** from the command palette, run
-in the remote window over Remote-SSH.
+Install the `.vsix` it writes with **Extensions: Install from VSIX…** in the command palette. Over
+Remote-SSH, run that command in the remote window.
 
 **A rebuilt `.vsix` whose version did not change installs nothing, and says nothing.** Raise the
 version in `extension/package.json`, or install from the command line with `--force`.
@@ -41,26 +41,26 @@ server = start_server()
 register_module!(server, vendored(:primitives))
 ```
 
-Run **CesiumLink: Pick a Scene**. The rows are the scenes this user serves, and the panel opens on
-the one you pick. Every row, a lone scene's included, carries a **Stop this scene** button, which
-stops the server it names over the socket, exactly as `stop_server` does. It is the one action in
-this extension that reaches into your Julia process.
+Run **CesiumLink: Pick a Scene**. Each row is a scene this user serves, and the panel opens on the
+row you pick. Every row, a lone scene's included, carries a **Stop this scene** button. The button
+stops the server it names over the socket, exactly as `stop_server` does. It is the only action
+here that reaches into your Julia process.
 
 The last row, **Enter a host and port**, reaches a scene that writes no discovery file, such as a
-server you forwarded a port from. The extension still needs a viewer tree: it takes that from the
-`cesiumLink.distDir` setting, and asks for a path when the setting is empty. Set it once and manual
-entry costs one prompt instead of two.
+server you forwarded a port from. The extension still needs a viewer tree. It takes that from the
+`cesiumLink.distDir` setting, and asks for a path when the setting is empty. Set `distDir` once, and
+manual entry then costs one prompt instead of two.
 
 [`start_server`](@ref) names a scene after the directory it started in, so every row reads
-`CesiumLink` unless you say otherwise. The port and the start time beside the title tell two scenes
-apart. Pass `title` to name a scene yourself:
+`CesiumLink` by default. The port and the start time beside the title tell two scenes apart. Pass
+`title` to name a scene yourself:
 
 ```julia
 server = start_server(; title = "coverage, 12 GHz")
 ```
 
-The list comes from a file each server writes for itself — see [`discovery_dir`](@ref). A scene whose
-port no longer answers is skipped, so a crashed session leaves no row.
+The list comes from a file each server writes for itself — see [`discovery_dir`](@ref). The
+extension skips a scene whose port no longer answers, so a crashed session leaves no row.
 
 ## 3. Let a scene open its own tab
 
@@ -70,9 +70,8 @@ From a terminal **inside VSCode**, a scene opens its own tab and you run no comm
 server = start_server()
 ```
 
-The `open` keyword decides this. `:auto`, the default, asks from a VSCode terminal and does nothing
-anywhere else, so the same script under SSH, in CI or in the test suite opens nothing and prints
-nothing.
+The `open` keyword controls this. Under its default, the same script under SSH, in CI or in the
+test suite opens nothing and prints nothing.
 
 | `open` | What happens |
 |---|---|
@@ -89,21 +88,21 @@ tick *"do not ask again for this extension"* in that dialog. The server does not
 answer: the scene serves while the dialog stands. Pass `open = false` for a scene that must open
 nothing.
 
-A tab that fails to open never costs you the scene. A missing extension, a missing `code` program
-and a refused request each cost one `@debug` line.
+A failed tab never costs you the scene. A missing extension, a missing `code` program and a
+refused request each cost one `@debug` line.
 
 ## What the panel does, and does not, do
 
 **Close the tab and the server keeps serving.** The panel closes the socket and nothing else. The
 scene belongs to your REPL, and [`stop_server`](@ref) stops it.
 
-**Stop the server and the panel says so.** A red banner appears over the scene, which stays drawn and
-interactive. Its one action is to pick another scene: a restarted server binds a new port, so the
-address the panel held is dead.
+**Stop the server and the panel says so.** A red banner appears over the scene, which stays drawn
+and interactive. Its one action is to pick another scene: a restarted server binds a new port, so
+the address the panel held is dead.
 
-**The fullscreen button enters Zen Mode.** A webview cannot go fullscreen, so the button asks for the
-nearest thing the editor has: one editor group, no bars, and the window itself full screen. Click it
-again to leave. Two things follow:
+**The fullscreen button enters Zen Mode.** A webview cannot go fullscreen, so the button asks for
+the nearest state the editor has: one editor group, no bars, and the window itself full screen.
+Click it again to leave. Two effects follow:
 
 - an editor group beside the panel is maximized away on the way in, and comes back **evenly sized**
   on the way out. VSCode reports no group widths, so a split you sized by hand cannot be put back;
@@ -116,11 +115,11 @@ Every other item behaves as it does in a browser — see
 
 ## When nothing appears
 
-A webview that fails shows a black rectangle and says nothing. Open the **CesiumLink** output
-channel: it carries the socket lifecycle — dialled, open, closed with a reason — and every error the
-page reports.
+A webview that fails shows a black rectangle and no message. Open the **CesiumLink** output channel.
+It carries the socket lifecycle — dialled, open, closed with a reason — and every error the page
+reports.
 
-Two failures look identical from the outside, and the channel names both:
+Two failures look identical from outside, and the channel names both:
 
 - The recorded viewer tree holds no `vscode.js`. Build it with `npm run build` in `lib/`.
 - The recorded path does not exist on this machine, which is the third-machine case above.
