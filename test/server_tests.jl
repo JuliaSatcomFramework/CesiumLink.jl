@@ -825,18 +825,29 @@ end
     end
 end
 
-@testitem "an explicit port another server holds throws instead of returning a dead server" begin
+@testitem "an explicit port another server holds never gives back a dead server" begin
     held = start_server(; dist_dir = nothing)
     try
         if Sys.iswindows()
-            # Windows admits the second bind. A socket there takes a port another socket holds unless
-            # the first asked for exclusive use, so there is no error to report and no dead server:
-            # the second one binds, and a request reaches one of the two listeners.
-            second = start_server(; dist_dir = nothing, port = bound_port(held))
+            # Windows gives one of two answers here, and both are correct. A socket there can take
+            # a port another socket holds only if the first asked for reuse, and libuv asks for
+            # neither reuse nor exclusive use (`src/win/tcp.c`). The answer therefore belongs to
+            # the platform, and it has changed under this test before. Do not pin one of them.
+            # Take both: a bind that is refused says so, and a bind that is admitted gives a server
+            # on that port. The answer this test rejects is on neither path — a `Server` that bound
+            # nothing, answers nothing and reports nothing wrong.
+            second = nothing
             try
-                @test bound_port(second) == bound_port(held)
-            finally
-                stop_server(second)
+                second = start_server(; dist_dir = nothing, port = bound_port(held))
+            catch e
+                @test occursin("could not listen on", sprint(showerror, e))
+            end
+            if second !== nothing
+                try
+                    @test bound_port(second) == bound_port(held)
+                finally
+                    stop_server(second)
+                end
             end
         else
             # The failure mode this replaces: a `Server` that bound nothing, answers nothing and
