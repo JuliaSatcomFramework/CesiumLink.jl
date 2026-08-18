@@ -50,26 +50,37 @@ const mountBase: AssetBase = (name) => `${EXT_ASSETS}CesiumLink-mount-${name}/`;
 export async function mount(container: HTMLElement, channel: string): Promise<() => void> {
   loadImagery(`${DIST}cesium/`);
   const t = new SlateTransport(channel);
-  const { declaration } = await connectAndDeclare(t);
-  if (declaration === null) {
-    console.warn(`CesiumLink: the server declared no session within ${DECLARATION_TIMEOUT_MS} ms; ` +
-      `showing a WGS84 globe`);
+  let handle: Awaited<ReturnType<typeof createViewer>> | undefined;
+  // A build that fails leaves the caller with no call to make, so take the transport down here.
+  // Slate holds one stream handler for each channel, and a cell that runs again would otherwise
+  // add one more handler at each run.
+  try {
+    const { declaration } = await connectAndDeclare(t);
+    if (declaration === null) {
+      console.warn(`CesiumLink: the server declared no session within ${DECLARATION_TIMEOUT_MS} ms; ` +
+        `showing a WGS84 globe`);
+    }
+    handle = await createViewer(container, {
+      baseUrl: `${DIST}cesium/`,
+      ellipsoid: declaration?.ellipsoid,
+      imagery: declaration?.imagery,
+      lighting: declaration?.lighting,
+      stars: declaration?.stars,
+      furniture: declaration?.furniture,
+      importModule,
+      assetBase: mountBase,
+    });
+    handle.attachTransport(t, declaration);
+  } catch (e) {
+    handle?.destroy();
+    t.close();
+    throw e;
   }
-  const handle = await createViewer(container, {
-    baseUrl: `${DIST}cesium/`,
-    ellipsoid: declaration?.ellipsoid,
-    imagery: declaration?.imagery,
-    lighting: declaration?.lighting,
-    stars: declaration?.stars,
-    furniture: declaration?.furniture,
-    importModule,
-    assetBase: mountBase,
-  });
-  handle.attachTransport(t, declaration);
   // The Core destroys all that the Core built. The transport belongs to the host, so the host
   // closes it.
+  const built = handle;
   return () => {
-    handle.destroy();
+    built.destroy();
     t.close();
   };
 }

@@ -21,13 +21,31 @@ One viewer's end of a Slate channel: the notebook's emitter, and the channel tha
 The render captures the emitter of the notebook namespace while the cell renders. The emitter is not
 tied to a browser page, so a page that reloads gets the same emitter. It also works from any task.
 The server needs that, because it sends frames from the task that runs the scene.
+
+`server` and `provided` are for the module routes. `provided` is the number of modules whose routes
+this connection already gave to Slate.
 """
 struct SlateConn
     channel::String
     emit::Any
+    server::Server
+    provided::Ref{Int}
 end
 
-CesiumLink.send_frame(c::SlateConn, bytes::Vector{UInt8}) = c.emit(c.channel, SEB.SlateBinary(bytes))
+SlateConn(channel, emit, server) = SlateConn(channel, emit, server, Ref(0))
+
+# Serve the route of a module before the frame that declares it leaves. `register_module!` declares a
+# new module to the clients that are already connected, and the viewer then imports it from
+# `/ext-assets/CesiumLink-module-<id>/`. A module registered after the render has no route until
+# here. Only the drain task of this client calls `send_frame`, so the count needs no lock.
+function CesiumLink.send_frame(c::SlateConn, bytes::Vector{UInt8})
+    n = length(c.server.modules)
+    if c.provided[] != n
+        provide_mounts!(c.server)
+        c.provided[] = n
+    end
+    return c.emit(c.channel, SEB.SlateBinary(bytes))
+end
 
 # One client for each server, for the life of this process, with the cell that draws it.
 # `slate_render` runs several times for one cell run, and again for each browser that connects. All
@@ -52,8 +70,12 @@ const CHANNELS = Ref(0)
 # stopped. The scene then stops, and no message says why.
 client_for(server::Server, cell::String, emit) = lock(CLIENTS_LOCK) do
     get!(CLIENTS, server) do
-        client = Client(SlateConn("cesiumlink/$(getpid())/$(CHANNELS[] += 1)", emit))
-        @async drain_client!(server, client)
+        client = Client(SlateConn("cesiumlink/$(getpid())/$(CHANNELS[] += 1)", emit, server))
+        # The drain task returns when the queue closes, and also when a send fails. `drain_client!`
+        # takes the client out of the server on that second path, but it cannot reach this map.
+        # Forget the client here for both paths: a render that finds a client with a closed queue
+        # cannot answer `ready`, and the viewer then stays empty.
+        @async (drain_client!(server, client); forget!(server, client))
         lock(server.clients_lock) do
             push!(server.clients, client)
         end
@@ -120,14 +142,21 @@ function SEB.slate_render(server::Server)
     return SEB.component(Server; channel)
 end
 
-# Leave the client set. `drop_client!` removes the client and closes its queue, which stops the drain
-# task that started with the client.
-function release!(server::Server, client::Client, off)
-    drop_client!(server, client)
+# Forget the client that draws `server`, if the map still holds this one. The next render then builds
+# a new client on a new channel.
+function forget!(server::Server, client::Client)
     lock(CLIENTS_LOCK) do
         held = get(CLIENTS, server, nothing)
         held !== nothing && last(held) === client && delete!(CLIENTS, server)
     end
+    return nothing
+end
+
+# Leave the client set. `drop_client!` removes the client and closes its queue, which stops the drain
+# task that started with the client.
+function release!(server::Server, client::Client, off)
+    drop_client!(server, client)
+    forget!(server, client)
     try
         off("$(client.conn.channel)/up")
     catch

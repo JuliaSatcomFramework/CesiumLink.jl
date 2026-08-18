@@ -158,9 +158,11 @@ const VIEWER_MARK = "data-cesiumlink-viewer";
  * the first, for one frame at a time. Measured on ANGLE/Direct3D11 with two canvases of 913x520
  * pixels. `preserveDrawingBuffer` does not stop this, but a difference in size does.
  *
- * A fraction of a percent is sufficient, because the pool key is the buffer size in whole pixels,
- * and the canvas truncates that size. The cost is that a later viewer draws a fraction below the
- * resolution that it asks for, and a reader cannot see that difference.
+ * The step is one pixel of the shorter side of the canvas, because the pool key is the buffer size
+ * in whole pixels, and the canvas truncates that size. A step below one pixel can put two slots on
+ * one size. The cost is that a later viewer draws a few pixels below the resolution that it asks
+ * for, and a reader cannot see that difference. A canvas that becomes much smaller after the build
+ * keeps its scale, and two slots can then meet again on one size.
  *
  * Each viewer takes the lowest slot that no live viewer holds, and writes the slot on its own
  * canvas. This reads the slots from the page and does not count them, so a viewer that is destroyed
@@ -175,8 +177,10 @@ function separateDrawingBuffer(widget: CesiumWidget): void {
   let slot = 0;
   while (taken.has(String(slot))) slot++;
   widget.canvas.setAttribute(VIEWER_MARK, String(slot));
-  // Slot 0 keeps the resolution that it asks for, so a page with one viewer loses nothing.
-  if (slot > 0) widget.resolutionScale = 1 - 0.002 * slot;
+  if (slot === 0) return; // Slot 0 keeps the resolution it asks for, so one viewer alone pays nothing.
+  // A canvas with no layout yet reports 0. The side to fall back on is then 500 pixels.
+  const side = Math.min(widget.canvas.clientWidth, widget.canvas.clientHeight) || 500;
+  widget.resolutionScale = Math.max(0.5, 1 - slot / side);
 }
 
 /**
