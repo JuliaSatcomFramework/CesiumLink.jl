@@ -7,15 +7,25 @@ what it is given (ADR-0007).
 
 ## The argument that settled it
 
-The obvious alternative is a viewer that filters locally: ship a classification per entity, let the
-user tick a box, and hide what does not match. It needs a tag encoding, a rule for composing two
-filters, and a derived-visibility pass in the viewer.
+This package is for Julia users, and it assumes the computation is Julia's. It rests on two
+premises: the Julia side produces a frame faster than playback consumes it, and the socket delivers
+that frame faster still. Neither the computation nor the wire is the bottleneck. So the scene is
+decided where the data already is, and the viewer is left with one job.
 
-It fails on one case. Restricting a constellation to the satellites over a region makes cells
-genuinely **unserved**, because the traffic they carried had nowhere else to go. No visibility mask
-expresses that: the tooltip number, the cell colour and the legend total all change, and only the
-simulation produces those values. Once the server recomputes that answer, a local filter for the
-easy cases is a second implementation of a decision it cannot make correctly.
+A viewer that decides anything must first be sent what it decides with. That costs wire bandwidth
+and page memory, and much of it is never drawn: a page that filters holds everything the user could
+ask to see, and not what the user asked to see.
+
+One authority also keeps the contract small. There is no table of which decisions belong to which
+half, no viewer state to reconcile after a window is replaced, and one place to read when the scene
+shows something unexpected.
+
+The alternative is a viewer that filters locally: ship a classification per entity, let the user
+tick a box, and hide what does not match. It needs a tag encoding, a rule for composing two filters,
+and a derived-visibility pass in the viewer. It also fails outright on one case. Restricting a
+constellation to the satellites over a region makes cells **unserved**, because the traffic they
+carried had nowhere else to go. No visibility mask expresses that: the tooltip number, the cell
+colour and the legend total all change, and only the simulation produces those values.
 
 Draw calls also scale with what is **sent**, not with what is shown. A hidden polyline still
 occupies its vertex buffer, its draw command and its vertex transform, and only its fragments are
@@ -35,11 +45,20 @@ back, and that race is a full round trip wide (ADR-0013).
 
 ## The clock is not held for the answer
 
-Playback runs on through the round trip, and the scene changes when the replacement window installs
-and re-bases the clock on what it delivers. The superseded state stays on screen for the length of
-the trip, a few milliseconds on a local host. An earlier design froze the clock on a control event
-and resumed on arrival. Only a buffer that does not reach the current instant stops the clock now,
-and that hold lifts as soon as a window covers it.
+This is about the round trip that answers a control event, and about nothing else the user does to
+the clock. Playback runs on through that trip, and the scene changes when the replacement window
+installs and re-bases the clock on what it delivers. The superseded state stays on screen for the
+length of the trip, a few milliseconds on a local host. An earlier design froze the clock on a
+control event and resumed on arrival.
+
+The answer never writes `shouldAnimate`, which is the flag that says whether the user wants
+playback. So a control operated on a paused scene leaves it paused. Two other things do stop the
+clock, and neither of them is this round trip:
+
+- A **scrub** stops it, because the user moved the clock by hand. See
+  [Windows, keyframes and identity](windows.md).
+- A **buffer that does not reach the current instant** holds it. The hold lifts as soon as a window
+  covers that instant.
 
 ## The listener chain
 
@@ -52,8 +71,9 @@ for that pair, in registration order, over one shared reply.
 - **A listener that throws is isolated.** It loses its own contribution, the warning carries the
   backtrace, and the listeners behind it still run.
 - **The chain couples cheap and expensive listeners.** The batch is assembled after the whole chain
-  runs, so one slow listener delays every other contribution to that event. A hover listener must
-  not re-derive. The chain does not enforce that.
+  runs, so one slow listener delays every other contribution to that event. A hover fires on every
+  rendered pointer move, so a hover listener that computes something heavy delays the answer to each
+  move, and the tooltip falls behind the pointer. The chain enforces no budget.
 
 ## One event, one message
 
@@ -89,11 +109,12 @@ because a subscription entry can only name a set exactly.
 The globe raycast under the cursor is done only when some registered listener asked for the
 coordinate, so a session that never asks never pays for it.
 
-## Retained state, and what a reconnecting browser gets
+## Retained state, and what a reconnecting client gets
 
 The server holds three things and replays them to a client on `ready`: the module set, the latest
-command per `(module, topic)`, and the standing window. So a browser that reloads comes back to the
-same scene, with its overlay showing the values the scene was actually filtered with.
+command per `(module, topic)`, and the standing window. So a client that reconnects comes back to
+the same scene, with its overlay showing the values the scene was actually filtered with. A reloaded
+page and a reopened VSCode panel both take that path.
 
 Retention holds **one** message per `(module, topic)`, which is why every declaration states its
 whole set rather than a patch. A stream of partial patches would replay only its last frame, and the
