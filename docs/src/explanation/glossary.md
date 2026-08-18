@@ -5,11 +5,11 @@ source, the wire contracts, the documentation site and the decision records. An 
 a word that means something else here, or nothing at all.
 
 **Core**:
-The payload-opaque runtime the browser holds: WebSocket transport, message
-envelope, the clock and the window buffer, composition services (module loading,
-entity-ID namespacing, pick dispatch, overlay regions), a self-describing array
-codec, and static asset serving. It models no entities, interpolates nothing, and
-never reads inside a module's payload.
+The payload-opaque runtime the browser holds: the transport (each host picks a
+concrete one, and a browser page uses a WebSocket), message envelope, the clock and
+the window buffer, composition services (module loading, entity-ID namespacing, pick
+dispatch, overlay regions), a self-describing array codec, and static asset serving. It
+models no entities, interpolates nothing, and never reads inside a module's payload.
 _Avoid_: framework, engine, host (ambiguous).
 
 **Module**:
@@ -82,10 +82,12 @@ the file.
 _Avoid_: entity (that is one item of any family), mesh, asset.
 
 **Payload vocabulary**:
-The constructors and types a vendored module's payloads are built from — `Nodes`,
-`Edges` and `Areas` for `primitives`; `Models` for `models`; the controls, floats and
-the tooltip for `ui`. The vocabulary lives in CesiumLink so every glue package can
-reach it, one namespace per vendored module (`CesiumLink.Primitives`, `CesiumLink.UI`).
+The constructors and types a module's payloads are built from — `Nodes`, `Edges`
+and `Areas` for `primitives`; `Models` for `models`; the controls, floats and the
+tooltip for `ui`. A vendored module's vocabulary lives in CesiumLink so every glue
+package can reach it, one namespace per vendored module (`CesiumLink.Primitives`,
+`CesiumLink.UI`). A module that ships from another package carries its vocabulary
+there, beside the module.
 _Avoid_: glue (that is the caller), schema, DSL.
 
 **Heatmap module**:
