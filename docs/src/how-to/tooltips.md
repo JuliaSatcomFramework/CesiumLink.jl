@@ -79,22 +79,30 @@ tooltip!(reply; bare = true) do io
 end
 ```
 
-The HTML reaches the browser unsanitised. This is a trusted local viewer.
+!!! warning "The HTML is not sanitised"
+    Whatever a listener prints reaches the browser as markup and runs there. This is a trusted local
+    viewer, so nothing filters it. Escape any string you did not author yourself before you print it
+    into a tooltip.
 
 ## Keep the hover path fast
 
-The chain runs to completion before the batch is assembled, so a slow listener delays every other
-contribution to that event. Read a value the scene already holds. Do not re-derive one in a hover
-listener.
+The chain runs to completion before the server assembles the batch, so a slow listener delays every
+other contribution to the same event.
 
-If the tooltip still arrives late, raise the interval:
+If the tooltip arrives late, raise the interval:
 
 ```julia
 on_pointer(server; type = :hover, debounce_ms = 40) do ev, reply
 ```
 
-The smallest interval among the matching listeners wins. Hover is the only event an interval applies
-to.
+The interval belongs to the subscription, not to the listener. Listeners that share a type and a set
+of modifiers get one forwarded hover between them, at the smallest `debounce_ms` any of them asked
+for. A listener that asked for more is not skipped: it runs on every forwarded hover, at that shared
+rate. So raising one listener's interval changes nothing while another listener on the same interest
+asks for less. The default is 5 ms.
+
+The viewer forwards on the trailing edge of the interval, so a sweep across the globe costs one
+round trip rather than one per rendered move. Hover is the only event an interval applies to.
 
 A hover does not always follow a mouse move. A keyframe crossing under a resting cursor raises one at
 the same position, re-picked, so the tooltip follows the clock as well as the pointer.
