@@ -64,9 +64,9 @@ export interface SceneOptions {
 // it is. The texture is a flat NaturalEarthII image reprojected onto whatever ellipsoid the widget
 // is given, so nothing about it depends on that shape.
 //
-// Keyed by base URL, because a page may hold more than one viewer and two viewers may be served
-// from two different trees. Two viewers on one base URL do share the provider they get, which is
-// safe: `ImageryLayer` only reads a provider, and each viewer builds a layer of its own.
+// The map key is the base URL, because a page can hold more than one viewer, and two viewers can
+// read from two different trees. Two viewers on one base URL share the provider. That is safe:
+// `ImageryLayer` only reads a provider, and each viewer builds a layer of its own.
 const imagery = new Map<string, Promise<ImageryProvider>>();
 
 /**
@@ -145,26 +145,27 @@ function buildProvider(
 /** The colour of a globe with no base layer, which `imagery: false` asks for. */
 const BARE_GLOBE_COLOR = Color.DIMGRAY;
 
-/** Marks a canvas this module built with the size slot it holds, so no other viewer takes it. */
+/** The mark that this module puts on a canvas it builds. The value is the size slot that the viewer
+ * holds, so that no other viewer takes the same slot. */
 const VIEWER_MARK = "data-cesiumlink-viewer";
 
 /**
- * Keep this viewer's drawing buffer a different size from every other viewer's on the page.
+ * Give this viewer a drawing buffer of a size that no other viewer on the page uses.
  *
- * Chrome draws a WebGL canvas into a GPU buffer it takes from a pool keyed by the size of the
- * buffer. Two viewers of exactly the same size therefore draw from one bucket, and the compositor
- * hands one of them a buffer the other has just drawn into: the second viewer flashes the first
- * viewer's picture, live, for a frame at a time. Measured on ANGLE/Direct3D11, with two 913x520
- * canvases; `preserveDrawingBuffer` does not stop it and the size difference does.
+ * Chrome draws a WebGL canvas into a GPU buffer from a pool. The key of that pool is the size of the
+ * buffer. Two viewers of the same size thus draw from one bucket, and the compositor can give one
+ * viewer a buffer that the other viewer just drew into. The second viewer then shows the picture of
+ * the first, for one frame at a time. Measured on ANGLE/Direct3D11 with two canvases of 913x520
+ * pixels. `preserveDrawingBuffer` does not stop this, but a difference in size does.
  *
- * A fraction of a percent is enough, because the pool key is the buffer size in whole pixels, and
- * the canvas takes that size truncated. The cost is that a stacked viewer draws a fraction below
- * the resolution it asks for, which no reader can see.
+ * A fraction of a percent is sufficient, because the pool key is the buffer size in whole pixels,
+ * and the canvas truncates that size. The cost is that a later viewer draws a fraction below the
+ * resolution that it asks for, and a reader cannot see that difference.
  *
- * Each viewer takes the lowest slot no live viewer holds, and it writes that slot on its own canvas.
- * Reading the slots off the page rather than counting them is what makes a destroyed viewer give its
- * slot back — a notebook cell that re-runs must take the slot its own last viewer held, not the slot
- * of the viewer beside it.
+ * Each viewer takes the lowest slot that no live viewer holds, and writes the slot on its own
+ * canvas. This reads the slots from the page and does not count them, so a viewer that is destroyed
+ * gives its slot back. A notebook cell that runs again must take the slot of its own last viewer,
+ * and not the slot of the viewer beside it.
  */
 function separateDrawingBuffer(widget: CesiumWidget): void {
   const taken = new Set(
@@ -174,7 +175,7 @@ function separateDrawingBuffer(widget: CesiumWidget): void {
   let slot = 0;
   while (taken.has(String(slot))) slot++;
   widget.canvas.setAttribute(VIEWER_MARK, String(slot));
-  // Slot 0 keeps the resolution it asked for, so the one viewer a page usually holds pays nothing.
+  // Slot 0 keeps the resolution that it asks for, so a page with one viewer loses nothing.
   if (slot > 0) widget.resolutionScale = 1 - 0.002 * slot;
 }
 
