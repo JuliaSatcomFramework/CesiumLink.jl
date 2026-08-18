@@ -103,9 +103,38 @@ Two rules the browser imposes:
 - Pass the image itself. `marker_image` returns a `data:` URI, and the viewer runs under a policy
   that refuses an image fetched from a server. A refused image draws nothing at all.
 
-`color` tints the image: the browser scales each of the image's channels by yours. White, the
-default, leaves the image as you drew it, and a colour with a lower alpha fades it. Scaling only
-darkens a channel, so draw the glyph light and let `color` do the rest.
+`color` multiplies the image rather than replacing it. The browser scales each of the image's
+channels by yours, so a drawn pixel is `image × color`. This is Cesium's rule for
+[`Billboard.color`](https://cesium.com/learn/cesiumjs/ref-doc/Billboard.html#color), and two things
+follow from it.
+
+**Draw the glyph white, and `color` becomes its colour.** White is full intensity in every channel,
+so the result is the colour you passed. One white image serves a whole family of differently
+coloured markers this way. Alpha multiplies too, so a lower alpha fades the marker.
+
+**A glyph that already carries colour does not take yours.** Scaling only darkens. Cyan panels under
+a red `color` go almost black, because red keeps no blue and no green. Black stays black whatever
+you pass.
+
+```@raw html
+<figure style="margin:1.5rem 0;background:#0d1b2a;border-radius:8px;padding:1rem 0.5rem">
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.5rem;text-align:center;color:#9fb6b6;font:12px/1.6 sans-serif">
+<div><code style="background:none;color:#cfe3e3">default (white)</code></div>
+<div><code style="background:none;color:#cfe3e3">#ff4d4d</code></div>
+<div><code style="background:none;color:#cfe3e3">#ffd166</code></div>
+<div><svg viewBox="0 0 48 48" width="56" height="56" aria-hidden="true"><path d="M2 17h12v14H2z" fill="#ffffff"/><path d="M34 17h12v14H34z" fill="#ffffff"/><path d="M14 23h5v2h-5z" fill="#ffffff"/><path d="M29 23h5v2h-5z" fill="#ffffff"/><path d="M19 15h10v18H19z" fill="#ffffff"/></svg></div>
+<div><svg viewBox="0 0 48 48" width="56" height="56" aria-hidden="true"><path d="M2 17h12v14H2z" fill="#ff4d4d"/><path d="M34 17h12v14H34z" fill="#ff4d4d"/><path d="M14 23h5v2h-5z" fill="#ff4d4d"/><path d="M29 23h5v2h-5z" fill="#ff4d4d"/><path d="M19 15h10v18H19z" fill="#ff4d4d"/></svg></div>
+<div><svg viewBox="0 0 48 48" width="56" height="56" aria-hidden="true"><path d="M2 17h12v14H2z" fill="#ffd166"/><path d="M34 17h12v14H34z" fill="#ffd166"/><path d="M14 23h5v2h-5z" fill="#ffd166"/><path d="M29 23h5v2h-5z" fill="#ffd166"/><path d="M19 15h10v18H19z" fill="#ffd166"/></svg></div>
+<div style="grid-column:1/-1;color:#7f9797;padding-bottom:0.5rem">A glyph drawn in white</div>
+<div><svg viewBox="0 0 48 48" width="56" height="56" aria-hidden="true"><path d="M2 17h12v14H2z" fill="#35d0ff"/><path d="M34 17h12v14H34z" fill="#35d0ff"/><path d="M14 23h5v2h-5z" fill="#9aa5b1"/><path d="M29 23h5v2h-5z" fill="#9aa5b1"/><path d="M19 15h10v18H19z" fill="#ffffff"/></svg></div>
+<div><svg viewBox="0 0 48 48" width="56" height="56" aria-hidden="true"><path d="M2 17h12v14H2z" fill="#353e4d"/><path d="M34 17h12v14H34z" fill="#353e4d"/><path d="M14 23h5v2h-5z" fill="#9a3135"/><path d="M29 23h5v2h-5z" fill="#9a3135"/><path d="M19 15h10v18H19z" fill="#ff4d4d"/></svg></div>
+<div><svg viewBox="0 0 48 48" width="56" height="56" aria-hidden="true"><path d="M2 17h12v14H2z" fill="#35aa66"/><path d="M34 17h12v14H34z" fill="#35aa66"/><path d="M14 23h5v2h-5z" fill="#9a8746"/><path d="M29 23h5v2h-5z" fill="#9a8746"/><path d="M19 15h10v18H19z" fill="#ffd166"/></svg></div>
+<div style="grid-column:1/-1;color:#7f9797;padding-bottom:0.5rem">The same glyph drawn in colour</div>
+</div>
+</figure>
+```
+
+The default `color` is white, which scales nothing and leaves the image as you drew it.
 
 ## Hide entities instead of dropping them
 
@@ -117,9 +146,17 @@ Areas(:cell; center = cells, radius = 12_000, color = fill, show = served)
 ```
 
 A masked entity keeps its index, so an [`Edges`](@ref) pair or a float anchor that names it stays
-valid. It is not pickable while hidden, so no tooltip reports it. Masking also costs far less than a
-per-keyframe rebuild: `show` and `width` are written onto lines that stand, while `pairs`, `color`
-and `style` are what a line is built from.
+valid. It is not pickable while hidden, so no tooltip reports it.
+
+What a mask saves depends on the family:
+
+- [`Edges`](@ref) gains the most. The viewer writes `show` and `width` onto lines that stand, but a
+  keyframed `pairs`, `color` or `style` rebuilds the whole line collection at every crossing. Send
+  one fixed `pairs` and mask the idle links, rather than a different `pairs` each keyframe.
+- [`Areas`](@ref) is tessellated once and masked by a geometry attribute, so a mask costs nothing
+  per keyframe. Sending different footprints re-tessellates them instead.
+- [`Nodes`](@ref) writes `show` onto a billboard like any other attribute. A mask is cheap here, but
+  it saves no rebuild.
 
 ## Hang a line off points nobody sees
 
