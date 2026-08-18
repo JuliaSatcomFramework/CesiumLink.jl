@@ -25,11 +25,16 @@ declare_floating(server, [
 
 A float shows either `html` or a `mount`, never both and never neither:
 
-- `html` is a fragment mounted in its own shadow root. Its `<style>` reaches nothing else, and no
-  `<script>` in it runs.
-- `mount` names a module, which is handed a plain element and owns everything inside it. Reach for
-  this when a plotting library installs its own stylesheet in `document.head`, which gets nothing of
-  it across a shadow boundary.
+- `html` is a server-authored fragment in its own shadow root. Its `<style>` reaches nothing else,
+  and no `<script>` in it runs, so `html` carries static markup and nothing more.
+- `mount` names a module. The `ui` module hands it a plain element, and that module owns everything
+  inside it. Use a mount whenever the box needs code to run in it: a chart, a canvas, a widget that
+  answers the pointer, or content that redraws itself on a keyframe. A mounted module also reports
+  under the float's own id, so the Julia side cannot tell it from a built-in control.
+
+The mounted element is plain rather than shadowed, because a library that installs its stylesheet in
+`document.head` gets nothing of it across a shadow boundary. The
+[Satellites over a region](../examples/region-count.md) example mounts a chart this way.
 
 The set is retained, so a browser that connects later comes back to the same boxes. A float whose
 declaration is unchanged keeps the box it already has, so a move or a restyle does not tear down a
