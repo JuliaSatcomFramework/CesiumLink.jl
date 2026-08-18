@@ -6,11 +6,13 @@ scene is a window of one frame.
 
 ## The declared range and the delivered buffer
 
-Two ranges exist at once, and confusing them is the commonest way to misread the system. The
-**declared range** is the whole run: an epoch, a keyframe step, and a total count, stated up front
-by every window message. It is finite and known even when almost none of it is delivered, and the
-clock, the timeline ruler and scrubbing work against it. The **delivered buffer** is the subset of
-keyframes the viewer holds, and interpolation works against nothing else.
+Two ranges exist at once. Do not confuse them.
+
+- The **declared range** is the whole run: an epoch, a keyframe step, and a total count. Every
+  window message states it. The range is finite and known even when almost none of it is delivered,
+  and the clock, the timeline ruler and scrubbing work against it.
+- The **delivered buffer** is the subset of keyframes the viewer holds. Interpolation works against
+  nothing else.
 
 The separation lets a long run start immediately: a 240-keyframe mission declares 240 frames in its
 first window, delivers two, and the ruler already spans the right dates. A range derived from the
