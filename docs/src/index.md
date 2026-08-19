@@ -90,12 +90,14 @@ A new reader starts with [Your first scene](tutorials/first-scene.md).
 ## Requirements
 
 - Julia 1.10 or later.
-- Somewhere to draw the globe, which is either of:
-  - a browser with WebGL 2.0, or
+- Somewhere to draw the globe, which is one of:
+  - a browser with WebGL 2.0,
   - VSCode 1.102 or later with the
     [CesiumLink extension](https://marketplace.visualstudio.com/items?itemName=disberd.cesiumlink),
     which draws the scene in an editor tab — see
-    [Show a scene in a VSCode tab](how-to/vscode-tab.md).
+    [Show a scene in a VSCode tab](how-to/vscode-tab.md), or
+  - a [KaimonSlate](https://github.com/kahliburke/KaimonSlate.jl) notebook, which draws the scene in
+    the cell — see [Show a scene in a notebook cell](how-to/slate-cell.md).
 
-Neither one needs extra software or a build step. The server serves the viewer's own assets,
-and the extension reads the same tree off the disk.
+None of the three needs a build step of your own. The server serves the viewer's own assets. The
+extension and the notebook cell read the same tree off the disk.

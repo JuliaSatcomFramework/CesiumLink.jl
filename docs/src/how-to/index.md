@@ -52,6 +52,8 @@ cannot, read the [tutorials](../tutorials/index.md) first. For the whole surface
 
 - [Show a scene in a VSCode tab](vscode-tab.md) — a live scene in an editor panel, with no forwarded
   port.
+- [Show a scene in a notebook cell](slate-cell.md) — a live scene in a KaimonSlate cell, on the
+  socket the notebook page already holds.
 
 ## Look at what happened
 

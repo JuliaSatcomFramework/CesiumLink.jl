@@ -12,7 +12,7 @@ architecture decisions. The glossary is a page of the documentation site; the re
 | Path | What is in it |
 |---|---|
 | `src/`, `test/` | the Julia package |
-| `lib/` | the npm root: the Core, the three hosts, the four vendored modules, `build.mjs` |
+| `lib/` | the npm root: the Core, the four hosts, the four vendored modules, `build.mjs` |
 | `extension/` | the VSCode extension |
 | `examples/` | the example packages and scripts, which the documentation build runs |
 | `tools/` | the regression harness, the fixture generators and the check scripts |

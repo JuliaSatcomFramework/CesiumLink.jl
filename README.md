@@ -119,15 +119,15 @@ instead of to one module.
 - **A scene that your code decides.** A control on screen reports the input of the user and changes
   nothing locally. Your Julia code answers with the scene that follows, so the screen cannot disagree
   with the state that your code holds.
-- **Three places to put the scene.** A browser tab, a VSCode tab, or a recording. A static page
-  replays the recording with no Julia process anywhere.
+- **Four places to put the scene.** A browser tab, a VSCode tab, a KaimonSlate notebook cell, or a
+  recording. A static page replays the recording with no Julia process anywhere.
 
 ## Two languages, one repository
 
 | Path | What is in it |
 |---|---|
 | `src/`, `test/` | the Julia package |
-| `lib/` | the viewer: its core, the three hosts, the four vendored modules, and `build.mjs` |
+| `lib/` | the viewer: its core, the four hosts, the four vendored modules, and `build.mjs` |
 | `extension/` | the VSCode extension |
 | `examples/` | runnable examples, which the documentation build runs on every build |
 | `tools/` | the regression harness and the fixture generators |

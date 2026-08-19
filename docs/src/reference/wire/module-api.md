@@ -338,7 +338,7 @@ A scene may name folders of its own for the server to serve, and a payload then 
 one. `assets/<mount>/<file>` travels on the wire. `assetUrl` turns it into a URL this host can fetch:
 pass the result to `fetch`, to a Cesium loader, or to an `<img>`.
 
-**Always resolve; never concatenate.** The three hosts disagree about where a mount is: the server
+**Always resolve; never concatenate.** The four hosts disagree about where a mount is: the server
 serves a browser page itself, so the declared path already resolves; a webview page lives at an
 origin that holds no files, and every folder the extension grants it gets its own opaque URI; a
 recording player has no server at all. A module that builds the URL itself fails silently in the
