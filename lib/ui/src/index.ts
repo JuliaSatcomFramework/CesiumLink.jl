@@ -72,8 +72,6 @@ interface Built {
 /** What a window carries for the overlay: per addressed id, per field, one value per keyframe. */
 interface OverlayWindow {
   per_keyframe?: Record<string, Record<string, unknown> | undefined>;
-  /** The name `per_keyframe` replaced. Read only to report a window that still carries it. */
-  tracks?: unknown;
 }
 
 /**
@@ -155,8 +153,6 @@ export default {
     // absolute keyframe and where in it it sits; this says what the window carried.
     const held = ctx.perWindow<OverlayWindow>();
 
-    let warnedLegacy = false;
-
     const clear = () => {
       for (const row of live) row.dispose?.();
       live = [];
@@ -170,14 +166,6 @@ export default {
       const at = ctx.placement(index);
       const win = held.at(at)?.w;
       if (!at || !win) return;
-      // A window carrying `tracks` is a recording made when that was the name of `per_keyframe`.
-      // Nothing else reports it: an unknown key reads exactly like a window that keyframes nothing,
-      // so the content freezes in silence. Once is enough — `apply` runs on every crossing.
-      if (win.tracks != null && !warnedLegacy) {
-        warnedLegacy = true;
-        console.warn("ui: this window carries `tracks`, which is now `per_keyframe`; its " +
-                     "keyframed content is not applied");
-      }
       for (const [id, fields] of Object.entries(win.per_keyframe ?? {})) {
         // Looked up per id rather than once for the whole crossing: showing a value rebuilds a
         // widget, and rebuilding a group replaces the trackers of everything inside it.

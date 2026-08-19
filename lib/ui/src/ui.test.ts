@@ -398,24 +398,6 @@ test("the keyframes a window's per-keyframe values cover follow its mode", () =>
   assert.equal(v.controls[0].el.text(), "e", "and a keyframe it dropped keeps the last value shown");
 });
 
-test("a window carrying the name `per_keyframe` replaced is reported, not applied", () => {
-  const v = fakeViewer();
-  v.declare([READOUT]);
-  const warned: string[] = [];
-  const warn = console.warn;
-  console.warn = (m: string) => warned.push(m);
-  try {
-    v.deliver({ tracks: { load: { text: ["4.2 Gbps", "5.0 Gbps"] } } },
-              { startFrame: 0, count: 2 });
-    v.crossInto(1);
-  } finally {
-    console.warn = warn;
-  }
-  assert.equal(v.controls[0].el.text(), "—", "the declared value stands");
-  assert.equal(warned.length, 1, "reported once, not on every crossing");
-  assert.match(warned[0], /per_keyframe/);
-});
-
 test("a legend renders a colorbar from the declared stops and range", () => {
   const v = fakeViewer();
   v.declare([{ kind: "legend", region: "top-right", title: "Throughput [Gbps]", min: 0, max: 12,
