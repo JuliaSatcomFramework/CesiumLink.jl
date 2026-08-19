@@ -73,5 +73,7 @@ as a Julia artifact. In a clone of this repository, run `npm run build` in `lib/
 
 ## Next
 
+- [`examples/Constellation/notebook.jl`](https://github.com/JuliaSatcomFramework/CesiumLink.jl/blob/main/examples/Constellation/notebook.jl)
+  runs the Constellation example in one cell. It is this page as a notebook.
 - [`start_server`](@ref) and [`viewer_url`](@ref) for the whole surface.
 - [Show a scene in a VSCode tab](vscode-tab.md) for the same scene in an editor panel.

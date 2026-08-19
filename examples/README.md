@@ -49,6 +49,19 @@ julia examples/Satellites/run.jl
 
 A program has no session to give the server to, so it waits for Enter and then stops the server.
 
+## Run one in a notebook
+
+[`Constellation/notebook.jl`](Constellation/notebook.jl) draws the Constellation scene in a
+[KaimonSlate](https://github.com/kahliburke/KaimonSlate.jl) notebook. It is a notebook
+and not a program. Open it with Kaimon Slate.
+
+The file sits beside the `Project.toml` of the example. The worker of the notebook gets that
+environment, and no cell activates one.
+
+The cell gives the server back. A cell that gives back a server draws the scene on the socket the
+page already holds. So a notebook worker on a remote machine needs no forwarded port. See
+[Show a scene in a notebook cell](https://juliasatcomframework.github.io/CesiumLink.jl/dev/how-to/slate-cell/).
+
 ## `setup.jl`
 
 [`setup.jl`](setup.jl) is what makes both of those work: it activates the environment beside the
