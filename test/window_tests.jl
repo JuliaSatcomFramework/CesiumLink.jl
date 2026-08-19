@@ -54,12 +54,12 @@ end
 
     # Per widget id, per field, one value per keyframe the window covers: what the `ui` module
     # applies to the widget that declared the field keyframed, on each crossing.
-    tracks = Dict(:load => (; text = ["4.2 Gbps", "5.0 Gbps"], max = [12.0, 20.0],
-                             busy = [true, false]))
-    f = window_message(Dict(:ui => (; tracks));
+    per_keyframe = Dict(:load => (; text = ["4.2 Gbps", "5.0 Gbps"], max = [12.0, 20.0],
+                                   busy = [true, false]))
+    f = window_message(Dict(:ui => (; per_keyframe));
                        start_frame = 3, count = 2, dt_seconds = 60, total_frames = 240)
-    wire = JSON.parse(f.header)["params"]["payloads"]["ui"]["tracks"]["load"]
-    # A track of numbers or flags travels as a typed array, the same as any other payload array.
+    wire = JSON.parse(f.header)["params"]["payloads"]["ui"]["per_keyframe"]["load"]
+    # Numbers or flags travel as a typed array, the same as any other payload array.
     @test wire["max"]["\$wire"] == "f64"
     @test wire["busy"]["\$wire"] == "u8"
 

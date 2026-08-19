@@ -211,7 +211,8 @@ const GRIP = [
 
 /** Create the floating-object host over `deps.container`. Boxes appear as they are declared. */
 export function createFloats(deps: FloatDeps): Floats {
-  // In declared order, keyed by the id a declaration and a window's tracks both address.
+  // In declared order, keyed by the id a declaration and a window's `per_keyframe` entries both
+  // address.
   const live = new Map<string, Live>();
 
   const anchorOf = (a: unknown): Anchor | null => {

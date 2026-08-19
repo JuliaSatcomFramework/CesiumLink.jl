@@ -774,19 +774,20 @@ window may supply, and the window carries one value per keyframe for each, addre
 ```julia
 # A control of your own, whose payload is (; id = "load", text = "—", keyframed = ["text"]).
 declare_overlay(server, [Readout("load", "—", :top_left)])
-push_window(server, Dict(:ui => (; tracks = Dict("load" => (; text = ["4.2 Gbps", "5.0 Gbps"]))));
+readouts = Dict("load" => (; text = ["4.2 Gbps", "5.0 Gbps"]))
+push_window(server, Dict(:ui => (; per_keyframe = readouts));
             start_frame = 1, count = 2, dt_seconds = 60, total_frames = 240)
 ```
 
 No built-in control names a keyframed field, so declare a control of your own to opt in.
 `CesiumLink.AbstractControl` documents it.
 
-The declaration remains the only source of structure: a track supplies the fields it named and no
-others, and a keyframe a track says nothing about keeps the value it had. A track is for what a
-widget **displays**; a value the user also owns stays a re-declaration.
+The declaration remains the only source of structure: a `per_keyframe` entry supplies the fields it
+named and no others, and a keyframe an entry says nothing about keeps the value it had. An entry is
+for what a widget **displays**; a value the user also owns stays a re-declaration.
 
-A track rides a window, and windows are pushed ahead of the clock. So **a keyframed widget or float
-declared while a scene is already playing shows its declared value until a window carrying its track
+An entry rides a window, and windows are pushed ahead of the clock. So **a keyframed widget or float
+declared while a scene is already playing shows its declared value until a window carrying its entry
 arrives**. A scene that declares one in answer to an event pushes a window too, a `:replace` covering
 where the clock is, and the box reads the keyframe on screen as soon as it appears.
 `tools/tracks/serve.jl` pins a float from a click that way.

@@ -35,7 +35,7 @@
             @test w["mode"] == "replace"
             @test w["startFrame"] == 7
             @test w["count"] == 2
-            @test get(w["payloads"]["ui"]["tracks"], "sat-2", nothing) ==
+            @test get(w["payloads"]["ui"]["per_keyframe"], "sat-2", nothing) ==
                   Dict("html" => ["<b>Pinned sat 2</b><br>at keyframe 8",
                                   "<b>Pinned sat 2</b><br>at keyframe 9"])
         finally

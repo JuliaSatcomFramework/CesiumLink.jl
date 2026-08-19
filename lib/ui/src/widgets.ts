@@ -23,11 +23,12 @@ export type Report = (value: unknown) => void;
 
 /**
  * A declared item that named keyframed fields, and how to show a new value for one. The declaration
- * is the only source of structure: a track may supply the fields the declaration named and no
- * others. Widgets and floating objects share one id space, since one window's tracks address both.
+ * is the only source of structure: an entry may supply the fields the declaration named and no
+ * others. Widgets and floating objects share one id space, since one window's `per_keyframe`
+ * entries address both.
  */
 export interface Track {
-  /** The declared id a window's track addresses this item by. */
+  /** The declared id a window's `per_keyframe` entry addresses this item by. */
   id: string;
   fields: Set<string>;
   /** The declared spec, with the latest value each keyframed field took written into it. */
