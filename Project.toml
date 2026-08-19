@@ -32,12 +32,13 @@ Logging = "1"
 Sockets = "1"
 Test = "1"
 TestItemRunner = "1"
-julia = "1.10"
+julia = "1.12"
 
 [extras]
 Logging = "56ddb016-857b-54e1-b83d-db4d58db5568"
+SlateExtensionsBase = "bc31d39e-4442-48fa-b9ae-1bd99fed63f7"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 TestItemRunner = "f8b46487-2199-4994-9208-9a1283c18c0a"
 
 [targets]
-test = ["Test", "TestItemRunner", "Logging"]
+test = ["Test", "TestItemRunner", "Logging", "SlateExtensionsBase"]

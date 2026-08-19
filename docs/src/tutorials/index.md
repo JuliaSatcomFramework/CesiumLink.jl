@@ -7,7 +7,7 @@ where the one before it stopped. Together they take about an hour.
 
 You need:
 
-- Julia 1.10 or later.
+- Julia 1.12 or later.
 - CesiumLink installed in the project you start Julia in.
 - A browser on the same machine as Julia.
 

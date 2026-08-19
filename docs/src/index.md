@@ -89,7 +89,7 @@ A new reader starts with [Your first scene](tutorials/first-scene.md).
 
 ## Requirements
 
-- Julia 1.10 or later.
+- Julia 1.12 or later.
 - Somewhere to draw the globe, which is one of:
   - a browser with WebGL 2.0,
   - VSCode 1.102 or later with the

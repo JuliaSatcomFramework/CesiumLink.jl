@@ -122,3 +122,48 @@ end
 
     demand_field() = [0.4 * sind(3 * lon) + lat / 90 for lon in LONS, lat in LATS]
 end
+
+# `setup=[SlateCell]` brings `FakeSlate`, `render_in`, `asset_routes` and `fake_module` into scope:
+# a stand-in for the notebook that the Slate host draws in. Slate gives a cell its execution context
+# as a NamedTuple in task-local storage under `:slate_ctx`, and the cell id under `:slate_cell`.
+# SlateExtensionsBase calls that a convention and reads both keys with plain accessors, so a test
+# writes both keys itself. Everything under the render is then the real thing: the server, the
+# client, the drain task, `send_frame` and `handle_msg`.
+@testsnippet SlateCell begin
+    using CesiumLink
+    using SlateExtensionsBase: SlateExtensionsBase
+
+    # What the notebook would hold: the frames that went down, the handlers that the render put up,
+    # and the teardowns that it registered. `fail` makes the next send throw, which is what a page
+    # that goes away looks like from Julia.
+    struct FakeSlate
+        emitted::Vector{Tuple{String,Any}}
+        handlers::Dict{String,Any}
+        cleanups::Vector{Any}
+        fail::Ref{Bool}
+    end
+
+    FakeSlate() = FakeSlate(Tuple{String,Any}[], Dict{String,Any}(), Any[], Ref(false))
+
+    # Keep these five names. SlateExtensionsBase reads the context by field name, and a render that
+    # finds no `emit` gives back `nothing` rather than a viewer.
+    slate_ctx(f::FakeSlate) = (;
+        region = nothing, side = "", regions = Symbol[], notebook = "nb",
+        emit = (ch, v) -> (f.fail[] && error("the page is gone"); push!(f.emitted, (ch, v)); nothing),
+        on = (ch, h) -> (f.handlers[ch] = h; nothing),
+        off = ch -> (delete!(f.handlers, ch); nothing),
+        cleanup = h -> (push!(f.cleanups, h); nothing))
+
+    # Render `server` as the cell named `cell` renders it, and give back what that cell then holds.
+    function render_in(f::FakeSlate, server, cell::AbstractString)
+        task_local_storage(:slate_ctx, slate_ctx(f))
+        task_local_storage(:slate_cell, String(cell))
+        return SlateExtensionsBase.slate_render(server)
+    end
+
+    # The routes that the extension serves, keyed by name.
+    asset_routes() = getfield(SlateExtensionsBase, :_ASSETS)
+
+    # A file that stands in for a viewer module.
+    fake_module(name) = (p = joinpath(mktempdir(), name); write(p, "export default {}"); p)
+end
