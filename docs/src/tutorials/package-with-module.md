@@ -51,7 +51,7 @@ CesiumLink = "fe4ddbe3-63a4-4ce0-8a5b-46bb22807cc2"
 
 [compat]
 CesiumLink = "0.1"
-julia = "1.10"
+julia = "1.12"
 ```
 
 Give your package a UUID of its own: `using UUIDs; uuid4()`.

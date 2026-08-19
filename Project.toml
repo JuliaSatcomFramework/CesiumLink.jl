@@ -13,8 +13,15 @@ JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 LazyArtifacts = "4af54fe1-eca0-43a8-85a7-787d91b784e3"
 Sockets = "6462fe0b-24de-5631-8697-dd941f90decc"
 
+[weakdeps]
+SlateExtensionsBase = "bc31d39e-4442-48fa-b9ae-1bd99fed63f7"
+
+[extensions]
+CesiumLinkSlateExt = "SlateExtensionsBase"
+
 [compat]
 Base64 = "1"
+SlateExtensionsBase = "0.9.1"
 CodecZlib = "0.7"
 ColorTypes = "0.11, 0.12"
 Dates = "1"
@@ -25,12 +32,13 @@ Logging = "1"
 Sockets = "1"
 Test = "1"
 TestItemRunner = "1"
-julia = "1.10"
+julia = "1.12"
 
 [extras]
 Logging = "56ddb016-857b-54e1-b83d-db4d58db5568"
+SlateExtensionsBase = "bc31d39e-4442-48fa-b9ae-1bd99fed63f7"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 TestItemRunner = "f8b46487-2199-4994-9208-9a1283c18c0a"
 
 [targets]
-test = ["Test", "TestItemRunner", "Logging"]
+test = ["Test", "TestItemRunner", "Logging", "SlateExtensionsBase"]

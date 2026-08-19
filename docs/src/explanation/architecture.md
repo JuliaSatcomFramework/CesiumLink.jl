@@ -31,7 +31,8 @@ owns eleven things.
 - **The transport.** One notification per frame, in either direction, with the array bytes behind
   it. The Core depends on that interface alone, and each host picks the transport under it: the
   browser host opens a binary WebSocket at `/ws`, same-origin with the page; the VSCode extension
-  owns the socket and the panel reaches it over a message channel; a player reads a recording.
+  owns the socket and the panel reaches it over a message channel; a KaimonSlate cell borrows the
+  socket that the notebook page already holds; a player reads a recording.
 - **The envelope.** `{module, topic, payload}`. The Core routes on the first two fields alone.
 - **The clock.** One clock for the whole page, set from the declared range a window states. A module
   reads it and never drives it.

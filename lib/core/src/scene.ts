@@ -60,11 +60,14 @@ export interface SceneOptions {
   stars?: boolean;
 }
 
-// The one imagery fetch, kept so it can be started before the globe's shape is known and awaited
-// once it is. The texture is a flat NaturalEarthII image reprojected onto whatever ellipsoid the
-// widget is given, so nothing about it depends on that shape.
-// One page, one baseUrl — a second baseUrl would get the first one's fetch.
-let imagery: Promise<ImageryProvider> | null = null;
+// The imagery fetch, kept so it can be started before the globe's shape is known and awaited once
+// it is. The texture is a flat NaturalEarthII image reprojected onto whatever ellipsoid the widget
+// is given, so nothing about it depends on that shape.
+//
+// The map key is the base URL, because a page can hold more than one viewer, and two viewers can
+// read from two different trees. Two viewers on one base URL share the provider. That is safe:
+// `ImageryLayer` only reads a provider, and each viewer builds a layer of its own.
+const imagery = new Map<string, Promise<ImageryProvider>>();
 
 /**
  * Start (or join) the fetch of the offline imagery `createScene` draws the globe with. Calling this
@@ -72,9 +75,12 @@ let imagery: Promise<ImageryProvider> | null = null;
  */
 export function loadImagery(baseUrl: string): Promise<ImageryProvider> {
   const base = useBaseUrl(baseUrl);
-  return (imagery ??= TileMapServiceImageryProvider.fromUrl(
-    base + "/Assets/Textures/NaturalEarthII",
-  ));
+  let fetching = imagery.get(base);
+  if (fetching === undefined) {
+    fetching = TileMapServiceImageryProvider.fromUrl(base + "/Assets/Textures/NaturalEarthII");
+    imagery.set(base, fetching);
+  }
+  return fetching;
 }
 
 /**
@@ -139,6 +145,44 @@ function buildProvider(
 /** The colour of a globe with no base layer, which `imagery: false` asks for. */
 const BARE_GLOBE_COLOR = Color.DIMGRAY;
 
+/** The mark that this module puts on a canvas it builds. The value is the size slot that the viewer
+ * holds, so that no other viewer takes the same slot. */
+const VIEWER_MARK = "data-cesiumlink-viewer";
+
+/**
+ * Give this viewer a drawing buffer of a size that no other viewer on the page uses.
+ *
+ * Chrome draws a WebGL canvas into a GPU buffer from a pool. The key of that pool is the size of the
+ * buffer. Two viewers of the same size thus draw from one bucket, and the compositor can give one
+ * viewer a buffer that the other viewer just drew into. The second viewer then shows the picture of
+ * the first, for one frame at a time. Measured on ANGLE/Direct3D11 with two canvases of 913x520
+ * pixels. `preserveDrawingBuffer` does not stop this, but a difference in size does.
+ *
+ * The step is one pixel of the shorter side of the canvas, because the pool key is the buffer size
+ * in whole pixels, and the canvas truncates that size. A step below one pixel can put two slots on
+ * one size. The cost is that a later viewer draws a few pixels below the resolution that it asks
+ * for, and a reader cannot see that difference. A canvas that becomes much smaller after the build
+ * keeps its scale, and two slots can then meet again on one size.
+ *
+ * Each viewer takes the lowest slot that no live viewer holds, and writes the slot on its own
+ * canvas. This reads the slots from the page and does not count them, so a viewer that is destroyed
+ * gives its slot back. A notebook cell that runs again must take the slot of its own last viewer,
+ * and not the slot of the viewer beside it.
+ */
+function separateDrawingBuffer(widget: CesiumWidget): void {
+  const taken = new Set(
+    [...document.querySelectorAll(`canvas[${VIEWER_MARK}]`)]
+      .map((c) => c.getAttribute(VIEWER_MARK)),
+  );
+  let slot = 0;
+  while (taken.has(String(slot))) slot++;
+  widget.canvas.setAttribute(VIEWER_MARK, String(slot));
+  if (slot === 0) return; // Slot 0 keeps the resolution it asks for, so one viewer alone pays nothing.
+  // A canvas with no layout yet reports 0. The side to fall back on is then 500 pixels.
+  const side = Math.min(widget.canvas.clientWidth, widget.canvas.clientHeight) || 500;
+  widget.resolutionScale = Math.max(0.5, 1 - slot / side);
+}
+
 /**
  * A trimmed CesiumWidget on the declared imagery, or the offline NaturalEarthII texture: no ion
  * token, no skybox/atmosphere, ellipsoid terrain (the default). Fully offline, strict-CSP friendly.
@@ -175,6 +219,7 @@ export async function createScene(
     skyAtmosphere: false,
     creditContainer: credits,
   });
+  separateDrawingBuffer(widget);
   if (baseLayer === false) widget.scene.globe.baseColor = BARE_GLOBE_COLOR;
   // No haze over the globe, for the reason there is no skybox and no sky atmosphere: what the
   // basemap and the scene are coloured is what the reader must see. Cesium's ground atmosphere
