@@ -31,7 +31,7 @@ on:
 #
 # A pull request is one of those runs: `push_preview` in `docs/make.jl` puts its site at
 # `previews/PR<n>/`, which amends and force-pushes the same branch. So every run this workflow starts
-# shares the one group, and `DocPreviewCleanup.yml` joins it for the same reason.
+# shares the one group, and this workflow is the only thing that writes `gh-pages`.
 concurrency:
   group: docs
   cancel-in-progress: false
@@ -42,6 +42,8 @@ jobs:
     timeout-minutes: 60
     permissions:
       contents: write
+      # The prune step asks whether a pull request is still open.
+      pull-requests: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -86,3 +88,51 @@ jobs:
               -f message="Keep Jekyll off the published site" \
               -f branch=gh-pages -f content=""
           fi
+
+      # A preview belongs to an open pull request, and nothing else on `gh-pages` ever removes one:
+      # `deploydocs` keeps `previews` when it clears the branch, which is what lets a preview outlive
+      # the deploys that follow it. Each preview is a whole site carrying the built viewer and about
+      # 1.2 MB of recordings, so a directory per merged branch is the branch growing without limit.
+      #
+      # The prune runs here, in the job that deploys, and not in a workflow that a pull request
+      # closing starts. Two workflows that both force-push this branch race: a deploy that read the
+      # branch before the other one pushed puts back the preview that other one removed, minutes
+      # later. One writer cannot race itself. This also repairs itself, because every deploy prunes
+      # again, so a run that fails costs a delay rather than a preview that stays for good.
+      - name: Read the published branch
+        if: github.event_name != 'pull_request'
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: .gh-pages
+      - name: Remove the preview of every closed pull request
+        if: github.event_name != 'pull_request'
+        working-directory: .gh-pages
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          stale=""
+          for dir in previews/PR*; do
+            [ -d "$dir" ] || continue
+            number=${dir#previews/PR}
+            state=$(gh pr view "$number" --repo "$GITHUB_REPOSITORY" --json state --jq .state 2>/dev/null || true)
+            case "$state" in
+              # No answer names no state. Keep the preview: a preview that outstays its pull request
+              # costs disk, and one removed under a pull request still open costs a reviewer the page.
+              OPEN|"") echo "keeping $dir (state \"${state:-no answer}\")" ;;
+              *) stale="$stale $dir" ;;
+            esac
+          done
+          if [ -z "$stale" ]; then
+            echo "every preview belongs to an open pull request"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -rqf $stale
+          git commit -qm "Remove the preview of every closed pull request"
+          # One commit, as `deploydocs(; forcepush = true)` leaves it. Committing the tree on its own
+          # is what drops the removed sites from the history as well as from the branch — a removal
+          # that only added a commit would keep every byte of them in what a clone fetches.
+          git push -q --force origin $(git commit-tree HEAD^{tree} -m "Documentation"):gh-pages
+          echo "removed:$stale"
