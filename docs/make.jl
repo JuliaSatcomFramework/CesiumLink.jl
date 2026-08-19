@@ -475,8 +475,9 @@ makedocs(;
 #
 # `push_preview` puts a pull request's site at `previews/PR<n>/`, so a reviewer reads the page rather
 # than the Markdown that makes it. A deploy leaves those directories where they are — Documenter
-# skips `previews` when it clears the branch — and `DocPreviewCleanup.yml` removes one when its pull
-# request closes. A pull request from a fork gets no preview: it carries no token that may write.
+# skips `previews` when it clears the branch — and a step of `Docs.yml` removes the ones whose pull
+# request is closed, after this call writes the branch. A pull request from a fork gets no preview:
+# it carries no token that may write.
 DocumenterVitepress.deploydocs(;
     repo = "github.com/JuliaSatcomFramework/CesiumLink.jl",
     devbranch = "main",

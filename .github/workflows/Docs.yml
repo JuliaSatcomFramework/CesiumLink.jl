@@ -111,7 +111,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          stale=""
+          stale=()
           for dir in previews/PR*; do
             [ -d "$dir" ] || continue
             number=${dir#previews/PR}
@@ -120,19 +120,19 @@ jobs:
               # No answer names no state. Keep the preview: a preview that outstays its pull request
               # costs disk, and one removed under a pull request still open costs a reviewer the page.
               OPEN|"") echo "keeping $dir (state \"${state:-no answer}\")" ;;
-              *) stale="$stale $dir" ;;
+              *) stale+=("$dir") ;;
             esac
           done
-          if [ -z "$stale" ]; then
+          if [ ${#stale[@]} -eq 0 ]; then
             echo "every preview belongs to an open pull request"
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git rm -rqf $stale
+          git rm -rqf -- "${stale[@]}"
           git commit -qm "Remove the preview of every closed pull request"
           # One commit, as `deploydocs(; forcepush = true)` leaves it. Committing the tree on its own
           # is what drops the removed sites from the history as well as from the branch — a removal
           # that only added a commit would keep every byte of them in what a clone fetches.
           git push -q --force origin $(git commit-tree HEAD^{tree} -m "Documentation"):gh-pages
-          echo "removed:$stale"
+          echo "removed: ${stale[*]}"
