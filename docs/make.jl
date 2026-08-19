@@ -200,10 +200,14 @@ function listing_body(path)
            "\n… and $(length(lines) - DATA_HEAD_LINES) more lines"
 end
 
-# The manifest is resolved by the build and says nothing about the example, so it stays off the page.
+# Two files of an example stay off its page. The build resolves the manifest, and it says nothing
+# about the example. A notebook carries scaffolding that a listing of the example must not show, and
+# `docs/src/how-to/slate-cell.md` points at it instead.
+const OFF_THE_PAGE = ("Manifest.toml", "notebook.jl")
+
 function example_files(dir)
     files = sort([joinpath(root, f) for (root, _, names) in walkdir(dir) for f in names])
-    return filter(f -> basename(f) != "Manifest.toml" && !(".git" in splitpath(f)), files)
+    return filter(f -> !(basename(f) in OFF_THE_PAGE) && !(".git" in splitpath(f)), files)
 end
 
 # The scene each example builds, written out as the recording its page plays. A structural check
