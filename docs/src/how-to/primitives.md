@@ -1,8 +1,8 @@
 # Draw points, lines and areas
 
 The vendored `primitives` module draws three families: points, lines that join two families by index,
-and ground footprints. You build the families in Julia and send them as one payload. Register the
-module once, before the first client connects:
+and ground footprints. Build the families in Julia and send them as one payload. Register the module
+once, before the first client connects:
 
 ```julia
 register_module!(server, vendored(:primitives))
@@ -27,7 +27,7 @@ Two rules hold at the call:
 - An [`Edges`](@ref) family must find both endpoint families in the same payload. A name nothing
   carries is refused here, rather than drawn as an empty family in the browser.
 
-`position` is ECEF metres. If you hold degrees, convert them with [`ecef`](@ref) — see
+`position` is ECEF metres. To convert degrees, use [`ecef`](@ref) — see
 [Work in map coordinates](coordinates.md).
 
 ## Get the array shapes right
@@ -45,9 +45,8 @@ four components per entity, so its shapes carry one more axis:
 | the entity | `N` | `4 × N` |
 | the entity and the keyframe | `N × count` | `4 × N × count` |
 
-The arrays of one family must agree with each other on the keyframe count. A shape that is none of
-these forms raises at the constructor, and names the family and the knob. A shape mistake therefore
-never reaches the browser as a silent render bug.
+The arrays of one family must agree on the keyframe count. A shape that is none of these forms raises
+at the constructor, and names the family and the knob.
 
 ## Colour by value
 
@@ -62,17 +61,16 @@ State `range` yourself when the colours must stay comparable between windows. Le
 the finite values of this call only. A value that is `NaN` draws nothing, whatever `alpha` says.
 Pass `alpha` as one value per entity to dim the idle entities of a family.
 
-`rgba` accepts three colormap forms: a vector of colours, a vector of `fraction => colour` stops, and
-anything that answers `get(cmap, t)`. The third form is what makes a ColorSchemes.jl scheme work
-unchanged. Pass the same value to [`Legend`](@ref), and the colour bar cannot drift from what is on
-screen.
+`rgba` takes three colormap forms: a vector of colours, a vector of `fraction => colour` stops, and
+anything that answers `get(cmap, t)`. The third form makes a ColorSchemes.jl scheme work unchanged.
+Pass the same value to [`Legend`](@ref), and the colour bar cannot drift from what is on screen.
 
 !!! warning "An edge's colour is its batch key"
-    On [`Nodes`](@ref) and [`Areas`](@ref) a colour is a per-entity attribute, and a ramp over
-    thousands of entities costs one draw command. On [`Edges`](@ref) the colour lives in the line's
-    material, and the renderer emits one draw command per distinct `(style, colour, dash_length)`.
-    Colour edges by a handful of appearances — active and idle, served and unserved. A continuous
-    ramp over a thousand edges draws a correct picture through a thousand draw commands.
+    Colour an [`Edges`](@ref) family by a handful of appearances only: active and idle, served and
+    unserved. The colour lives in the line's material, and the renderer emits one draw command per
+    distinct `(style, colour, dash_length)`. A continuous ramp over a thousand edges draws a correct
+    picture through a thousand draw commands. On [`Nodes`](@ref) and [`Areas`](@ref) a colour is a
+    per-entity attribute, and a ramp over thousands of entities costs one draw command.
 
 ## Choose how a line is drawn
 
@@ -86,8 +84,8 @@ Edges(:isl; from = :sat, to = :sat, pairs = isl, style = :glow, width = 1.0)
 ```
 
 A style is per family or per edge, so one family draws the active links glowing and the idle ones
-solid. Keep the number of appearances small: the style joins the colour and the dash length in the
-batch key, so every distinct `(style, colour, dash_length)` is one more draw command.
+solid. The style joins the colour and the dash length in the batch key, so keep the number of
+appearances small.
 
 ## Draw with an image of your own
 
@@ -102,10 +100,41 @@ Two rules the browser imposes:
 
 - Give the image a square canvas. One `size` is the width and the height together, so a wide image is
   drawn squeezed.
-- Pass the image, not a link to one. `marker_image` returns a `data:` URI, and the viewer runs under a
-  policy that refuses an image fetched from a server. A refused image draws nothing at all.
+- Pass the image itself. `marker_image` returns a `data:` URI, and the viewer runs under a policy
+  that refuses an image fetched from a server. A refused image draws nothing at all.
 
-The per-entity colour multiplies the image, and the default white leaves it as you drew it.
+`color` multiplies the image rather than replacing it. The browser scales each of the image's
+channels by yours, so a drawn pixel is `image × color`. This is Cesium's rule for
+[`Billboard.color`](https://cesium.com/learn/cesiumjs/ref-doc/Billboard.html#color), and two things
+follow from it.
+
+**Draw the glyph white, and `color` becomes its colour.** White is full intensity in every channel,
+so the result is the colour you passed. One white image serves a whole family of differently
+coloured markers this way. Alpha multiplies too, so a lower alpha fades the marker.
+
+**A glyph that already carries colour does not take yours.** Scaling only darkens. Cyan panels under
+a red `color` go almost black, because red keeps no blue and no green. Black stays black whatever
+you pass.
+
+```@raw html
+<figure style="margin:1.5rem 0;background:#0d1b2a;border-radius:8px;padding:1rem 0.5rem">
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.5rem;text-align:center;color:#9fb6b6;font:12px/1.6 sans-serif">
+<div><code style="background:none;color:#cfe3e3">default (white)</code></div>
+<div><code style="background:none;color:#cfe3e3">#ff4d4d</code></div>
+<div><code style="background:none;color:#cfe3e3">#ffd166</code></div>
+<div><svg viewBox="0 0 48 48" width="56" height="56" aria-hidden="true"><path d="M2 17h12v14H2z" fill="#ffffff"/><path d="M34 17h12v14H34z" fill="#ffffff"/><path d="M14 23h5v2h-5z" fill="#ffffff"/><path d="M29 23h5v2h-5z" fill="#ffffff"/><path d="M19 15h10v18H19z" fill="#ffffff"/></svg></div>
+<div><svg viewBox="0 0 48 48" width="56" height="56" aria-hidden="true"><path d="M2 17h12v14H2z" fill="#ff4d4d"/><path d="M34 17h12v14H34z" fill="#ff4d4d"/><path d="M14 23h5v2h-5z" fill="#ff4d4d"/><path d="M29 23h5v2h-5z" fill="#ff4d4d"/><path d="M19 15h10v18H19z" fill="#ff4d4d"/></svg></div>
+<div><svg viewBox="0 0 48 48" width="56" height="56" aria-hidden="true"><path d="M2 17h12v14H2z" fill="#ffd166"/><path d="M34 17h12v14H34z" fill="#ffd166"/><path d="M14 23h5v2h-5z" fill="#ffd166"/><path d="M29 23h5v2h-5z" fill="#ffd166"/><path d="M19 15h10v18H19z" fill="#ffd166"/></svg></div>
+<div style="grid-column:1/-1;color:#7f9797;padding-bottom:0.5rem">A glyph drawn in white</div>
+<div><svg viewBox="0 0 48 48" width="56" height="56" aria-hidden="true"><path d="M2 17h12v14H2z" fill="#35d0ff"/><path d="M34 17h12v14H34z" fill="#35d0ff"/><path d="M14 23h5v2h-5z" fill="#9aa5b1"/><path d="M29 23h5v2h-5z" fill="#9aa5b1"/><path d="M19 15h10v18H19z" fill="#ffffff"/></svg></div>
+<div><svg viewBox="0 0 48 48" width="56" height="56" aria-hidden="true"><path d="M2 17h12v14H2z" fill="#353e4d"/><path d="M34 17h12v14H34z" fill="#353e4d"/><path d="M14 23h5v2h-5z" fill="#9a3135"/><path d="M29 23h5v2h-5z" fill="#9a3135"/><path d="M19 15h10v18H19z" fill="#ff4d4d"/></svg></div>
+<div><svg viewBox="0 0 48 48" width="56" height="56" aria-hidden="true"><path d="M2 17h12v14H2z" fill="#35aa66"/><path d="M34 17h12v14H34z" fill="#35aa66"/><path d="M14 23h5v2h-5z" fill="#9a8746"/><path d="M29 23h5v2h-5z" fill="#9a8746"/><path d="M19 15h10v18H19z" fill="#ffd166"/></svg></div>
+<div style="grid-column:1/-1;color:#7f9797;padding-bottom:0.5rem">The same glyph drawn in colour</div>
+</div>
+</figure>
+```
+
+The default `color` is white, which scales nothing and leaves the image as you drew it.
 
 ## Hide entities instead of dropping them
 
@@ -117,9 +146,17 @@ Areas(:cell; center = cells, radius = 12_000, color = fill, show = served)
 ```
 
 A masked entity keeps its index, so an [`Edges`](@ref) pair or a float anchor that names it stays
-valid. It is not pickable while hidden, so no tooltip reports it. Masking is also far cheaper than a
-per-keyframe rebuild: `show` and `width` are written onto lines that stand, while `pairs`, `color`
-and `style` are what a line is built from.
+valid. It is not pickable while hidden, so no tooltip reports it.
+
+What a mask saves depends on the family:
+
+- [`Edges`](@ref) gains the most. The viewer writes `show` and `width` onto lines that stand, but a
+  keyframed `pairs`, `color` or `style` rebuilds the whole line collection at every crossing. Send
+  one fixed `pairs` and mask the idle links, rather than a different `pairs` each keyframe.
+- [`Areas`](@ref) is tessellated once and masked by a geometry attribute, so a mask costs nothing
+  per keyframe. Sending different footprints re-tessellates them instead.
+- [`Nodes`](@ref) writes `show` onto a billboard like any other attribute. A mask is cheap here, but
+  it saves no rebuild.
 
 ## Hang a line off points nobody sees
 
@@ -134,8 +171,8 @@ Edges(:trail; from = :track, to = :track, pairs = segments, style = :glow, color
 
 `vertices` is `3 × (S · V) × count`, one moving point per satellite per vertex of its trail, and
 `segments` joins consecutive vertices of one satellite. This is how a trail along an orbit is drawn.
-The renderer blends a position between keyframes, so the whole trail slides with the satellite it
-hangs off, rather than jumping at each crossing.
+The renderer blends a position between keyframes, so the whole trail slides with the satellite rather
+than jumping at each crossing.
 
 Keep the vertex family's layout stable: entity `s + (j - 1) · S` is satellite `s` at vertex `j` in
 every keyframe, so `segments` is written once and stands for the whole window. The
@@ -152,8 +189,8 @@ Areas(:region; boundary = [country_ring, [lake_outer, lake_hole]],
 ```
 
 Pass one entry per region. An entry is a `2 × V` matrix of degrees, or a vector of such matrices.
-Where an entry holds several rings, put the **outer ring first**; every ring after it is a hole.
-Keep each ring open: the last vertex joins the first, so do not repeat it.
+Where an entry holds several rings, put the **outer ring first**; every ring after it is a hole. Keep
+each ring open: the last vertex joins the first, so do not repeat it.
 
 Two more rules apply:
 
@@ -171,8 +208,8 @@ outline and mask:
 Areas(:cell; color = rgba(CMAP, satisfaction), show = served)
 ```
 
-You do not have to write that second variant. Re-sending the same geometry costs nothing: the module
-digests what the footprints were built from. It re-tessellates only when that digest changes.
+Re-sending the same geometry costs nothing: the module digests what the footprints were built from,
+and re-tessellates only when that digest changes.
 
 ## Send a vector of position structs
 

@@ -31,7 +31,13 @@ async function start(): Promise<void> {
   // one, which makes an interactive globe over any published pyramid a URL and nothing else.
   const asked = sceneFromQuery(q);
   if (ws == null) {
-    publish(await createViewer(container, { baseUrl, ...asked }));
+    // No server means no window and no clock, so the three time items have nothing to say. They are
+    // left out for the same reason `cameraFollow` hides itself until a viewpoint arrives.
+    publish(await createViewer(container, {
+      baseUrl,
+      ...asked,
+      furniture: { items: { timeline: false, animation: false, keyframe: false } },
+    }));
     return;
   }
   const scheme = location.protocol === "https:" ? "wss" : "ws";

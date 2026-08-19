@@ -18,8 +18,8 @@ stop_server
 
 ## Finding a running server
 
-A server picks its own port, so nothing knows the number in advance. `viewer_url` is what to print
-for a person, and the discovery file is what a picker reads to list the scenes a user serves.
+A server picks its own port, so the number is not known in advance. Print `viewer_url` for a person.
+A picker reads the discovery file to list the scenes a user serves.
 
 ```@docs
 viewer_url
@@ -29,9 +29,9 @@ discovery_dir
 
 ## Modules
 
-The server declares the module set over the wire. It mounts each module's containing directory
-under `/modules/<id>/` and names the resulting URL in the declaration. Registration order is the
-order the viewer draws and stacks the modules in.
+The server declares the module set over the wire. It mounts each module folder under
+`/modules/<id>/` and names the resulting URL in the declaration. Registration order is the order the
+viewer draws and stacks the modules in.
 
 ```@docs
 ModuleEntry
@@ -48,9 +48,9 @@ viewer_dist
 
 ## The basemap
 
-`imagery` says what the globe is textured with. A directory of tiles is the reserved assets mount
-`imagery`, so it answers on `assets/imagery/` and reaches the page same-origin; anything else is
-declared as the URL it is.
+`imagery` says what the globe is textured with. A directory of tiles becomes the reserved assets
+mount `imagery`, which answers on `assets/imagery/` and reaches the page same-origin. Anything else
+is declared as the URL it is.
 
 ```@docs
 Imagery
@@ -63,11 +63,11 @@ mount has a name of one path element, and `/assets/<name>/<file>` is the path a 
 module asks the Core to resolve that path, because each host answers it its own way. `imagery` is
 reserved for the basemap's tiles, and an `assets` key of that name throws.
 
-`trusted_origins` names the origins the page may reach off-site. It widens both the image policy and
-the connection policy the VSCode webview runs under, because Cesium fetches a tile as bytes and
-makes an image of them. A basemap named as a URL adds its own origin.
+`trusted_origins` names the origins the page may reach off-site. It widens the image policy and the
+connection policy the VSCode webview runs under, because Cesium fetches a tile as bytes and makes an
+image of them. A basemap named as a URL adds its own origin.
 
-Both keywords are read once, at [`start_server`](@ref). See
+[`start_server`](@ref) reads both keywords once. See
 [Put your own model on a satellite](../how-to/models.md) for a mounted folder a payload points into.
 
 ## The session declaration
@@ -81,16 +81,16 @@ CesiumLink.modules_message
 ## How a client is written to
 
 Every client holds a bounded queue of frames and one task that drains it. A broadcast copies the
-client set, releases the server's lock and enqueues, so a client that stops reading fills its own
-queue and holds up nothing else — no other client, and no request the same lock guards. The drain
-task is what serialises one client's writes (ADR-0030).
+client set, releases the server's lock, then enqueues. A client that stops reading fills its own
+queue and holds up nothing else: no other client, and no request the same lock guards. The drain
+task serialises one client's writes (ADR-0030).
 
-A full queue drops the frame and counts it. The next frame that fits is preceded by a `core/dropped`
-command carrying the count, and a client that hears it asks for a `core/replay` — which is answered
-with the retained scene, the same frames a client connecting now is replayed.
+A full queue drops the frame and counts it. A `core/dropped` command carrying the count goes before
+the next frame that fits. The client answers with a `core/replay` event, and the server sends the
+retained scene — the same frames a client connecting now receives.
 
-`send_frame` is the one function that knows how a client of a given kind is written to. A host that
-reaches its page by some other route than a WebSocket adds a method for its own connection type.
+`send_frame` is the one function that knows how to write to a client of a given kind. A host that
+reaches its page by another route than a WebSocket adds a method for its own connection type.
 
 ```@docs
 CesiumLink.Client

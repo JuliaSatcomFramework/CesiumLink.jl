@@ -8,10 +8,10 @@ CurrentModule = CesiumLink
 points, lines, footprints, colours and sizes, and never a domain concept. `CesiumLink` re-exports
 the four names below, so `using CesiumLink` reaches them.
 
-One rule governs every appearance knob. An array whose trailing dimension is the window's keyframe
-count varies per keyframe. An array without that dimension is constant for the whole window. A
-scalar covers the whole family. Positions blend between keyframes; everything else switches at the
-crossing.
+The same rule governs every appearance knob. An array whose trailing dimension is the window's
+keyframe count varies per keyframe. An array without that dimension is constant for the whole
+window. A scalar covers the whole family. Positions blend between keyframes. Everything else
+switches at the crossing.
 
 ## Families
 

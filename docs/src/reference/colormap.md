@@ -5,7 +5,7 @@ CurrentModule = CesiumLink
 # Colours
 
 Julia decides every colour in the scene, so a colormap is an ordinary Julia value. CesiumLink
-neither registers nor names one. Three forms are understood:
+neither registers nor names one. It accepts three forms:
 
 - a vector of colours, spread evenly over `[0, 1]`;
 - a vector of `fraction => colour` stops, taken as written;

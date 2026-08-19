@@ -186,7 +186,7 @@ function serve_tracks(; port = 50006, dist_dir = joinpath(ROOT, "lib", "dist"))
 
     # Clicking an entity is answered in Julia, and the answer reaches the screen as a float anchored
     # to the entity clicked, which it then follows. Clicking the same one again lets it go, and so
-    # does its close affordance, through the `close` listener below. The subscription the viewer
+    # does its close button, through the `close` listener below. The subscription the viewer
     # forwards against is derived from this registration, so nothing about it is declared twice.
     #
     # No modifier is named, so every combination arrives and the reported set is whatever was held.
@@ -215,7 +215,7 @@ function serve_tracks(; port = 50006, dist_dir = joinpath(ROOT, "lib", "dist"))
         return nothing
     end
 
-    # The close affordance asks the server to let a float go; declaring the set without it is what
+    # The close button asks the server to let a float go; declaring the set without it is what
     # actually removes it, so dismissal is decided here rather than in the browser.
     on_event(server, "ui", "close") do ev, reply
         delete!(PINNED, ev.payload.id)

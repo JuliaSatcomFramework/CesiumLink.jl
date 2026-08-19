@@ -1,11 +1,11 @@
 # A control the server answers
 
 You add two checkboxes to the scene of [tutorial 2](moving-scene.md). Julia answers the first one and
-refuses the second one. By the end you have seen that a control decides nothing in the browser. It
-takes about twenty minutes.
+refuses the second one. A control decides nothing in the browser: the server does. It takes about
+twenty minutes.
 
-Close the Julia session from the previous tutorial first. It holds the port this one needs. Then
-start a fresh session.
+Close the Julia session from the previous tutorial: it holds the port this one needs. Then start a
+fresh session.
 
 ```julia
 using CesiumLink
@@ -13,7 +13,7 @@ using CesiumLink
 
 ## 1. Start the server and build the data
 
-This is the whole of tutorial 2, up to the point where it pushes the window.
+This is tutorial 2 up to the point where it pushes the window.
 
 ```julia
 server = start_server()
@@ -48,8 +48,7 @@ sat_family = Nodes(:sat; position = satellites, size = 10,
 show_sats = Ref(true)
 ```
 
-This one `Bool` is the whole state of the scene. Julia owns it, and nothing in the browser holds a
-copy of it.
+This one `Bool` is the whole state of the scene. Julia owns it, and the browser holds no copy.
 
 ## 3. Write the two functions that state the scene
 
@@ -71,9 +70,9 @@ function push_scene!()
 end
 ```
 
-[`Toggle`](@ref) takes an `id`, a label and the value the server declares. The widget shows that
+[`Toggle`](@ref) takes an `id`, a label and the value the server declares, and the widget shows that
 value. [`declare_overlay`](@ref) states the whole overlay every time, so both functions read
-`show_sats` and state the scene that goes with it.
+`show_sats`.
 
 ## 4. Answer the control
 
@@ -92,12 +91,12 @@ on_event(server, "ui", "control") do ev, reply
 end
 ```
 
-[`on_event`](@ref) registers a listener for one `(module, topic)` pair. The `ui` module reports a
-control on its `control` topic, and the payload carries the `id` you declared and the `value` the
-user chose. The listener is called as `f(ev, reply)`.
+[`on_event`](@ref) registers a listener for one `(module, topic)` pair, called as `f(ev, reply)`.
+The `ui` module reports a control on its `control` topic, and the payload carries the `id` you
+declared and the `value` the user chose.
 
-The `sats` branch changes the state, states the overlay again and pushes the scene that state
-implies. The other branch states the overlay again and nothing else, so `locked` returns to `false`.
+The `sats` branch changes the state, states the overlay again, and pushes the scene that state
+implies. The other branch only states the overlay again, so `locked` returns to `false`.
 
 ## 5. Declare and push the opening scene
 
@@ -114,9 +113,9 @@ viewer_url(server)
 
 ## What you see, and what to do
 
-The scene of tutorial 2 plays, with two checkboxes at the bottom right. It plays below as well: the
-player holds a recording of the script at the end of this page, and no Julia process is behind it.
-Read [Record and replay a session](../how-to/record-replay.md) for what a recording holds.
+The scene of tutorial 2 plays, with two checkboxes at the bottom right. The player below holds a
+recording of the script at the end of this page, with no Julia process behind it. Read
+[Record and replay a session](../how-to/record-replay.md) for what a recording holds.
 
 ```@raw html
 <iframe src="../viewer/player.html?rec=../recordings/controls.jsonl&modules=modules"
@@ -127,28 +126,26 @@ Read [Record and replay a session](../how-to/record-replay.md) for what a record
 ```
 
 **The recorded page answers no click.** A replay runs no listener, so the two boxes above report to
-nobody and return to the value the recording carries. The answer the server sends is the whole point
-of this tutorial, so run the script yourself. The three steps below describe your own run.
+nobody and return to the value the recording carries. Run the script yourself. The steps below
+describe your own run.
 
 **Clear the `Satellites` box.** Three things happen in order:
 
-1. The box shows `true` again at once. The browser reports your click and then shows the value the
+1. The box shows `true` again at once: the browser reports your click, then shows the value the
    server last declared.
 2. Julia prints `the viewer reported sats = false`.
 3. The satellites go, the caption becomes `Five cities`, and the box clears. That is the server's
-   answer arriving.
+   answer.
 
-The clock keeps running where it was. The run's keyframe count, step and epoch did not change, so the
-new window replaces the scene without touching the range the ruler spans.
+The clock keeps running where it was. The keyframe count, step and epoch did not change, so the new
+window replaces the scene without touching the range the ruler spans.
 
-**Tick the `Locked by the server` box.** Julia prints the report, and the box stays clear. Nothing
-else changes. The listener declares the overlay again with `false`, and the widget shows what the
-server declared.
+**Tick the `Locked by the server` box.** Julia prints the report and the box stays clear. The
+listener declares the overlay again with `false`, and the widget shows what the server declared.
 
 Now tick `Satellites` again to bring the satellites back.
 
-You have just seen the rule the whole design rests on. The browser reports the input, and the server
-decides what the scene becomes. Read
+The browser reports the input, and the server decides what the scene becomes. Read
 [Why the server decides](../explanation/server-authoritative.md) for what that buys.
 
 ## Stop the server

@@ -2,16 +2,15 @@
 
 In this tutorial you build a Julia package that carries a viewer module. The package holds the
 JavaScript, the payload the module reads, and the entry that declares it. A user of the package adds
-one `using`, registers the module and pushes a window. That user writes no JavaScript and needs no
-Node.js.
+one `using`, registers the module and pushes a window, with no JavaScript and no Node.js.
 
-The package is called `Poles`, and the module it ships is the one from
-[Write a viewer module](first-module.md). You will write five files, build the JavaScript once, and
-end with a script that draws four coloured poles over Europe out of the package's own vocabulary.
+The package is called `Poles`, and it ships the module from
+[Write a viewer module](first-module.md). You write five files, build the JavaScript once, and end
+with a script that draws four coloured poles out of the package's own vocabulary.
 
-A module ships from a package when its vocabulary names a domain concept — a site, a rain fade, a
-beam. A module that is told only a shape, a value or a colour is vendored inside the viewer instead,
-and [`vendored`](@ref) declares those.
+A module ships from a package when its vocabulary names a domain concept: a site, a rain fade, a
+beam. A module told only a shape, a value or a colour is vendored inside the viewer instead, and
+[`vendored`](@ref) declares those.
 
 ## The layout
 
@@ -32,14 +31,13 @@ Poles/
 Two rules decide that tree.
 
 - **The built file is in the tree.** Pkg installs the package as it stands, and a user has no way to
-  run your build. Commit `assets/poles.js`. The `js/` directory is where that file comes from, and
-  nothing reads it at run time.
+  run your build. Commit `assets/poles.js`. `js/` is where that file comes from, and nothing reads
+  it at run time.
 - **The package points at its own asset with `pkgdir`.** An installed copy of the package is the
   only tree the module is ever loaded from.
 
-CesiumLink's own [`viewer_dist`](@ref) is a special case: the viewer it serves is built from
-`lib/`, in the same repository, so the package builds that tree rather than committing it. A package
-that ships its own module commits the file inside `pkgdir`, which is what an installed copy carries.
+CesiumLink's own [`viewer_dist`](@ref) is a special case: it serves a viewer built from `lib/` in
+the same repository, so the package builds that tree rather than committing it.
 
 ## 1. `Project.toml`
 
@@ -56,12 +54,12 @@ CesiumLink = "0.1"
 julia = "1.10"
 ```
 
-Give your own package a UUID of its own: `using UUIDs; uuid4()`.
+Give your package a UUID of its own: `using UUIDs; uuid4()`.
 
 ## 2. The module source
 
-Write `js/src/index.js`. This is the file from [Write a viewer module](first-module.md), unchanged.
-Nothing about a module differs because a package ships it.
+Write `js/src/index.js`. This is the file from [Write a viewer module](first-module.md), unchanged:
+nothing about a module differs because a package ships it.
 
 ```js
 // One vertical pole per site, drawn from the payload the server addresses to this module.
@@ -126,11 +124,11 @@ export default {
 
 ## 3. The build step
 
-A build is not the entry price. The server mounts the module's whole directory, so a module split
-over several files imports them relatively and needs no bundler, and a library reached by URL needs
-none either — see [Write a module with no build step](../how-to/no-build-module.md). This package
-builds because it is the shape that keeps working once the module grows a TypeScript file or a
-dependency named by a bare specifier.
+A build is optional. The server mounts the module's whole directory, so a module split over several
+files imports them relatively and needs no bundler, and a library reached by URL needs none either.
+See [Write a module with no build step](../how-to/no-build-module.md). This package builds because
+that shape keeps working once the module grows a TypeScript file or a dependency named by a bare
+specifier.
 
 Write `js/package.json`:
 
@@ -173,23 +171,23 @@ npm run build
 ```
 
 `assets/poles.js` now exists, with `assets/poles.js.map` beside it. The server mounts the whole
-directory, so the browser finds the source map on its own.
+directory, so the browser finds the source map itself.
 
-This is how the vendored modules are built, with the same three settings that matter: one entry
-point, `bundle: true`, and `format: "esm"`. Two points about that build are worth stating once.
+The vendored modules are built the same way, with the same three settings that matter: one entry
+point, `bundle: true`, and `format: "esm"`.
 
 - **`@cesium/engine` needs no `external` entry.** A module never imports it for its values, and a
-  TypeScript module that imports it for its types leaves nothing behind after the build. So no copy
-  of Cesium reaches the bundle.
+  TypeScript module that imports it for its types leaves nothing behind after the build. No copy of
+  Cesium reaches the bundle.
 - **Today the bundle is a copy of one file.** It stops being one as soon as the source grows a
-  second file or an npm dependency, and nothing else in the package changes when it does.
+  second file or an npm dependency, and nothing else in the package changes.
 
 Add `js/node_modules` to the package's `.gitignore`, and keep `assets/poles.js` out of it.
 
 ## 4. The Julia side
 
-Write `src/Poles.jl`. It holds three things: the entry that declares the module, the vocabulary that
-builds its payload, and one helper for the topic the module listens on.
+Write `src/Poles.jl`. It holds the entry that declares the module, the vocabulary that builds its
+payload, and one helper for the topic the module listens on.
 
 ````julia
 """
@@ -283,14 +281,14 @@ highlight!(server, names) =
 end # module Poles
 ````
 
-The payload is four plain arrays, and CesiumLink encodes each of them on the way out. The three
-`Float64` vectors reach the module as `Float64Array`s. The vector of strings is not numeric, so it
-travels as a JSON list and reaches the module as a plain JavaScript array.
+The payload is four plain arrays, and CesiumLink encodes each on the way out. The three `Float64`
+vectors reach the module as `Float64Array`s. The vector of strings is not numeric, so it travels as
+a JSON list and arrives as a plain JavaScript array.
 
-This is the shape CesiumLink's own vocabularies take. [`Raster`](@ref) and
-[`heatmap_payload`](@ref) do it for the vendored `heatmap` module, and [`Nodes`](@ref) and
-[`primitives_payload`](@ref) for `primitives`: a checked constructor per thing, and one function
-that lowers a collection of them into the payload for one window.
+CesiumLink's own vocabularies take this shape: [`Raster`](@ref) and [`heatmap_payload`](@ref) for
+the vendored `heatmap` module, [`Nodes`](@ref) and [`primitives_payload`](@ref) for `primitives`.
+Each is a checked constructor per thing, and one function that lowers a collection of them into the
+payload for one window.
 
 ## 5. What a user writes
 
@@ -316,36 +314,33 @@ Poles.highlight!(server, ["London"])
 Open the URL `viewer_url(server)` gives. Four poles stand over Europe, and the London one is
 orange.
 
-The user's script names the module id twice: once through `poles_module()`, and once as the payload
-key `:poles`. That is the same call shape a scene uses for a vendored module, where
+The user's script names the module id twice: through `poles_module()` and as the payload key
+`:poles`. A scene uses the same shape for a vendored module, where
 `register_module!(server, vendored(:heatmap))` pairs with `Dict(:heatmap => …)`.
 
 ## What the package must keep stable
 
-Four things are the package's public surface for the viewer. Each one breaks a different thing when
-it moves.
+Four things are the package's public surface for the viewer.
 
 - **The module id, `poles`.** It is the URL segment the browser imports from, the key a window
-  addresses a payload to, and the name every command and event carries. Changing it breaks every
-  script that pushes a payload for it.
+  addresses a payload to, and the name every command and event carries. A change breaks every script
+  that pushes a payload for it.
 - **The topics: `highlight` downward, `picked` upward.** They are the routing keys between the Julia
-  side and the JavaScript side of your own package. Change the two together. A user may have
-  registered a listener on `picked`, so renaming that topic breaks the user's code as well.
+  side and the JavaScript side of your package. Change the two together. A user may register a
+  listener on `picked`, so renaming that topic breaks the user's code as well.
 - **The payload shape: `lon`, `lat`, `height` and `label`.** The Core never reads inside a payload,
-  so a field the JavaScript stops reading fails silently — nothing is drawn, and nothing is
-  reported. Keep the Julia constructor and the module in step, and let the constructor refuse what
-  the module cannot draw.
+  so a field the JavaScript stops reading fails silently: nothing is drawn and nothing is reported.
+  Keep the Julia constructor and the module in step, and let the constructor refuse what the module
+  cannot draw.
 - **The module API version.** Your JavaScript is written against one version of the module API.
   `ModuleEntry` declares the version this package implements, so leave the keyword out and let it
   travel with your `[compat]` bound on CesiumLink. A viewer that implements another version skips
-  your module and warns, instead of running it against a contract it does not meet. Write the
-  keyword yourself only to declare an older version on purpose.
+  your module and warns, rather than run it against a contract it does not meet.
 
 ## Where to go next
 
 - [The module API](../reference/wire/module-api.md) is the normative contract behind everything in
   `setup`.
-- [Modules, vocabularies and glue](../explanation/modules.md) explains which parts belong in a
-  package of yours and which belong in CesiumLink.
-- [Send large arrays](../how-to/large-arrays.md) covers what a payload costs once the arrays in it
-  grow.
+- [Modules, vocabularies and glue](../explanation/modules.md) explains which parts belong in your
+  package and which belong in CesiumLink.
+- [Send large arrays](../how-to/large-arrays.md) covers what a payload costs once its arrays grow.

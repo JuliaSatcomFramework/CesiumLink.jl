@@ -2,10 +2,14 @@
 
 A [`Models`](@ref CesiumLink.Models) family draws one glTF model per entity of a node family. It
 carries no position of its own: a model stands where its anchor stands, and a click on it reports
-that entity in the `primitives` namespace, as though no model were there.
+that entity in the `primitives` namespace.
 
-**Give a self-contained `.glb`.** A file that fetches its textures from another host needs that host
-in `trusted_origins`, or the textures never arrive.
+**The `.glb` itself must be same-origin.** `uri` is a path under an `assets` mount, and the
+constructor refuses anything else.
+
+**Prefer a self-contained `.glb`.** A file that fetches its textures from another host needs that
+host in `trusted_origins`, or a VSCode panel never gets them: its webview runs under a content
+security policy that the list widens. A browser page runs under none.
 
 **Do not expect a model to point the right way without `axes`.** Cesium takes a model's +X as
 forward, and most files disagree.
@@ -25,8 +29,9 @@ The server serves the folder under the last element of its path, so `/data/glb/s
 start_server(; assets = Dict("models" => "/data/glb", "textures" => "/data/png"))
 ```
 
-Mounts are fixed at `start_server`. A VSCode panel is given the folders it may read when the panel is
-created, so a mount added later needs a new panel — which drops the scene and the socket.
+Mounts are fixed at `start_server`, so serving another folder means starting a new server. The set is
+frozen because a VSCode panel is given the folders it may read when it is created, and cannot be
+given more later.
 
 ## 2. Declare both modules
 
@@ -35,8 +40,8 @@ register_module!(server, vendored(:primitives))
 register_module!(server, vendored(:models))
 ```
 
-Declare both, in either order. `of` names a family in the `primitives` payload, and the `models`
-module draws nothing on its own.
+Declare both, in either order. The `of` keyword of the `Models` constructor names a family in the
+`primitives` payload, so the `models` module draws nothing alone.
 
 ## 3. Declare the family
 
@@ -51,27 +56,32 @@ push_window(server, Dict(
             start_frame = 1, count = 240, dt_seconds = 60, total_frames = 240)
 ```
 
-`range` is `(near_m, far_m)`, the camera distance the family draws in. It has no default, because
-the distance beyond which a model is a smudge is yours to choose.
+`range` is `(near_m, far_m)`, the camera distance the family draws in. It has no default: you choose
+the distance beyond which a model is a smudge.
 
 ## 4. Turn it
 
-Three keywords turn a model, and they apply in this order:
+Three rotations turn a model, and each answers a different question:
 
-| keyword | what it does |
-|---|---|
-| `frame` | the reference frame, built from the position the anchor carries: `:ecef`, `:enu`, `:nadir` or `:velocity` |
-| `orientation` | the attitude inside that frame, as quaternions `(x, y, z, w)` |
-| `axes` | one fixed `(heading, pitch, roll)` in degrees, for the file's own convention |
+| keyword | what it answers | varies with |
+|---|---|---|
+| `frame` | which way is up, and which way is along-track, where the entity is now | the anchor's position |
+| `orientation` | where the entity points inside that frame | the entity, and the keyframe |
+| `axes` | which way the file was modelled | nothing: one value per family |
+
+They compose as `frame × orientation × axes`, so `axes` turns the model's own vertices first and
+`frame` turns the result last.
 
 Reach for `frame` first. A spacecraft that flies the way it points needs `frame = :velocity` and no
-attitude in Julia at all. One that holds an attitude a simulation computed needs `frame = :ecef` and
-a quaternion per entity. `:nadir` points +Z at the centre of the body, and `:enu` is east-north-up.
+attitude in Julia. One that holds an attitude a simulation computed needs `frame = :ecef` and a
+quaternion per entity. `:nadir` points +Z at the centre of the body, and `:enu` is east-north-up.
 
 `orientation` takes `4 × N` for an attitude that stands through the window, and `4 × N × count` for
 one that varies across it.
 
-`axes` is the file's own convention and nothing else. Set it once, by eye, and leave it.
+`axes` corrects the file, not the scene. Cesium takes a model's +X as forward and most files
+disagree, so `axes` states how this `.glb` was built and says nothing about where the entity points.
+It is one `(heading, pitch, roll)` for the whole family. Set it once, by eye, and leave it.
 
 ## What a model costs
 
@@ -88,12 +98,12 @@ cost at zero for the rest of the session.
 
 ## A model at mission range is smaller than a pixel
 
-A spacecraft a few metres across, seen from a camera twelve thousand kilometres up, covers nothing.
-So `scale` alone forces a choice between a model nobody can see and one the size of a country.
+A spacecraft a few metres across, seen from twelve thousand kilometres up, covers nothing. So `scale`
+alone forces a choice between a model nobody can see and one the size of a country.
 
-`minimum_pixel_size` removes the choice. The model keeps its true `scale`, and is drawn at least
-that many pixels wide however far away it is. It reads as an icon at mission zoom, and becomes
-true-scale as the camera flies in:
+`minimum_pixel_size` removes the choice. The model keeps its true `scale`, and is drawn at least that
+many pixels wide however far away it is. It reads as an icon at mission zoom, and becomes true-scale
+as the camera flies in:
 
 ```julia
 Models(:sat_body; of = :sat, uri = "assets/glb/sat.glb", range = (0, 2e6),
@@ -113,10 +123,10 @@ models_payload(
            frame = :nadir, orientation = q_dish))
 ```
 
-Compose the rotation in Julia. There is no parent concept here, because Cesium's `Entity.parent`
-carries `show` and `availability` and does not compose transforms: a dish declared as a child of the
-bus would not turn with it. So `q_dish` is the dish's attitude in the frame the family names, and
-not its attitude relative to the bus.
+Compose the rotation in Julia. There is no parent concept here: Cesium's `Entity.parent` carries
+`show` and `availability` but composes no transform, so a dish declared as a child of the bus would
+not turn with it. `q_dish` is the dish's attitude in the frame the family names, not its attitude
+relative to the bus.
 
 The two families may state different `range` values. A dish that reads as a smudge until the camera
 is close costs nothing until then.
@@ -124,7 +134,7 @@ is close costs nothing until then.
 ## A recording carries no assets
 
 A [recording](record-replay.md) holds the frames a session sent, and no file any of them named. So a
-replay draws the markers and no models, unless the player is told where the folders went:
+replay draws the markers and no models, unless you tell the player where the folders went:
 
 ```
 player.html?rec=session.jsonl&assets=../assets/

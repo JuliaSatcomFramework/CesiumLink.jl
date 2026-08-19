@@ -395,7 +395,7 @@ of them with [`declare_floating`](@ref).
   no `<script>` in it runs. **`mount`** names a module instead, which is handed a plain element and
   owns everything inside it — plain rather than shadowed, because a library that installs its
   stylesheet in `document.head` gets nothing of it across a shadow boundary. Exactly one of the two.
-- **`closable`** draws a close affordance. Clicking it notifies the server on the `ui` module's
+- **`closable`** draws a close button. Clicking it notifies the server on the `ui` module's
   `close` topic, carrying this `id`; **the float goes away when the server declares the set without
   it**, so a scene that wants dismissal registers that listener. Without this, every scene
   reimplements "click empty space to dismiss" in its own click listener.
@@ -447,7 +447,7 @@ struct Floating
             throw(ArgumentError("a float's only keyframed field is html (got $(join(bad, ", ")))"))
         mount === nothing || isempty(fields) ||
             throw(ArgumentError("a mounted float takes its per-keyframe data from the window " *
-                                "addressed to that module, so it keyframes no field here"))
+                                "addressed to that module, so it takes no keyframed field here"))
         return new(String(id), anchor, html === nothing ? nothing : String(html),
                    mount === nothing ? nothing : String(mount), Bool(closable), Bool(adjustable),
                    fields, overlay_style(style))
@@ -500,7 +500,8 @@ on_pointer(server; type = :click) do ev, reply
     declare_floating(server, values(pins))
 end
 
-# The close affordance asks; this is what makes the float leave.
+# The close button sends `ui/close` with the float's id. The viewer removes nothing.
+# This listener drops the float from the set, then declares the set again.
 on_event(server, "ui", "close") do ev, reply
     delete!(pins, parse(Int, replace(ev.payload.id, "pin" => "")))
     declare_floating(server, values(pins))

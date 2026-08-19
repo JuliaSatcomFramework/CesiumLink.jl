@@ -18,9 +18,9 @@ and changes nothing locally.
 ## The control interface
 
 A third-party control subtypes [`AbstractControl`](@ref) and implements two functions,
-`CesiumLink.kind` and `CesiumLink.payload`. `kind` names a widget kind that some module registered;
-`payload` is the fields that widget reads. The struct also carries a `region` field, and may carry a
-`style` field.
+`CesiumLink.kind` and `CesiumLink.payload`. `kind` names a widget kind that some module registered.
+`payload` gives the fields that widget reads. The struct also carries a `region` field, and may
+carry a `style` field.
 
 ```@docs
 AbstractControl
@@ -48,8 +48,8 @@ declare_floating
 
 ## Anchors
 
-A float names one of three anchors. A `Screen` point stays where it was put. An `Entity` and a
-`World` point are re-projected every frame, so the box rides what it names.
+A float names one of three anchors. A `Screen` point stays where it was put. The Core re-projects an
+`Entity` and a `World` point every frame, so the box rides what it names.
 
 ```@docs
 Screen
