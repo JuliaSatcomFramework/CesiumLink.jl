@@ -36,11 +36,18 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          for attempt in 1 2 3 4 5; do
+
+          # Read `gh-pages` as it is now. True when the preview is off it.
+          gone() {
             git fetch -q origin gh-pages
             git reset -q --hard FETCH_HEAD
             base=$(git rev-parse FETCH_HEAD)
-            if [ ! -d "$PREVIEW_DIR" ]; then
+            [ ! -d "$PREVIEW_DIR" ]
+          }
+
+          error=
+          for attempt in 1 2 3 4 5; do
+            if gone; then
               echo "no preview at $PREVIEW_DIR"
               exit 0
             fi
@@ -50,13 +57,30 @@ jobs:
             # own is what drops the removed site from the history as well as from the branch — a
             # removal that only added a commit would keep every byte of it in what a clone fetches.
             squashed=$(git commit-tree HEAD^{tree} -m "Documentation")
-            # A deploy that lands in the middle of this moves the branch, the lease then refuses the
-            # push, and the next turn starts again from the snapshot that deploy left. Without the
-            # lease the push would throw that deploy away.
-            if git push -q --force-with-lease=gh-pages:$base origin $squashed:gh-pages; then
-              exit 0
+            # The lease is what a deploy that lands in the middle of this runs into: it moves the
+            # branch, the push is refused, and the next turn starts again from the snapshot that
+            # deploy left. Without the lease the push would throw that deploy away.
+            if error=$(git push --force-with-lease=gh-pages:$base origin $squashed:gh-pages 2>&1); then
+              # A deploy keeps `previews`, so one that read the branch before this push puts the
+              # preview back. Do not stop on the push: read the branch again and remove it again.
+              continue
             fi
-            echo "gh-pages moved during attempt $attempt, reading it again"
+            case "$error" in
+              # The two ways the lease refuses, and the only refusals another turn can answer. Git
+              # says `stale info` when it holds the older snapshot itself, and the remote says
+              # `cannot lock ref` when it compares the snapshot this push names against its own.
+              *"stale info"*|*"cannot lock ref"*)
+                echo "gh-pages moved during attempt $attempt, reading it again" ;;
+              # The push failed for its own reason. Trying again cannot help, and five turns of it
+              # would bury the reason under a message about the branch moving.
+              *) echo "$error" >&2; exit 1 ;;
+            esac
           done
-          echo "gh-pages kept moving. The preview at $PREVIEW_DIR is still there." >&2
+
+          if gone; then
+            echo "no preview at $PREVIEW_DIR"
+            exit 0
+          fi
+          echo "The preview at $PREVIEW_DIR is still there after five turns." >&2
+          echo "$error" >&2
           exit 1
