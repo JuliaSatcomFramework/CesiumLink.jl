@@ -115,12 +115,12 @@ pin(kind, idx) =
     ui_payload(first, count)
 
 The `ui` payload for the same keyframes: one content fragment per keyframe for every float standing,
-addressed by the float's id. A window with nothing pinned carries an empty set of tracks.
+addressed by the float's id. A window with nothing pinned carries an empty set of entries.
 """
 ui_payload(first::Integer, count::Integer) =
-    (; tracks = Dict(id => (; html = [pin_html(f.anchor.kind, f.anchor.idx, k)
-                                      for k in first:(first + count - 1)])
-                     for (id, f) in PINNED))
+    (; per_keyframe = Dict(id => (; html = [pin_html(f.anchor.kind, f.anchor.idx, k)
+                                            for k in first:(first + count - 1)])
+                           for (id, f) in PINNED))
 
 # The whole floating set, as one declaration: one box per pinned entity.
 declare_floats(server) = declare_floating(server, collect(values(PINNED)))

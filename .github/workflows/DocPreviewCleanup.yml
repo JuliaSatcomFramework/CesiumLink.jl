@@ -11,11 +11,13 @@ on:
   pull_request:
     types: [closed]
 
-# The same group `Docs.yml` uses, and for the same reason: this force-pushes `gh-pages`, and a deploy
-# that overlapped it would lose one of the two snapshots. Queue rather than cancel — a cancelled run
-# may stop in the middle of the push.
+# One group for each pull request, so no run of this workflow ever waits on another. The group
+# `Docs.yml` uses looks right, because this force-pushes `gh-pages` as a deploy does. It loses
+# cleanups: GitHub holds one pending run for a group and cancels the run it displaces, so two pull
+# requests that close near each other leave a preview behind for good. The lease on the push below
+# is what keeps this apart from a deploy instead.
 concurrency:
-  group: docs
+  group: docs-cleanup-PR${{ github.event.number }}
   cancel-in-progress: false
 
 jobs:
@@ -32,16 +34,53 @@ jobs:
         env:
           PREVIEW_DIR: previews/PR${{ github.event.number }}
         run: |
-          if [ ! -d "$PREVIEW_DIR" ]; then
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Read `gh-pages` as it is now. True when the preview is off it.
+          gone() {
+            git fetch -q origin gh-pages
+            git reset -q --hard FETCH_HEAD
+            base=$(git rev-parse FETCH_HEAD)
+            [ ! -d "$PREVIEW_DIR" ]
+          }
+
+          error=
+          for attempt in 1 2 3 4 5; do
+            if gone; then
+              echo "no preview at $PREVIEW_DIR"
+              exit 0
+            fi
+            git rm -rqf "$PREVIEW_DIR"
+            git commit -qm "Remove the preview of pull request ${{ github.event.number }}"
+            # One commit, as `deploydocs(; forcepush = true)` leaves it. Committing the tree on its
+            # own is what drops the removed site from the history as well as from the branch — a
+            # removal that only added a commit would keep every byte of it in what a clone fetches.
+            squashed=$(git commit-tree HEAD^{tree} -m "Documentation")
+            # The lease is what a deploy that lands in the middle of this runs into: it moves the
+            # branch, the push is refused, and the next turn starts again from the snapshot that
+            # deploy left. Without the lease the push would throw that deploy away.
+            if error=$(git push --force-with-lease=gh-pages:$base origin $squashed:gh-pages 2>&1); then
+              # A deploy keeps `previews`, so one that read the branch before this push puts the
+              # preview back. Do not stop on the push: read the branch again and remove it again.
+              continue
+            fi
+            case "$error" in
+              # The two ways the lease refuses, and the only refusals another turn can answer. Git
+              # says `stale info` when it holds the older snapshot itself, and the remote says
+              # `cannot lock ref` when it compares the snapshot this push names against its own.
+              *"stale info"*|*"cannot lock ref"*)
+                echo "gh-pages moved during attempt $attempt, reading it again" ;;
+              # The push failed for its own reason. Trying again cannot help, and five turns of it
+              # would bury the reason under a message about the branch moving.
+              *) echo "$error" >&2; exit 1 ;;
+            esac
+          done
+
+          if gone; then
             echo "no preview at $PREVIEW_DIR"
             exit 0
           fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git rm -rqf "$PREVIEW_DIR"
-          git commit -qm "Remove the preview of pull request ${{ github.event.number }}"
-          # One commit, as `deploydocs(; forcepush = true)` leaves it. Committing the tree on its own
-          # is what drops the removed site from the history as well as from the branch — a removal
-          # that only added a commit would keep every byte of it in what a clone fetches.
-          git branch gh-pages-squashed $(git commit-tree HEAD^{tree} -m "Documentation")
-          git push -q --force origin gh-pages-squashed:gh-pages
+          echo "The preview at $PREVIEW_DIR is still there after five turns." >&2
+          echo "$error" >&2
+          exit 1

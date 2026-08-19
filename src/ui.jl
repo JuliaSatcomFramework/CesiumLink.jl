@@ -70,27 +70,28 @@ CesiumLink.kind(::Readout) = "title"
 CesiumLink.payload(c::Readout) = (; c.id, c.text, keyframed = ["text"])
 
 declare_overlay(server, [Readout("load", "—", :top_left)])
-push_window(server, Dict(:ui => (; tracks = Dict("load" => (; text = ["4.2 Gbps", "5.0 Gbps"]))),
-                         :tracks => scene_payload);
+readouts = Dict("load" => (; text = ["4.2 Gbps", "5.0 Gbps"]))
+push_window(server, Dict(:ui => (; per_keyframe = readouts), :tracks => scene_payload);
             start_frame = 1, count = 2, dt_seconds = 60, total_frames = 240)
 ```
 
-The declaration stays the whole structure: a track supplies the fields the declaration named and no
-others, a keyframe a track says nothing about keeps the value it had, and a track naming a control
-that is no longer declared is dropped. Keyframe the content a widget **displays** — a caption, a
-readout, a colorbar's range. A value the user also owns, such as a toggle's state or a select's
-choice, stays a re-declaration, where the precedence between an interaction and the timeline is
-decided rather than raced.
+The declaration stays the whole structure: a `per_keyframe` entry supplies the fields the
+declaration named and no others, a keyframe an entry says nothing about keeps the value it had, and
+an entry naming a control that is no longer declared is dropped. Keyframe the content a widget
+**displays** — a caption, a readout, a colorbar's range. A value the user also owns, such as a
+toggle's state or a select's choice, stays a re-declaration, where the precedence between an
+interaction and the timeline is decided rather than raced.
 
 ## Declaring one mid-playback
 
-A track rides a window, and windows are pushed ahead of the clock. **A keyframed widget or float
-declared while a scene is already playing shows its declared value until a window carrying its track
-arrives** — every window already buffered was built before it existed and addresses nothing to it, so
-the wait is as long as the buffer. A scene that declares one in answer to an event therefore pushes a
-window too, a `:replace` covering where the clock is, and the widget reads the keyframe on screen
-from the moment it appears. This is a property of keyframing, not of any one widget kind: it holds
-for a [`Floating`](@ref) pinned by a click exactly as it does for a control.
+A `per_keyframe` entry rides a window, and windows are pushed ahead of the clock. **A keyframed
+widget or float declared while a scene is already playing shows its declared value until a window
+carrying its entry arrives** — every window already buffered was built before it existed and
+addresses nothing to it, so the wait is as long as the buffer. A scene that declares one in answer
+to an event therefore pushes a window too, a `:replace` covering where the clock is, and the widget
+reads the keyframe on screen from the moment it appears. This is a property of keyframing, not of
+any one widget kind: it holds for a [`Floating`](@ref) pinned by a click exactly as it does for a
+control.
 """
 abstract type AbstractControl end
 
@@ -387,9 +388,10 @@ const Anchor = Union{Screen,Entity,World}
 A box of server-authored content at a point on screen rather than in a corner region. Declare a set
 of them with [`declare_floating`](@ref).
 
-- **`id`** is how a later declaration updates or removes this float, and how a window's tracks
-  address its keyframed fields. It is chosen here and is **not** the anchor: a float showing a plot
-  has no entity, and one anchored to an entity still needs an identity independent of it.
+- **`id`** is how a later declaration updates or removes this float, and how a window's
+  `per_keyframe` entries address its keyframed fields. It is chosen here and is **not** the anchor:
+  a float showing a plot has no entity, and one anchored to an entity still needs an identity
+  independent of it.
 - **`anchor`** is a [`Screen`](@ref), an [`Entity`](@ref) or a [`World`](@ref) point.
 - **`html`** is a fragment mounted in its own shadow root, so its `<style>` reaches nothing else and
   no `<script>` in it runs. **`mount`** names a module instead, which is handed a plain element and
@@ -423,7 +425,7 @@ declare_floating(server, [
 
 **A large fragment is a size decision.** An SVG plot is easily 20–50 KB, and keyframed across a
 window's frames that is material against a window otherwise measured in hundreds of KB — unlike a
-tooltip's kilobyte. The track carries only the frames the window covers, so how finely the content
+tooltip's kilobyte. The entry carries only the frames the window covers, so how finely the content
 changes is the scene author's choice.
 """
 struct Floating
