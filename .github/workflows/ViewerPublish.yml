@@ -13,8 +13,10 @@ on:
     branches: [main]
     paths: ["Artifacts.toml"]
 
+# Queue, never cancel: a run stopped between creating the tag and uploading the asset leaves a
+# release with nothing in it. The group is this workflow's alone, so no other one can cancel it.
 concurrency:
-  group: viewer-release
+  group: viewer-publish
   cancel-in-progress: false
 
 jobs:

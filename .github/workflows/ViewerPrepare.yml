@@ -19,10 +19,13 @@ on:
   # For a rebuild that no `lib/` change triggers — a dependency bump, or a run that failed halfway.
   workflow_dispatch:
 
-# One run at a time: two runs pushing the same branch would race, and the older one builds the older
-# `main`. Cancel rather than queue, because the newer run supersedes what the older one would push.
+# One prepare at a time: two runs pushing the same branch would race, and the older one builds the
+# older `main`. Cancel rather than queue, because the newer run supersedes what the older would push.
+#
+# A group of its own. A group is one name across the whole repository, so sharing one with
+# `ViewerPublish.yml` would let a push to `lib/` cancel a release that is halfway made.
 concurrency:
-  group: viewer-release
+  group: viewer-prepare
   cancel-in-progress: true
 
 jobs:
