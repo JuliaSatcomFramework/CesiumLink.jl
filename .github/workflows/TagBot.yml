@@ -1,0 +1,65 @@
+name: TagBot
+
+# Tag a version that is already registered, and make a release for it. A version of this package is
+# registered in a registry, and nothing in this repository learns that on its own. TagBot reads the
+# registry, finds every registered version this repository holds no tag for, and makes the tag and
+# the release.
+#
+# It runs once a day, so a registration is picked up without anyone remembering to start it. Start it
+# by hand from the Actions tab to pick one up at once.
+#
+# `registry` names the registry of this organisation. Drop that line to read the General registry
+# instead: TagBot reads one registry and takes General when no line names another. General is public,
+# as this one is, so the token needs nothing more. A package on General also gets a comment from
+# `JuliaTagBot` the moment a registration lands, and an `issue_comment` trigger here would tag on
+# that comment rather than wait for the run of the next day.
+#
+# Other packages of this organisation declare a `lookback` input here. The action marks that input
+# deprecated and reads nothing from it, so this workflow takes no input at all.
+#
+# The tags read `v<version>`. They are not the `viewer-v<version>` tags of `ViewerPublish.yml`, which
+# name a bundle of the viewer and not a version of the package.
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+# TagBot reads the token the step below mints, and nothing here reads `GITHUB_TOKEN`. This leaves
+# that token able to read this repository and to do nothing else.
+permissions:
+  contents: read
+
+jobs:
+  TagBot:
+    runs-on: ubuntu-latest
+    steps:
+      # TagBot must not run on `GITHUB_TOKEN`. GitHub starts no workflow from an event that token
+      # wrote, so the tag would reach `Docs.yml`, whose triggers name a tag push, and start nothing.
+      # No setting lifts that. A token of a GitHub App is not `GITHUB_TOKEN`, so the tag it writes
+      # starts the documentation build.
+      #
+      # The app belongs to the organisation rather than to a person, and this step mints a token that
+      # lives one hour and reaches this repository alone. Two organisation secrets name the app:
+      # `TAGBOT_APP_CLIENT_ID` and `TAGBOT_APP_KEY`, the private key of the app. Give the app
+      # `Contents: write` for the tag and the release, and `Issues: read` and `Pull requests: read`
+      # for the changelog the release carries. Add `Workflows: write` as well if a released commit
+      # ever changes a file under `.github/workflows`: GitHub refuses a write that touches one from a
+      # token that carries no such permission.
+      - uses: actions/create-github-app-token@v3
+        id: token
+        with:
+          client-id: ${{ secrets.TAGBOT_APP_CLIENT_ID }}
+          private-key: ${{ secrets.TAGBOT_APP_KEY }}
+          # Every permission this run needs, and no other. Without these four lines the token carries
+          # whatever the installation carries, and the app is installed on the whole organisation: a
+          # permission added there for another package would reach this run as well. Each line asks
+          # for a permission the app already holds, because the action cannot ask for more.
+          permission-contents: write
+          permission-issues: read
+          permission-pull-requests: read
+          permission-workflows: write
+      - uses: JuliaRegistries/TagBot@v1
+        with:
+          token: ${{ steps.token.outputs.token }}
+          registry: JuliaSatcomFramework/JuliaRegistry
