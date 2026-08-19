@@ -300,7 +300,7 @@ test("a kind nobody registered skips that row, and the rest of the panel renders
   assert.deepEqual(v.sent.at(-1), { topic: "control", payload: { id: "shell", value: 7 } });
 });
 
-test("a title may be keyed by absolute keyframe, and tracks the clock", () => {
+test("a title may be keyed by absolute keyframe, and follows the clock", () => {
   const v = fakeViewer();
   v.ctx.frame = { index: 4, alpha: 0 };
   v.declare([{ kind: "title", region: "top-center", frames: { "4": "frame five", "6": "frame seven" } }]);
@@ -313,7 +313,7 @@ test("a title may be keyed by absolute keyframe, and tracks the clock", () => {
   assert.equal(title.text(), "frame seven", "a keyframe the declaration is silent about keeps it");
 });
 
-// A widget that names keyframed fields, and so may be addressed by a window's tracks.
+// A widget that names keyframed fields, and so may be addressed by a window's `per_keyframe`.
 const READOUT = { kind: "title", region: "top-left", id: "load", text: "—", keyframed: ["text"] };
 
 test("a keyframed field takes its value from the window on each crossing", () => {
@@ -321,13 +321,15 @@ test("a keyframed field takes its value from the window on each crossing", () =>
   v.declare([READOUT, TOGGLE]);
   assert.equal(v.controls[0].el.text(), "—", "the declared value, until a window carries another");
 
-  v.deliver({ tracks: { load: { text: ["4.2 Gbps", "5.0 Gbps"] } } }, { startFrame: 3, count: 3 });
+  v.deliver({ per_keyframe: { load: { text: ["4.2 Gbps", "5.0 Gbps"] } } },
+            { startFrame: 3, count: 3 });
   assert.equal(v.controls[0].el.text(), "4.2 Gbps",
                "the keyframe the clock is on, without waiting for a crossing");
   v.crossInto(4);
   assert.equal(v.controls[0].el.text(), "5.0 Gbps");
   v.crossInto(5);
-  assert.equal(v.controls[0].el.text(), "5.0 Gbps", "a keyframe the track is silent about keeps it");
+  assert.equal(v.controls[0].el.text(), "5.0 Gbps",
+               "a keyframe the entry is silent about keeps it");
   v.crossInto(99);
   assert.equal(v.controls[0].el.text(), "5.0 Gbps", "and so does one no window covered");
   assert.deepEqual(v.controls.map((c) => c.region), ["top-left", "bottom-right"],
@@ -340,15 +342,15 @@ test("a keyframed field takes its value from the window on each crossing", () =>
   assert.equal(v.controls[0].el.text(), "5.0 Gbps");
 });
 
-test("a track supplies the fields the declaration named, and nothing else", () => {
+test("an entry supplies the fields the declaration named, and nothing else", () => {
   const v = fakeViewer();
   v.declare([{ kind: "legend", region: "top-right", id: "sat", title: "Throughput", min: 0, max: 12,
                stops: [[0, "#440154"], [1, "#fde725"]], keyframed: ["max"] }]);
-  v.deliver({ tracks: {
-    // A track of numbers travels as a typed array, so both forms are read the same way.
+  v.deliver({ per_keyframe: {
+    // Numbers travel as a typed array, so both forms are read the same way.
     sat: { max: { data: new Float32Array([12, 20]), shape: [2] },
            min: { data: new Float32Array([0, 5]), shape: [2] } },
-    // Windows and declarations arrive independently, so a track naming a widget nothing declared
+    // Windows and declarations arrive independently, so an entry naming a widget nothing declared
     // is nothing to do rather than an error.
     ghost: { text: ["gone"] },
   } }, { startFrame: 0, count: 2 });
@@ -368,30 +370,50 @@ test("a keyframed child of a group is swapped without disturbing its siblings", 
   const box = v.controls[0].el;
   const sibling = box.children[1];
 
-  v.deliver({ tracks: { count: { text: ["7 sats", "9 sats"] } } }, { startFrame: 0, count: 2 });
+  v.deliver({ per_keyframe: { count: { text: ["7 sats", "9 sats"] } } },
+            { startFrame: 0, count: 2 });
   assert.equal(box.children[0].text(), "7 sats");
   v.crossInto(1);
   assert.equal(box.children[0].text(), "9 sats");
   assert.equal(v.controls[0].el, box, "the box around it is not rebuilt");
-  assert.equal(box.children[1], sibling, "nor is the sibling no track names");
+  assert.equal(box.children[1], sibling, "nor is the sibling no entry names");
   assert.equal(box.children.length, 2);
 });
 
-test("the keyframes a window's tracks cover follow its mode", () => {
+test("the keyframes a window's per-keyframe values cover follow its mode", () => {
   const v = fakeViewer();
   v.declare([READOUT]);
-  v.deliver({ tracks: { load: { text: ["a", "b"] } } }, { startFrame: 0, count: 2 });
-  v.deliver({ tracks: { load: { text: ["c", "d"] } } }, { startFrame: 2, count: 2, mode: "append" });
+  v.deliver({ per_keyframe: { load: { text: ["a", "b"] } } }, { startFrame: 0, count: 2 });
+  v.deliver({ per_keyframe: { load: { text: ["c", "d"] } } },
+            { startFrame: 2, count: 2, mode: "append" });
   v.crossInto(3);
   assert.equal(v.controls[0].el.text(), "d");
   v.crossInto(1);
   assert.equal(v.controls[0].el.text(), "b", "an append leaves the keyframes before it addressed");
 
   // A replace is the whole scene again, so the keyframes it does not carry have no values left.
-  v.deliver({ tracks: { load: { text: ["e"] } } }, { startFrame: 9, count: 1 });
+  v.deliver({ per_keyframe: { load: { text: ["e"] } } }, { startFrame: 9, count: 1 });
   assert.equal(v.controls[0].el.text(), "e");
   v.crossInto(1);
   assert.equal(v.controls[0].el.text(), "e", "and a keyframe it dropped keeps the last value shown");
+});
+
+test("a window carrying the name `per_keyframe` replaced is reported, not applied", () => {
+  const v = fakeViewer();
+  v.declare([READOUT]);
+  const warned: string[] = [];
+  const warn = console.warn;
+  console.warn = (m: string) => warned.push(m);
+  try {
+    v.deliver({ tracks: { load: { text: ["4.2 Gbps", "5.0 Gbps"] } } },
+              { startFrame: 0, count: 2 });
+    v.crossInto(1);
+  } finally {
+    console.warn = warn;
+  }
+  assert.equal(v.controls[0].el.text(), "—", "the declared value stands");
+  assert.equal(warned.length, 1, "reported once, not on every crossing");
+  assert.match(warned[0], /per_keyframe/);
 });
 
 test("a legend renders a colorbar from the declared stops and range", () => {
@@ -478,7 +500,7 @@ test("a group is one box, and its children carry no chrome of their own", () => 
     assert.doesNotMatch(child.style.cssText, /background/, "a child gets no box of its own");
   }
   assert.equal(box.children[0].text(), "frame five",
-               "a child tracks the clock the same as a top-level row");
+               "a child follows the clock the same as a top-level row");
   v.crossInto(6);
   assert.equal(box.children[0].text(), "frame five", "including on a later crossing");
 
@@ -611,7 +633,7 @@ test("a float's keyframed content follows the clock, and its close reports its i
   assert.equal(box.children[0].shadow!.innerHTML, "<b>Sat 12</b>",
                "the declared value, until a window carries another");
 
-  v.deliver({ tracks: { pin: { html: ["<b>frame 3</b>", "<b>frame 4</b>"] } } },
+  v.deliver({ per_keyframe: { pin: { html: ["<b>frame 3</b>", "<b>frame 4</b>"] } } },
             { startFrame: 3, count: 2 });
   assert.equal(box.children[0].shadow!.innerHTML, "<b>frame 3</b>",
                "the keyframe the clock is on, without waiting for a crossing");
@@ -620,7 +642,7 @@ test("a float's keyframed content follows the clock, and its close reports its i
   assert.equal(v.floats().get("pin"), box, "the box is not rebuilt around it");
   v.crossInto(5);
   assert.equal(box.children[0].shadow!.innerHTML, "<b>frame 4</b>",
-               "a keyframe the track is silent about keeps what it showed");
+               "a keyframe the entry is silent about keeps what it showed");
   assert.equal(v.sent.length, 0, "and none of it asks the server anything");
 
   // The close button says the user asked; the float leaves when the server declares without it.
@@ -632,7 +654,7 @@ test("a float's keyframed content follows the clock, and its close reports its i
 test("a float declared after the window opens on the keyframe the clock is on", () => {
   const v = fakeViewer();
   v.ctx.frame = { index: 4, alpha: 0 };
-  v.deliver({ tracks: { late: { html: ["<b>frame 3</b>", "<b>frame 4</b>"] } } },
+  v.deliver({ per_keyframe: { late: { html: ["<b>frame 3</b>", "<b>frame 4</b>"] } } },
             { startFrame: 3, count: 2 });
   // Its own spec object: a crossing writes each keyframe's values into the spec the float rebuilds
   // from, so a shared literal would carry another test's values into this one.
@@ -673,7 +695,8 @@ test("a module fills a float's box, and keeps it across a keyframe crossing", ()
 
   // A window and its crossings are the module's own business: rebuilding the box on each one would
   // tear down and rebuild whatever it is drawing.
-  v.deliver({ tracks: { panel: { html: ["<b>a</b>", "<b>b</b>"] } } }, { startFrame: 0, count: 2 });
+  v.deliver({ per_keyframe: { panel: { html: ["<b>a</b>", "<b>b</b>"] } } },
+            { startFrame: 0, count: 2 });
   v.crossInto(1);
   assert.deepEqual(log, ["create:panel", "resize"], "not disposed, not recreated, not resized");
   assert.equal(box.text(), "drawn by the module");

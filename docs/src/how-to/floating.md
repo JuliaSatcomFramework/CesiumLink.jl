@@ -116,11 +116,11 @@ it again. A rect lives exactly as long as its float, and every rect is forgotten
 ## Change the content on every keyframe
 
 `html` is the only field a window can drive per keyframe, and a float declared with `html` accepts
-one by default. Put the values under `tracks` in the window addressed to `:ui`, keyed by the float's
-id and positional from that window's first frame:
+one by default. Put the values under `per_keyframe` in the window addressed to `:ui`, keyed by the
+float's id and positional from that window's first frame:
 
 ```julia
-push_window(server, Dict(:ui => (; tracks = Dict("pinned" => (; html = fragments))),
+push_window(server, Dict(:ui => (; per_keyframe = Dict("pinned" => (; html = fragments))),
                          :primitives => scene);
             start_frame = 1, count = 24, dt_seconds = 600, total_frames = 24)
 ```
@@ -133,8 +133,8 @@ Two conditions to plan for:
 - A float declared while a scene plays shows its declared content until a window carrying its values
   arrives. Every buffered window was built before the float existed. Push a `:replace` window over
   the clock's position when you declare a float in answer to an event.
-- A mounted float reads no `tracks` entry. Its per-keyframe data arrives in the window addressed to
-  that module.
+- A mounted float reads no `per_keyframe` entry. Its keyframed data arrives in the window addressed
+  to that module.
 
 Watch the size. An SVG plot is easily 20–50 KB, and one per keyframe is a large share of a window
 otherwise measured in hundreds of kilobytes. A window carries values only for the frames it covers,

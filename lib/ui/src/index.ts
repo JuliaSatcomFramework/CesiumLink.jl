@@ -15,11 +15,12 @@
 //
 // A widget that names `keyframed` fields also reads the window addressed to this module, and takes
 // each named field's value for the keyframe the clock crosses into. The declaration stays the whole
-// structure — a track supplies values for the fields it named and nothing else — and the values ride
-// the retained window, so display content follows the clock with no event and no round trip. It is
-// display content only: a value the user also owns is a re-declaration, where the precedence between
-// an interaction and the timeline is decided rather than raced. A float's keyframed content works
-// the same way and shares the id space, since one window's tracks address both.
+// structure — an entry supplies values for the fields it named and nothing else — and the values
+// ride the retained window, so display content follows the clock with no event and no round trip.
+// It is display content only: a value the user also owns is a re-declaration, where the precedence
+// between an interaction and the timeline is decided rather than raced. A float's keyframed content
+// works the same way and shares the id space, since one window's `per_keyframe` entries address
+// both.
 //
 // This is also the one file here that touches Cesium: an anchored float is projected from a world
 // position to a screen point, and `floating.ts` is handed the point exactly as the cursor path hands
@@ -70,7 +71,9 @@ interface Built {
 
 /** What a window carries for the overlay: per addressed id, per field, one value per keyframe. */
 interface OverlayWindow {
-  tracks?: Record<string, Record<string, unknown> | undefined>;
+  per_keyframe?: Record<string, Record<string, unknown> | undefined>;
+  /** The name `per_keyframe` replaced. Read only to report a window that still carries it. */
+  tracks?: unknown;
 }
 
 /**
@@ -152,20 +155,30 @@ export default {
     // absolute keyframe and where in it it sits; this says what the window carried.
     const held = ctx.perWindow<OverlayWindow>();
 
+    let warnedLegacy = false;
+
     const clear = () => {
       for (const row of live) row.dispose?.();
       live = [];
     };
 
     // Give every addressed widget the value its keyframed fields take at absolute keyframe `index`
-    // and rebuild the ones that changed. A keyframe no window covered, a field a track is silent
-    // about, and a track naming a widget no declaration mounted all leave the overlay as it is:
+    // and rebuild the ones that changed. A keyframe no window covered, a field an entry is silent
+    // about, and an entry naming a widget no declaration mounted all leave the overlay as it is:
     // windows and declarations arrive independently, so neither is an error.
     const apply = (index: number) => {
       const at = ctx.placement(index);
       const win = held.at(at)?.w;
       if (!at || !win) return;
-      for (const [id, fields] of Object.entries(win.tracks ?? {})) {
+      // A window carrying `tracks` is a recording made when that was the name of `per_keyframe`.
+      // Nothing else reports it: an unknown key reads exactly like a window that keyframes nothing,
+      // so the content freezes in silence. Once is enough — `apply` runs on every crossing.
+      if (win.tracks != null && !warnedLegacy) {
+        warnedLegacy = true;
+        console.warn("ui: this window carries `tracks`, which is now `per_keyframe`; its " +
+                     "keyframed content is not applied");
+      }
+      for (const [id, fields] of Object.entries(win.per_keyframe ?? {})) {
         // Looked up per id rather than once for the whole crossing: showing a value rebuilds a
         // widget, and rebuilding a group replaces the trackers of everything inside it.
         const track = [...live.flatMap((row) => row.tracks), ...floats.tracks()]
