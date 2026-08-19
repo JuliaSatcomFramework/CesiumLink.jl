@@ -25,8 +25,8 @@ on:
     - cron: "0 0 * * *"
   workflow_dispatch:
 
-# The token the step below mints carries what TagBot needs, so the job itself needs no permission of
-# its own beyond reading the checkout.
+# TagBot reads the token the step below mints, and nothing here reads `GITHUB_TOKEN`. This leaves
+# that token able to read this repository and to do nothing else.
 permissions:
   contents: read
 
@@ -51,6 +51,14 @@ jobs:
         with:
           client-id: ${{ secrets.TAGBOT_APP_CLIENT_ID }}
           private-key: ${{ secrets.TAGBOT_APP_KEY }}
+          # Every permission this run needs, and no other. Without these four lines the token carries
+          # whatever the installation carries, and the app is installed on the whole organisation: a
+          # permission added there for another package would reach this run as well. Each line asks
+          # for a permission the app already holds, because the action cannot ask for more.
+          permission-contents: write
+          permission-issues: read
+          permission-pull-requests: read
+          permission-workflows: write
       - uses: JuliaRegistries/TagBot@v1
         with:
           token: ${{ steps.token.outputs.token }}
