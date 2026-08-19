@@ -1,0 +1,63 @@
+name: Viewer publish
+
+# The other half of `ViewerPrepare.yml`. That workflow builds a bundle and opens a pull request
+# carrying its `Artifacts.toml` entry, and stores the bundle where only this repository can read it.
+# Merging that pull request runs this, which creates the tag and uploads the bundle.
+#
+# The entry has to name the release before the release exists, which is why the two are separate. The
+# bundle is carried between them rather than rebuilt: a rebuild is not guaranteed to give the same
+# bytes, and one different byte is a different sha256.
+
+on:
+  push:
+    branches: [main]
+    paths: ["Artifacts.toml"]
+
+# Queue, never cancel: a run stopped between creating the tag and uploading the asset leaves a
+# release with nothing in it. The group is this workflow's alone, so no other one can cancel it.
+concurrency:
+  group: viewer-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish the bundle the entry names
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create the release
+        run: |
+          set -euo pipefail
+          TAG=$(sed -n 's|.*/download/\(.*\)/viewer.tar.gz.*|\1|p' Artifacts.toml)
+          # Every edit to `Artifacts.toml` lands here, and most of them name a release that already
+          # exists. Only a merged bump names one that does not.
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "$TAG is already released. Nothing to do."
+            exit 0
+          fi
+
+          RUN=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=$TAG" \
+            --jq '.artifacts | sort_by(.created_at) | last | .workflow_run.id')
+          if [ -z "$RUN" ] || [ "$RUN" = "null" ]; then
+            echo "No bundle is stored for $TAG. Re-run Viewer prepare." >&2
+            exit 1
+          fi
+          gh run download "$RUN" -n "$TAG" -D .
+
+          # The one check that decides. A bundle that does not hash to what the merged entry claims
+          # would leave every install failing Pkg's own verification, so refuse to publish it.
+          WANT=$(sed -n 's/.*sha256 = "\(.*\)".*/\1/p' Artifacts.toml)
+          GOT=$(sha256sum viewer.tar.gz | cut -d' ' -f1)
+          if [ "$WANT" != "$GOT" ]; then
+            echo "The stored bundle hashes to $GOT, and Artifacts.toml claims $WANT." >&2
+            exit 1
+          fi
+
+          gh release create "$TAG" viewer.tar.gz \
+            --title "Viewer bundle ${TAG#viewer-}" \
+            --notes "The built viewer tree \`start_server\` serves when a package has no \`lib/dist\`. Built by run ${RUN}."

@@ -1,0 +1,117 @@
+name: Viewer prepare
+
+# The built viewer ships as a lazy artifact (ADR-0027), so a change under `lib/` reaches an installed
+# package only when a new bundle is released. This workflow builds that bundle on every push that
+# changes `lib/`, and keeps the result in one long-lived pull request.
+#
+# Nothing is published here. The bundle is kept as a workflow artifact, which is private to the
+# repository and expires. The pull request carries the `Artifacts.toml` entry alone, and that entry
+# names a release that does not exist yet. `ViewerPublish.yml` creates it when you merge.
+#
+# One pull request at a time, by design. Every run commits onto the same `viewer-release` branch, so
+# a run during an open pull request updates that pull request rather than opening a second one. Merge
+# when a batch of viewer work is done, not per commit.
+
+on:
+  push:
+    branches: [main]
+    paths: ["lib/**"]
+  # For a rebuild that no `lib/` change triggers — a dependency bump, or a run that failed halfway.
+  workflow_dispatch:
+
+# One prepare at a time: two runs pushing the same branch would race, and the older one builds the
+# older `main`. Cancel rather than queue, because the newer run supersedes what the older would push.
+#
+# A group of its own. A group is one name across the whole repository, so sharing one with
+# `ViewerPublish.yml` would let a push to `lib/` cancel a release that is halfway made.
+concurrency:
+  group: viewer-prepare
+  cancel-in-progress: true
+
+jobs:
+  prepare:
+    name: Build the bundle and update the bump
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      BRANCH: viewer-release
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: lib/package-lock.json
+      - run: npm ci
+        working-directory: lib
+      - run: npm run build
+        working-directory: lib
+
+      # Sorted names and zeroed ownership, so two builds of the same tree give the same bytes. The
+      # step below compares those bytes to decide whether there is anything to prepare, and without
+      # this every run would look like a change.
+      - name: Pack the bundle
+        run: tar --sort=name --owner=0 --group=0 --numeric-owner -czf viewer.tar.gz -C lib/dist .
+
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: "1"
+
+      # The tag names the commit the bundle was built from. Nothing has to remember a version number,
+      # and no two runs can claim the same tag.
+      - name: Write the artifact entry
+        id: entry
+        run: |
+          set -euo pipefail
+          BUILT=$(sha256sum viewer.tar.gz | cut -d' ' -f1)
+          # Against the open pull request when there is one, and against `main` otherwise. A `lib/`
+          # change that the bundle does not reflect — a test, a comment — leaves both untouched.
+          BASE=HEAD
+          # An explicit refspec: `actions/checkout` configures this remote to fetch `main` alone, so
+          # the short form would leave no `origin/$BRANCH` for this step or the next one to read.
+          git fetch origin "$BRANCH:refs/remotes/origin/$BRANCH" && BASE="origin/$BRANCH" || true
+          if [ "$BUILT" = "$(git show "$BASE:Artifacts.toml" | sed -n 's/.*sha256 = "\(.*\)".*/\1/p')" ]; then
+            echo "The bundle is byte for byte the one $BASE already names. Nothing to prepare."
+            exit 0
+          fi
+          TAG="viewer-$(git rev-parse --short HEAD)"
+          julia tools/viewer-release.jl viewer.tar.gz "$TAG"
+          cp Artifacts.toml "$RUNNER_TEMP/Artifacts.toml"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      # Before the pull request, so a merged entry never names a bundle that was not stored.
+      - uses: actions/upload-artifact@v4
+        if: steps.entry.outputs.tag != ''
+        with:
+          name: ${{ steps.entry.outputs.tag }}
+          path: viewer.tar.gz
+          retention-days: 90
+
+      - name: Update the pull request
+        if: steps.entry.outputs.tag != ''
+        env:
+          TAG: ${{ steps.entry.outputs.tag }}
+        run: |
+          set -euo pipefail
+          BODY="Rebuilt on every push to \`lib/\`, and updated in place until you merge it. Head bundle: \`$TAG\`, built from ${GITHUB_SHA}. Merging creates that tag and uploads the bundle this run already built — until then the URL in \`Artifacts.toml\` is a 404."
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # The entry was written against `main`'s tree. Put that tree back, move to the release
+          # branch, and lay the entry down there: the branch keeps its own history and gains a commit.
+          git checkout -- Artifacts.toml
+          if git rev-parse --verify "origin/$BRANCH" >/dev/null 2>&1; then
+            git switch -c "$BRANCH" "origin/$BRANCH"
+          else
+            git switch -c "$BRANCH"
+          fi
+          cp "$RUNNER_TEMP/Artifacts.toml" Artifacts.toml
+          git commit Artifacts.toml -m "Ship the viewer built from ${GITHUB_SHA:0:7} as $TAG"
+          git push origin "$BRANCH"
+          if [ -n "$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number')" ]; then
+            gh pr edit "$BRANCH" --body "$BODY"
+          else
+            gh pr create --base main --head "$BRANCH" --title "Ship the viewer bundle" --body "$BODY"
+          fi

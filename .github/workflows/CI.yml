@@ -1,9 +1,34 @@
 name: CI
 
+# Prose only, and ignored rather than listed, so a new source directory is covered the day it
+# appears. Both jobs are in scope: the Julia suite builds `lib/dist` and serves it, and it reads
+# `extension/fixtures/discovery.json`, so no path outside documentation is safe to skip for it.
+#
+# Markdown is named at the root and below it, rather than by one `**.md`, whose reading is not the
+# same in every matcher. A pattern that misses a file costs a run that had nothing to do, and a job
+# is never skipped by one.
+#
+# The list is written twice because a filter belongs to one trigger and not to the workflow, and
+# because the Actions parser does not read a YAML anchor.
+#
+# Nothing reports a status on an ignored event, so this must be revisited if `main` ever takes a
+# required status check: a documentation pull request would then wait for a check that never runs.
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "docs/**"
+      - "*.md"
+      - "**/*.md"
+      - LICENSE
+      - NOTICE
   pull_request:
+    paths-ignore:
+      - "docs/**"
+      - "*.md"
+      - "**/*.md"
+      - LICENSE
+      - NOTICE
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
