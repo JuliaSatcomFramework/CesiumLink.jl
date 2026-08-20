@@ -155,10 +155,14 @@ end
         cleanup = h -> (push!(f.cleanups, h); nothing))
 
     # Render `server` as the cell named `cell` renders it, and give back what that cell then holds.
+    # Hold the context for this call alone. Slate sets it for one cell eval, and every eval in a
+    # notebook worker is a cell eval. A test item that left it behind would make every server the
+    # items after it start a notebook server, on a worker they share.
     function render_in(f::FakeSlate, server, cell::AbstractString)
-        task_local_storage(:slate_ctx, slate_ctx(f))
-        task_local_storage(:slate_cell, String(cell))
-        return SlateExtensionsBase.slate_render(server)
+        task_local_storage(:slate_ctx, slate_ctx(f)) do
+            task_local_storage(() -> SlateExtensionsBase.slate_render(server),
+                               :slate_cell, String(cell))
+        end
     end
 
     # The routes that the extension serves, keyed by name.

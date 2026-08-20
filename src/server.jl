@@ -186,10 +186,16 @@ mutable struct Server
     # it, because a wildcard bind answers on every interface and is not an address a browser can be
     # sent to.
     const host::String
+    # Whether this server was asked for a port at all. It tells the two `nothing` listeners apart: a
+    # server that was stopped had one, and a notebook server never had one and is still running.
+    const listens::Bool
     # This server's file in the discovery directory, or `nothing` when none was written.
     # `stop_server` removes it.
     discovery_file::Union{String,Nothing}
 end
+
+# What a server with no listener is, in the one word the messages below print.
+no_listener(server::Server) = server.listens ? "stopped" : "not listening"
 
 # The one task that writes to `client`. Every frame this client is sent leaves through here, in the
 # order it was enqueued.
@@ -229,7 +235,11 @@ this is how to read which one it picked.
 Printing a [`Server`](@ref) shows the viewer URL, which names the port. This is the number itself,
 for a program that has to build something else out of it.
 """
-bound_port(server::Server) = server.listener.bound_port
+function bound_port(server::Server)
+    server.listener === nothing &&
+        throw(ArgumentError("this server is $(no_listener(server))"))
+    return server.listener.bound_port
+end
 
 # The host half of a URL that reaches a server bound to `host`. A wildcard bind answers on every
 # interface, so the URL names the loopback instead; an IPv6 literal takes the brackets a URL needs.
@@ -256,7 +266,8 @@ println("open ", viewer_url(server))
 ```
 """
 function viewer_url(server::Server)
-    server.listener === nothing && throw(ArgumentError("this server is stopped"))
+    server.listener === nothing &&
+        throw(ArgumentError("this server is $(no_listener(server))"))
     return "http://$(url_host(server.host)):$(bound_port(server))/?ws=auto"
 end
 
@@ -265,7 +276,7 @@ end
 # anything is attached to it.
 function Base.show(io::IO, ::MIME"text/plain", server::Server)
     if server.listener === nothing
-        print(io, "CesiumLink server (stopped)")
+        print(io, "CesiumLink server (", no_listener(server), ")")
         return nothing
     end
     n = lock(() -> length(server.clients), server.clients_lock)
@@ -278,7 +289,7 @@ end
 
 # One line, for a server printed inside something else.
 Base.show(io::IO, server::Server) =
-    print(io, "Server(", server.listener === nothing ? "stopped" : viewer_url(server), ")")
+    print(io, "Server(", server.listener === nothing ? no_listener(server) : viewer_url(server), ")")
 
 # Why a listen failed, as one line. HTTP.jl binds inside a task, so the cause arrives wrapped in a
 # `TaskFailedException` under a stack trace that names nothing the caller can act on.
@@ -286,15 +297,34 @@ bind_reason(e) = e isa TaskFailedException && e.task.result isa Exception ?
                  bind_reason(e.task.result) : sprint(showerror, e)
 
 """
+    CesiumLink.in_notebook() -> Bool
+
+Whether this call runs inside a notebook cell that can draw a scene without a port. It decides what
+`listen` defaults to in [`start_server`](@ref).
+
+False here, and every host that needs a port adds its own method. The KaimonSlate extension is the
+one that does: a cell reaches its viewer over the notebook's own socket, so a port there serves
+nobody and has to be cleaned up.
+"""
+in_notebook() = false
+
+"""
     start_server(; dist_dir=viewer_dist(), host="127.0.0.1", port=0, title=basename(pwd()),
                  ellipsoid=nothing, imagery=nothing, assets=nothing, trusted_origins=String[],
-                 lighting=false, stars=false, open=:auto) -> Server
+                 lighting=false, stars=false, open=:auto, listen=!in_notebook()) -> Server
 
 Start the one-port HTTP+WebSocket listener and return a running [`Server`](@ref). Static files are
 served from `dist_dir` (the built viewer); the WebSocket lives at `/ws`, same-origin with the page.
 Stop it with [`stop_server`](@ref).
 
 Open the page at [`viewer_url(server)`](@ref viewer_url).
+
+`listen` opens that port. It defaults to `true` everywhere but inside a notebook cell, which draws
+the scene on the notebook's own socket and needs no port of its own. A server started with
+`listen = false` serves no page: `viewer_url` and [`bound_port`](@ref) throw, no discovery file is
+written, and no editor tab is asked for. Everything a scene does — pushing windows, registering
+modules, answering events, recording — is the same either way. Pass `listen = true` in a notebook to
+get a page that a browser can open as well.
 
 `port` defaults to `0`, which asks the operating system for a free port. Two people on one machine
 therefore never collide, and nobody has to pick a number. Read the port back with
@@ -406,7 +436,7 @@ whatever this says.
 function start_server(; dist_dir = viewer_dist(), host = "127.0.0.1", port = 0,
                       title = basename(pwd()), ellipsoid = nothing, imagery = nothing,
                       assets = nothing, trusted_origins = String[],
-                      lighting = false, stars = false, open = :auto)
+                      lighting = false, stars = false, open = :auto, listen = !in_notebook())
     open === :auto || open === true || open === false ||
         throw(ArgumentError("`open` takes `:auto`, `true` or `false`, and got $(repr(open))"))
     declared_imagery, imagery_dir = resolve_imagery(imagery)
@@ -425,7 +455,10 @@ function start_server(; dist_dir = viewer_dist(), host = "127.0.0.1", port = 0,
                     dist_dir === nothing ? nothing : normpath(String(dist_dir)),
                     ellipsoid === nothing ? nothing : ellipsoid_radii(ellipsoid),
                     declared_imagery, asset_dirs, origins, lighting, stars, nothing, 0.0,
-                    ReentrantLock(), String(host), nothing)
+                    ReentrantLock(), String(host), listen, nothing)
+    # A server with no port has nothing to bind, nothing to publish and no page to open. The three
+    # steps below are the port and what reaches it, and a notebook server skips all three.
+    listen || (watch_float_rects!(server); return server)
     # A bind that did not happen must never return a `Server`. HTTP.jl binds inside a task and
     # reports a failure two ways: the task's error reaches here, or the task's ready notification
     # wins the race and `listen!` returns with `bound_port` left at zero. The second one is the
