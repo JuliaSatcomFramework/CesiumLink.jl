@@ -7,7 +7,8 @@ try; import KaimonSlate; catch; error("This is a Kaimon Slate notebook — runni
 This notebook draws the scene of `run.jl` in one cell.
 
 The cell below starts a server and gives it back. A cell that gives back a server draws the scene on
-the socket the page already holds. So a notebook worker on a remote machine needs no forwarded port.
+the socket the page already holds. A server started in a cell opens no port, so a notebook worker on
+a remote machine needs no forwarded port. Pass `listen = true` to get one that a browser can open.
 
 This file sits beside the `Project.toml` of the example, and the worker gets that environment.
 

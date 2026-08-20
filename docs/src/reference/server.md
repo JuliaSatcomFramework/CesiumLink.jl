@@ -92,9 +92,13 @@ retained scene — the same frames a client connecting now receives.
 `send_frame` is the one function that knows how to write to a client of a given kind. A host that
 reaches its page by another route than a WebSocket adds a method for its own connection type.
 
+A host whose page needs no port says so with `in_notebook`, and a server started under it opens
+none.
+
 ```@docs
 CesiumLink.Client
 CesiumLink.send_frame
+CesiumLink.in_notebook
 ```
 
 ## Reading back what the session declares

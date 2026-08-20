@@ -89,6 +89,15 @@ client_for(server::Server, cell::String, emit) = lock(CLIENTS_LOCK) do
     end
 end
 
+# A cell draws its scene on the notebook's own socket, so a server started in one opens no port
+# unless the author asks for it. Slate sets the context for the whole cell eval, and `start_server`
+# runs in that eval, so this check is true exactly where the cell host applies. A REPL that merely
+# has SlateExtensionsBase loaded has no context and keeps its port.
+function __init__()
+    CesiumLink.NOTEBOOK_CHECK[] = () -> SEB.slate_context() !== nothing
+    return nothing
+end
+
 # The cell that this render runs in. Slate puts the cell in task-local storage for the eval, with
 # the execution context. It is empty for an eval that Slate starts outside a cell.
 render_cell() = String(get(task_local_storage(), :slate_cell, ""))
@@ -116,7 +125,7 @@ SEB.required_assets(::Type{Server}) = read(joinpath(viewer_dist(), "slate-compon
 function SEB.slate_render(server::Server)
     ctx = SEB.slate_context()
     # Outside a cell there is no emitter to capture and no page to draw on. Slate then shows the
-    # text form of the server, which gives the URL to open.
+    # text form of the server, which gives the URL to open when the server has a port.
     ctx === nothing && return nothing
     cell = render_cell()
     owner, client = client_for(server, cell, ctx.emit)

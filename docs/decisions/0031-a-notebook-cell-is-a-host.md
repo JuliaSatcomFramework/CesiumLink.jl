@@ -27,6 +27,18 @@ package extension. There is no other import and no boot cell.
 uses the send queue, the drain task and the drop policy as they are (ADR-0030). Nothing else in the
 package knows that this host exists.
 
+**A server started in a cell opens no port.** The cell host reads no port: it sends on the socket of
+the notebook and serves its files through Slate. A port there therefore reaches nobody the cell
+already reaches, and it is one more thing to stop. `start_server` defaults `listen` to
+`!in_notebook()`. The extension installs the check that answers it, `slate_context() !== nothing` —
+the same predicate `slate_render` uses to find a cell. The two agree by construction: an evaluation
+that draws in a cell needs no port, and an evaluation that draws nowhere else gets one.
+`listen = true` asks for the port, for a scene that a browser must also open.
+
+The host installs a check and does not add a method. `in_notebook` takes no argument, so a method
+from the extension would overwrite the one in the package rather than join it. Julia says so, and
+the package would lose its own answer to a question it must always be able to answer.
+
 **The render captures the emitter, and captures it one time.** `slate_render` runs in the execution
 context of the cell, so it can reach `emit`, `on` and `cleanup`. It captures the emitter of the
 notebook namespace, and not a closure for one page. That emitter stays after a browser reload, and
@@ -86,6 +98,9 @@ is deleted, and before a rebuild of the namespace.
   unnecessary.
 - **A mount map sent to the page as a component property.** Rejected: a module registered after the
   render of the cell is absent from that map, and the page cannot learn about the mount.
+- **A `listen` flag that defaults to `true` in a cell too.** Rejected: it makes the common case pay
+  for the rare one. Every notebook scene would then hold a port that nothing reads, and every
+  notebook worker would leave discovery files behind for a picker to offer.
 - **A `Server` rendered from a region worker.** Not supported, and it cannot occur: a value crosses a
   region boundary by serialization, and a `Server` holds a listener, tasks and a lock.
 - **Two cells that draw one server, with the page sending the channel to both viewers.** That is ten

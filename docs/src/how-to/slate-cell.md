@@ -22,8 +22,14 @@ part of the package that draws in a cell. There is no other import and no boot c
 Push windows from that cell, or from any cell after it. The server sends each frame down the socket
 of the page.
 
-The server still binds a port of its own. A browser that reaches that port shows the same scene —
-see [`viewer_url`](@ref).
+**The server opens no port.** A cell needs none, so a port here serves nobody and is one more thing
+to stop. [`viewer_url`](@ref) and [`bound_port`](@ref) throw, and no VSCode tab is asked for.
+
+Ask for the port to get a page a browser can open as well:
+
+```julia
+server = start_server(; listen = true)
+```
 
 ## 2. One cell draws one server
 
@@ -65,8 +71,9 @@ again, and it mounts the viewer again.
 
 **A line of text, which names another cell.** That cell holds this server. Read section 2.
 
-**The text form of the server, with a URL beside it.** The evaluation ran outside a cell, so the
-render reached no page. Open that URL in a browser instead.
+**The text form of the server.** The evaluation ran outside a cell, so the render reached no page.
+A URL beside it opens the scene in a browser. The words `(not listening)` instead mean the server
+has no port. Start it again with `listen = true`, or run the cell that draws it.
 
 **An empty box.** The cell mounts the built viewer. An installed package downloads that build once,
 as a Julia artifact. In a clone of this repository, run `npm run build` in `lib/`.

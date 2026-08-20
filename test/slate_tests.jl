@@ -103,3 +103,32 @@ end
         stop_server(server)
     end
 end
+
+@testitem "a server started in a cell opens no port" setup=[SlateCell] begin
+    slate = FakeSlate()
+    # Slate sets the context for the whole cell eval, and `start_server` runs in that eval.
+    server = task_local_storage(() -> start_server(), :slate_ctx, slate_ctx(slate))
+    try
+        @test server.listener === nothing
+        # No port means no page, so nothing may offer one: no URL, no port and no discovery file.
+        @test server.discovery_file === nothing
+        @test_throws "this server is not listening" viewer_url(server)
+        @test_throws "this server is not listening" CesiumLink.bound_port(server)
+        @test occursin("not listening", sprint(show, server))
+        # The cell draws the scene all the same, on the socket the notebook already holds.
+        @test render_in(slate, server, "cell-a") isa AbstractDict
+    finally
+        stop_server(server)
+    end
+end
+
+@testitem "a cell that asks for a port gets one" setup=[SlateCell] begin
+    slate = FakeSlate()
+    server = task_local_storage(() -> start_server(; listen = true), :slate_ctx, slate_ctx(slate))
+    try
+        @test server.listener !== nothing
+        @test CesiumLink.bound_port(server) > 0
+    finally
+        stop_server(server)
+    end
+end
