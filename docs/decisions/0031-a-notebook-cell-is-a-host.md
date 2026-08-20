@@ -30,10 +30,14 @@ package knows that this host exists.
 **A server started in a cell opens no port.** The cell host reads no port: it sends on the socket of
 the notebook and serves its files through Slate. A port there therefore reaches nobody the cell
 already reaches, and it is one more thing to stop. `start_server` defaults `listen` to
-`!in_notebook()`, and the extension answers that question with `slate_context() !== nothing` — which
-is the same predicate `slate_render` uses to find a cell. The two agree by construction: an
-evaluation that draws in a cell needs no port, and an evaluation that draws nowhere else gets one.
+`!in_notebook()`. The extension installs the check that answers it, `slate_context() !== nothing` —
+the same predicate `slate_render` uses to find a cell. The two agree by construction: an evaluation
+that draws in a cell needs no port, and an evaluation that draws nowhere else gets one.
 `listen = true` asks for the port, for a scene that a browser must also open.
+
+The host installs a check and does not add a method. `in_notebook` takes no argument, so a method
+from the extension would overwrite the one in the package rather than join it. Julia says so, and
+the package would lose its own answer to a question it must always be able to answer.
 
 **The render captures the emitter, and captures it one time.** `slate_render` runs in the execution
 context of the cell, so it can reach `emit`, `on` and `cleanup`. It captures the emitter of the

@@ -187,15 +187,18 @@ mutable struct Server
     # sent to.
     const host::String
     # Whether this server was asked for a port at all. It tells the two `nothing` listeners apart: a
-    # server that was stopped had one, and a notebook server never had one and is still running.
+    # server started with `listen = true` has a listener until it is stopped; a server started with
+    # `listen = false` never binds a port, so `listener` stays `nothing`.
     const listens::Bool
     # This server's file in the discovery directory, or `nothing` when none was written.
     # `stop_server` removes it.
     discovery_file::Union{String,Nothing}
 end
 
-# What a server with no listener is, in the one word the messages below print.
-no_listener(server::Server) = server.listens ? "stopped" : "not listening"
+# What a server with no listener is, in the words the messages below print.
+function no_listener(server::Server)
+    return server.listens ? "stopped" : "not listening"
+end
 
 # The one task that writes to `client`. Every frame this client is sent leaves through here, in the
 # order it was enqueued.
@@ -296,17 +299,25 @@ Base.show(io::IO, server::Server) =
 bind_reason(e) = e isa TaskFailedException && e.task.result isa Exception ?
                  bind_reason(e.task.result) : sprint(showerror, e)
 
+# The check a host installs to say that its page needs no port. A host extension writes it when it
+# loads, and nothing else writes to it. It is a check and not a flag, because whether an evaluation
+# draws in a cell is a property of that evaluation and not of the process.
+const NOTEBOOK_CHECK = Ref{Any}(nothing)
+
 """
     CesiumLink.in_notebook() -> Bool
 
 Whether this call runs inside a notebook cell that can draw a scene without a port. It decides what
 `listen` defaults to in [`start_server`](@ref).
 
-False here, and every host that needs a port adds its own method. The KaimonSlate extension is the
-one that does: a cell reaches its viewer over the notebook's own socket, so a port there serves
-nobody and has to be cleaned up.
+False until a host says otherwise. A host that draws with no port of its own writes its check into
+`CesiumLink.NOTEBOOK_CHECK`, as the KaimonSlate extension does: a cell reaches its viewer over the
+notebook's own socket, so a port there serves nobody and has to be cleaned up.
 """
-in_notebook() = false
+function in_notebook()
+    check = NOTEBOOK_CHECK[]
+    return check === nothing ? false : check()::Bool
+end
 
 """
     start_server(; dist_dir=viewer_dist(), host="127.0.0.1", port=0, title=basename(pwd()),
