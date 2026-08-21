@@ -48,13 +48,31 @@ end
 # `setup=[WsOpen]` brings `ws_open` into scope: a websocket connection whose block's value comes
 # back to the caller. `HTTP.WebSockets.open` returns that value under HTTP 2 and the handshake
 # `Response` under HTTP 1, so a test that reads what its block returned goes through here.
+#
+# The retry answers a second difference. HTTP 1 pools client connections and admits one whose peer
+# has already gone, because the check is `isopen`, and a socket reads as open until the operating
+# system reports the peer's FIN. The write then fails with "stream is closed or unusable" before
+# the request leaves. HTTP's own retry covers that error, but only for a request whose body it can
+# send again, and `HTTP.open` sends no body at all — so every `HTTP.get` in this suite recovers by
+# itself and the upgrade is the one call that cannot. Retry it here, and only while the block has
+# not run: an error the block itself raises is the test's answer and must reach the test.
 @testsnippet WsOpen begin
     using HTTP
 
-    function ws_open(f, url)
+    function ws_open(f, url; attempts = 3)
         out = Ref{Any}(nothing)
-        HTTP.WebSockets.open(url) do ws
-            out[] = f(ws)
+        entered = Ref(false)
+        for attempt in 1:attempts
+            try
+                HTTP.WebSockets.open(url) do ws
+                    entered[] = true
+                    out[] = f(ws)
+                end
+                break
+            catch
+                (entered[] || attempt == attempts) && rethrow()
+                sleep(0.1 * attempt)
+            end
         end
         return out[]
     end
