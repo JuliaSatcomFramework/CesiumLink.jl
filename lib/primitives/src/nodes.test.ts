@@ -48,7 +48,8 @@ function widths(size: unknown): number[] {
   const scene = {
     primitives: { add: (p: FakeCollection) => (added.push(p), p), remove: () => true },
   } as unknown as import("@cesium/engine").Scene;
-  const family = new NodeFamily("sat", C, scene, (kind, idx) => ({ kind, idx }), new Timeline());
+  const family = new NodeFamily("sat", C, scene, (kind, idx) => ({ kind, idx }), (p) => p,
+                                new Timeline());
   const spec: NodeSpec = {
     kind: "sat",
     position: { data: Float64Array.from([0, 0, 0, 1, 1, 1]), shape: [2, 3] },

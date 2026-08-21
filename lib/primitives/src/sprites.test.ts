@@ -10,20 +10,61 @@ import test from "node:test";
   }),
 };
 
-const { markerSprite } = await import("./sprites.ts");
+const { defineNodeSprite, clearNodeSprites, markerSprite } = await import("./sprites.ts");
 
 const PIXEL = "data:image/png;base64,iVBORw0KGgo=";
 
+/** A host that serves every asset path, which is what a browser page is. */
+const served = (path: string) => `https://host/${path}`;
+
+/** Run `f` with `console.warn` captured, and answer what it wrote. */
+function warnings(f: () => void): string[] {
+  const said: string[] = [];
+  const warn = console.warn;
+  console.warn = (m: string) => said.push(m);
+  try {
+    f();
+  } finally {
+    console.warn = warn;
+  }
+  return said;
+}
+
 test("a supplied image passes through, and a stock glyph is drawn once and shared", () => {
   // Cesium takes the URI itself, so nothing is drawn here and the string arrives as it was sent.
-  assert.equal(markerSprite(PIXEL), PIXEL);
+  assert.equal(markerSprite(PIXEL, served), PIXEL);
 
-  const star = markerSprite("star");
+  const star = markerSprite("star", served);
   assert.notEqual(typeof star, "string", "a stock name draws a canvas");
-  assert.equal(markerSprite("star"), star, "and the second family to ask for it shares the first's");
-  assert.notEqual(markerSprite("disc"), star, "each glyph gets its own");
+  assert.equal(markerSprite("star", served), star, "and the second family to ask for it shares the first's");
+  assert.notEqual(markerSprite("disc", served), star, "each glyph gets its own");
 
-  // A name that is neither stock nor an image is the disc, which keeps a typo visible rather than
-  // leaving the family unmarked.
-  assert.equal(markerSprite("rhombus"), markerSprite("disc"));
+  // A stock name that names no glyph is the disc, silently: the stock table is this module's own,
+  // and the disc keeps a typo visible rather than leaving the family unmarked.
+  const said = warnings(() => assert.equal(markerSprite("rhombus", served), markerSprite("disc", served)));
+  assert.deepEqual(said, []);
+});
+
+test("an asset path goes through the host's resolver, and a path it cannot reach is the disc", () => {
+  assert.equal(markerSprite("assets/sprites/sat.png", served), "https://host/assets/sprites/sat.png",
+               "the url came from assetUrl rather than from the payload's own path");
+  // `assetUrl` writes the line that says why, so this only draws.
+  assert.equal(markerSprite("assets/sprites/sat.png", () => null), markerSprite("disc", served));
+});
+
+test("a registered name draws what its module registered, and an unregistered one warns once", () => {
+  const own = { own: true } as unknown as HTMLCanvasElement;
+  defineNodeSprite("orbits.pulse", () => own);
+  assert.equal(markerSprite("orbits.pulse", served), own);
+
+  const said = warnings(() => {
+    assert.equal(markerSprite("orbits.absent", served), markerSprite("disc", served));
+    markerSprite("orbits.absent", served);
+  });
+  assert.equal(said.length, 1, "one line per unresolvable name, however many windows ask");
+  assert.match(said[0], /no node sprite named "orbits.absent" is registered/);
+
+  // Teardown frees the name: the module that registered it registers again when it reloads.
+  clearNodeSprites();
+  warnings(() => assert.equal(markerSprite("orbits.pulse", served), markerSprite("disc", served)));
 });

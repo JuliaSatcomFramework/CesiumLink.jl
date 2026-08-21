@@ -13,6 +13,24 @@ const KnobValue = Union{Nothing,Float64,AbstractArray}
 The stock line materials, in the order their codes travel on the wire.
 """
 const STYLES = (:solid, :dashed, :glow)
+
+# --- naming a customizable thing -----------------------------------------------------------------
+
+# Where one customizable thing comes from, read off the name a scene gives it. A `data:` URI carries
+# the bytes. An `assets/<mount>/<file>` path names a file the server serves. A name that holds a `.`
+# names a thing a peer module registered in the browser. Anything else is one of the stock names in
+# `stock`. A stock name holds no `.` and no `/`, so the four forms cannot collide.
+#
+# Julia cannot know what a module registered in a browser, so it checks the form of a name and lets
+# any well-formed name through. The viewer writes one line and draws its stock default for a name
+# that nobody answers for.
+function to_source(x, what, stock)
+    s = String(x)
+    (startswith(s, "data:") || occursin('/', s) || occursin('.', s)) && return s
+    Symbol(s) in stock && return s
+    throw(ArgumentError("$what is one of $stock, an `assets/<mount>/<file>` path, a `data:` URI, " *
+                        "or an owner-namespaced name such as \"orbits.pulse\" (got $(repr(x)))"))
+end
 # --- the array convention ------------------------------------------------------------------------
 
 # Keyframes `a` describes for a family of `n` entities with `item` components each, or 0 when it

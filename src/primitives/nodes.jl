@@ -31,16 +31,6 @@ function marker_image(path)
     return "data:$mime;base64," * base64encode(read(path))
 end
 
-# What a node family draws its entities with: a stock glyph by name, or a supplied image as the
-# `data:` URI [`marker_image`](@ref) builds. Only that one URI form is accepted, because the viewer
-# runs under a policy that refuses an image fetched from a server and draws nothing in its place.
-to_marker(m::Symbol) = m in MARKERS ? String(m) :
-    throw(ArgumentError("marker must be one of $(MARKERS), or an image from `marker_image` " *
-                        "(got $(repr(m)))"))
-to_marker(m::AbstractString) = startswith(m, "data:") ? String(m) :
-    throw(ArgumentError("a marker image is a `data:` URI, which `marker_image` builds from a file " *
-                        "(got $(repr(first(m, 32))))"))
-
 """
     Nodes(kind; position, color=nothing, size=nothing, marker=:disc, label=nothing,
           show=nothing, scale_by_distance=nothing)
@@ -50,9 +40,11 @@ still through the window or `3 × N × count` for one whose positions are interp
 
 `color`, `size` and `show` follow the array convention and switch at the keyframe crossing:
 a lone value covers the family, one value per entity varies across it, and a trailing keyframe
-dimension varies it over time. `marker` is one of $(MARKERS) — a white glyph the per-entity colour
-tints — or an image of your own from [`marker_image`](@ref), which the same tint multiplies and the
-default white leaves as you drew it. `label` is one string per entity. `scale_by_distance` is
+dimension varies it over time. `marker` names what each entity is drawn with: one of $(MARKERS) — a
+white glyph the per-entity colour tints — an image of your own from [`marker_image`](@ref), an
+`assets/<mount>/<file>` path the server serves, or the owner-namespaced name of a sprite a browser
+module registered (`"orbits.pulse"`). The same tint multiplies a supplied image, which the default
+white leaves as you drew it. `label` is one string per entity. `scale_by_distance` is
 `(near_m, near_scale, far_m, far_scale)`, so markers stay legible close up and shrink when the whole
 scene is in view.
 
@@ -81,7 +73,8 @@ struct Nodes
     size::KnobValue
     # Per-entity visibility: zero hides, anything else draws, `nothing` draws the family.
     show::KnobValue
-    # A stock glyph name, or the `data:` URI of a supplied image.
+    # A stock glyph name, an `assets/<mount>/<file>` path, a `data:` URI, or the name of a
+    # sprite a peer module registered in the browser.
     marker::String
     label::Union{Nothing,Vector{String}}
     scale_by_distance::Union{Nothing,NTuple{4,Float64}}
@@ -92,7 +85,7 @@ struct Nodes
         ndims(pos) in (2, 3) && Base.size(pos, 1) == 3 ||
             throw(ArgumentError("$kind.position is 3 × N or 3 × N × keyframes (got $(Base.size(pos)))"))
         n = Base.size(pos, 2)
-        mk = to_marker(marker)
+        mk = to_source(marker, "$kind.marker", MARKERS)
         label === nothing || length(label) == n ||
             throw(ArgumentError("$kind has $(length(label)) labels for $n entities"))
         c, s, v = to_colors(color), to_scalars(size), to_codes(show)
