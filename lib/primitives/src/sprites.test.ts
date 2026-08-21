@@ -66,5 +66,10 @@ test("a registered name draws what its module registered, and an unregistered on
 
   // Teardown frees the name: the module that registered it registers again when it reloads.
   clearNodeSprites();
-  warnings(() => assert.equal(markerSprite("orbits.pulse", served), markerSprite("disc", served)));
+  const after = warnings(() => {
+    assert.equal(markerSprite("orbits.pulse", served), markerSprite("disc", served));
+    markerSprite("orbits.absent", served);
+  });
+  // And it frees the names already warned about, so a reload says again what it still cannot draw.
+  assert.equal(after.length, 2);
 });

@@ -80,12 +80,20 @@ export const defineNodeSprite = sprites.define;
 /**
  * Drop every registered sprite. Called when `primitives` unloads: the modules that registered them
  * are unloaded alongside it, and their factories close over a context that no longer exists.
+ *
+ * The names already warned about go with them. A host re-imports this module from its own cache, so
+ * a name still unanswered after a reload gets its line again rather than staying silent behind the
+ * set the last session filled.
  */
-export const clearNodeSprites = sprites.clear;
+export function clearNodeSprites(): void {
+  sprites.clear();
+  say = reporter();
+}
 
 // One line per unresolvable name. A family rebuilds on every replacing window, so a marker nobody
 // answers for is unanswered on every one of them.
-const say = sayOnce((message: string) => console.warn(message));
+const reporter = () => sayOnce((message: string) => console.warn(message));
+let say = reporter();
 
 /**
  * What a family draws its entities with, read off the marker name: a `data:` URI passed to Cesium as
@@ -120,13 +128,16 @@ export function markerSprite(marker: string,
     }
     case "stock":
       // Silent: the stock table is this module's own, and a name outside it is a typo the disc shows.
-      return stock(source.name as Marker);
+      return stock(source.name);
   }
 }
 
+/** True for a name the stock table draws. */
+const isStock = (name: string): name is Marker => name in DRAW;
+
 /** The shared canvas of a stock glyph, drawn on first use. An unknown name is the disc. */
-function stock(marker: Marker): HTMLCanvasElement {
-  const key = DRAW[marker] ? marker : "disc";
+function stock(name: string): HTMLCanvasElement {
+  const key = isStock(name) ? name : "disc";
   let cv = cache.get(key);
   if (!cv) cache.set(key, (cv = canvas(DRAW[key])));
   return cv;
