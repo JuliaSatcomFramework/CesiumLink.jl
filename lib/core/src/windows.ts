@@ -186,6 +186,18 @@ interface WindowsDeps {
   onNeed(startFrame: number, count: number): void;
   /** A newly declared range: point the shared timeline ruler at it. */
   onRange(start: JulianDate, stop: JulianDate): void;
+  /**
+   * The playback state changed: the signed clock `multiplier` — its sign is the direction and its
+   * size the speed — and whether the user wants playback on. The first tick calls this too, so the
+   * opening state reaches the server without waiting for someone to change it.
+   */
+  onClock?(multiplier: number, playing: boolean): void;
+  /**
+   * The clock crossed into absolute keyframe `index`. Every crossing the modules are driven by, and
+   * only those: an instant the buffer does not cover raises `onNeed` instead, so this says the
+   * clock is running over frames the scene can paint.
+   */
+  onCrossing?(index: number): void;
   onWarn?(message: string): void;
 }
 
@@ -309,6 +321,11 @@ export function createWindows(deps: WindowsDeps): Windows {
   let crossings = 0;
   const fireKeyframe = (i: number) => {
     crossings++;
+    try {
+      deps.onCrossing?.(i);
+    } catch (err) {
+      warn(`window: onCrossing(${i}) threw: ${err}`);
+    }
     each(keyframeCbs, i, "onKeyframe");
   };
 
@@ -333,7 +350,30 @@ export function createWindows(deps: WindowsDeps): Windows {
     }
   };
 
+  // The playback state last reported upward. Undefined until the first tick, which is what makes
+  // that tick state the opening values rather than compare against a guess.
+  let saidMultiplier: number | undefined;
+  let saidPlaying: boolean | undefined;
+  /**
+   * Report the clock's direction, speed and play/pause when either has changed. Read every tick
+   * because nothing announces a write to them: the Animation widget, a scrub and this file all set
+   * them directly. Only a change is sent, so a still clock costs nothing — but a shuttle-ring drag
+   * writes a new multiplier per rendered frame and sends one event per frame while it lasts.
+   */
+  const reportClock = (c: Clock) => {
+    const playing = !!c.shouldAnimate;
+    if (c.multiplier === saidMultiplier && playing === saidPlaying) return;
+    saidMultiplier = c.multiplier;
+    saidPlaying = playing;
+    try {
+      deps.onClock?.(c.multiplier, playing);
+    } catch (err) {
+      warn(`window: onClock threw: ${err}`);
+    }
+  };
+
   function tick(c: Clock): void {
+    reportClock(c);
     // Nothing is declared until the first window lands, and a clock ticking before then is running
     // over a range this file never configured.
     if (range === null) return;

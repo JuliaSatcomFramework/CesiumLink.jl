@@ -152,6 +152,40 @@ end
     end
 end
 
+@testitem "the clock and the keyframe topics are read into names, and the index is 1-based" begin
+    using CesiumLink: dispatch_event
+
+    server = start_server(; host = "::1", port = 0)
+    try
+        seen = []
+        on_event((ev, _) -> push!(seen, ev), server, "core", "clock")
+        on_event((ev, _) -> push!(seen, ev), server, "core", "keyframe")
+
+        dispatch_event(server, Dict("module" => "core", "topic" => "clock", "seq" => 1,
+                                    "frame" => 4, "window" => 2,
+                                    "payload" => Dict("multiplier" => -2.5, "playing" => true)))
+        clk = seen[1]
+        @test clk.multiplier == -2.5       # signed: the sign is the direction, the size the speed
+        @test clk.playing
+        @test clk.frame == 5               # the wire is 0-based, the Julia API 1-based
+
+        dispatch_event(server, Dict("module" => "core", "topic" => "keyframe", "seq" => 2,
+                                    "frame" => 7, "window" => 2,
+                                    "payload" => Dict("index" => 7)))
+        @test seen[2].index == 8
+
+        # The opening window crosses before the clock has ticked, so the event's own `frame` stamp is
+        # absent. The crossing carries its index anyway, which is why it is not read off `frame`.
+        dispatch_event(server, Dict("module" => "core", "topic" => "keyframe", "seq" => 3,
+                                    "frame" => nothing, "window" => nothing,
+                                    "payload" => Dict("index" => 0)))
+        @test seen[3].frame === nothing
+        @test seen[3].index == 1
+    finally
+        stop_server(server)
+    end
+end
+
 @testitem "an event carries everything under the cursor, and entity is the nearest of it" begin
     using CesiumLink: dispatch_event
 

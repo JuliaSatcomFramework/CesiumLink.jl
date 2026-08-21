@@ -16,6 +16,8 @@ const POINTER_TYPES = (:hover, :click)
 const CORE_WINDOW    = ("core", "window")
 const CORE_NEED      = ("core", "need")
 const CORE_POINTER   = ("core", "pointer")
+const CORE_CLOCK     = ("core", "clock")
+const CORE_KEYFRAME  = ("core", "keyframe")
 const CORE_SUBSCRIBE = ("core", "subscribe")
 const CORE_ELLIPSOID = ("core", "ellipsoid")
 const CORE_STOP      = ("core", "stop")
@@ -122,8 +124,18 @@ end
     on_event(f, server::Server, module_id::AbstractString, topic::AbstractString)
 
 Register `f` to answer the events the viewer sends on `(module_id, topic)`. The Core raises
-`core/need`; anything else comes from a module's own `ctx.notify`, under that module's id. `f` is
-called as `f(ev, reply)`, and one that cannot be is refused at registration.
+`core/need`, `core/clock` and `core/keyframe`; anything else comes from a module's own
+`ctx.notify`, under that module's id. `f` is called as `f(ev, reply)`, and one that cannot be is refused at registration.
+
+Two Core topics say where the animation is and where it is going, which is what a scene builds
+frames ahead of `core/need` from:
+
+- `core/clock` — `ev.multiplier` is signed: its sign is the direction, its size the speed, in
+  mission seconds per real second. `ev.playing` is the play/pause button. It arrives once at the
+  start and again on every change.
+- `core/keyframe` — `ev.index` is the **1-based** keyframe the clock just crossed into, forwards or
+  backwards. It arrives only while the buffer covers the clock; an instant it does not cover raises
+  `core/need` instead.
 
 Pointer events have a subscription to narrow and are registered with [`on_pointer`](@ref) instead.
 
@@ -301,7 +313,9 @@ sequence number the answering batch echoes and where the clock was when it was r
 **1-based** `frame` and the identity of the `window` on screen — so a listener answers against the
 scene the user was looking at. `core/pointer` adds the pick, the modifiers, the cursor and the
 coordinate; `core/need` adds the **1-based** `start_frame`, the frame `count` asked for and the
-`mode` the window is wanted in; everything else carries the module's own `payload`.
+`mode` the window is wanted in; `core/clock` adds the signed `multiplier` and `playing`;
+`core/keyframe` adds the **1-based** `index` crossed into; everything else carries the module's own
+`payload`.
 
 A `core/need` naming `mode = :replace` is asking for a window that stands on its own, which is what a
 client joining a scene already mid-run is answered with. A listener that always appends leaves such a
@@ -316,8 +330,12 @@ kind it wants rather than testing `entity` alone.
 
 `region` is the frame's array bytes. Every encoded array in a module's `payload` names an offset into
 it, the same way a payload travelling downward does, so a listener is handed the array rather than
-the object that carried it. The two core topics are read field by field into the names above and
+the object that carried it. The four core topics are read field by field into the names above and
 carry no payload of their own, so nothing in them is decoded.
+
+A crossing carries its own `index` rather than leaving a listener to read `frame`: the opening
+window crosses into its first keyframe before the clock has ticked once, and `frame` is `nothing`
+until it has.
 """
 function build_event(params, region = UInt8[])
     module_id = String(get(params, "module", ""))
@@ -335,6 +353,12 @@ function build_event(params, region = UInt8[])
                 count = Int(get(payload, "count", 2)),
                 mode = Symbol(get(payload, "mode", "append")))
     end
+    if (module_id, topic) == CORE_CLOCK
+        return (; base..., multiplier = Float64(get(payload, "multiplier", 1)),
+                playing = Bool(get(payload, "playing", false)))
+    end
+    (module_id, topic) == CORE_KEYFRAME &&
+        return (; base..., index = from_wire_index(Int(get(payload, "index", 0))))
     return (; base..., payload = as_named(decode_arrays(payload, region)))
 end
 

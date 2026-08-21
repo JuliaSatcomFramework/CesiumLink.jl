@@ -6,6 +6,11 @@ All notable changes to CesiumLink are in this file.
 
 ### Added
 
+- The viewer reports the animation clock on two new Core topics. Listen to them with
+  `on_event`. `core/clock` carries `ev.multiplier`, which is signed — the sign is the
+  direction and the size is the speed — and `ev.playing`, which is the play/pause button.
+  `core/keyframe` carries `ev.index`, the keyframe the clock just crossed into. Together they let a
+  scene build frames before `core/need` asks for them, which the how-to page shows.
 - A node `marker` and an edge `style` take four forms of name: a stock name, an
   `assets/<mount>/<file>` path, a `data:` URI, and the owner-namespaced name of something a browser
   module registered. The first token of the name says where the thing comes from. See ADR-0032.
