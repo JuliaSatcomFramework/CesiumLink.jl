@@ -80,16 +80,33 @@ to_codes(x::Integer) = float(x)
 to_codes(a::AbstractArray{Bool}) = convert(Array{UInt8}, a)
 to_codes(a::AbstractArray{<:Integer}) = convert(Array{UInt8}, a)
 
-function style_code(s::Symbol)
-    i = findfirst(==(s), STYLES)
-    i === nothing && throw(ArgumentError("line style must be one of $(STYLES) (got $(repr(s)))"))
-    return UInt8(i - 1)
+# The style table an edge family builds while it normalizes its `style` knob: one entry per material
+# code. A stock code holds `nothing`, and a code beyond the stock ones holds the name the viewer
+# resolves its material from. The per-edge number is an index into this table, so the stock codes
+# keep the front of it and a family that names no custom material leaves the table as it starts.
+new_styles() = Union{Nothing,String}[nothing for _ in STYLES]
+
+# The code one style name takes. A stock name keeps its stock code. Any other well-formed name is
+# appended to `table` and takes the code of its place in it. A name already in the table keeps the
+# code it was given, so a family that names one material at every keyframe stays one appearance.
+function style_code(s, table, what)
+    name = to_source(s, what, STYLES)
+    i = findfirst(==(Symbol(name)), STYLES)
+    i === nothing || return UInt8(i - 1)
+    j = findfirst(==(name), table)
+    j === nothing && (push!(table, name); j = length(table))
+    return UInt8(j - 1)
 end
 
-to_styles(::Nothing) = nothing
-to_styles(s::Symbol) = float(style_code(s))
-to_styles(a::AbstractArray{Symbol}) = UInt8[style_code(s) for s in a]
-to_styles(x) = to_codes(x)
+# A style knob, against the family's own table. A knob of plain numbers names material codes
+# directly and needs no table entry.
+to_styles(::Nothing, table, what) = nothing
+to_styles(s::Union{Symbol,AbstractString}, table, what) = float(style_code(s, table, what))
+to_styles(a::AbstractArray{<:Number}, table, what) = to_codes(a)
+# An array of names. Its element type is `Any` where a family mixes a stock `Symbol` with a custom
+# `String`, so the names are read one by one rather than off the array.
+to_styles(a::AbstractArray, table, what) = UInt8[style_code(s, table, what) for s in a]
+to_styles(x, table, what) = to_codes(x)
 
 # A colour knob, as the three families take it: a lone `(r, g, b, a)` for the family, or a `4 × N`
 # byte matrix — the shape [`CesiumLink.rgba`](@ref) produces — optionally with a trailing keyframe axis.

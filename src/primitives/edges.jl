@@ -38,14 +38,17 @@ Edges(:feeder; from = :gw, to = :sat, pairs = feeders, style = :dashed, dash_len
 """
 struct Edges
     # A family name and the two endpoint family names, all invented by the scene author, so all
-    # `String`s (ADR-0029). `style` names one of `STYLES`, which is CesiumLink's own set.
+    # `String`s (ADR-0029).
     kind::String
     from::String
     to::String
     # 0-based, as the wire carries them: the module indexes the node families' own arrays with these.
     pairs::Union{Matrix{UInt32},Vector{Matrix{UInt32}}}
     color::KnobValue
+    # A material code per edge. `styles` names what a code beyond the stock ones draws, and is
+    # `nothing` for a family drawn in stock materials alone.
     style::KnobValue
+    styles::Union{Nothing,Vector{Union{Nothing,String}}}
     width::KnobValue
     # Per-edge visibility. Independent of the endpoint families' own masks.
     show::KnobValue
@@ -55,7 +58,8 @@ struct Edges
         ragged = is_per_keyframe(pairs)
         p = ragged ? [to_pairs(kind, m) for m in pairs] : to_pairs(kind, pairs)
         c = per_keyframe(to_colors, color)
-        st = per_keyframe(to_styles, style)
+        table = new_styles()
+        st = per_keyframe(x -> to_styles(x, table, "$kind.style"), style)
         wd = per_keyframe(to_scalars, width)
         sh = per_keyframe(to_codes, show)
         knobs = ("color" => (c, 4), "style" => (st, 1), "width" => (wd, 1), "show" => (sh, 1))
@@ -69,7 +73,8 @@ struct Edges
             agree_frames(String(kind),
                 (name => knob_frames(v, m, item, "$kind.$name") for (name, (v, item)) in knobs)...)
         end
-        return new(String(kind), String(from), String(to), p, c, st, wd, sh,
+        return new(String(kind), String(from), String(to), p, c, st,
+                   length(table) > length(STYLES) ? table : nothing, wd, sh,
                    dash_length === nothing ? nothing : float(dash_length))
     end
 end
