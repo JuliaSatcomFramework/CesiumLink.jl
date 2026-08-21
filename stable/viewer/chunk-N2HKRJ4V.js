@@ -1,0 +1,1 @@
+var o=n=>`modules/${n}`,r=/^\/?modules\/([^/]+)\/(.+)$/;function d(n){return r.exec(n)?.[1]}function c(n,s,i){let e=r.exec(n),t=e?s[o(e[1])]:void 0;return t===void 0?i+n.replace(/^\//,""):t+e[2]}export{o as a,d as b,c};
