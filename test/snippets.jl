@@ -45,16 +45,36 @@ end
     using CesiumLink: declared
 end
 
-# `setup=[WsOpen]` brings `ws_open` into scope: a websocket connection whose block's value comes
-# back to the caller. `HTTP.WebSockets.open` returns that value under HTTP 2 and the handshake
-# `Response` under HTTP 1, so a test that reads what its block returned goes through here.
+# `setup=[WsOpen]` brings `ws_open` into scope. It opens a websocket and gives back the value of
+# its block. `HTTP.WebSockets.open` gives back that value under HTTP 2, and the handshake
+# `Response` under HTTP 1. A test that reads the value of its block calls `ws_open`.
+#
+# `ws_open` opens the websocket again if the upgrade fails. HTTP 1 holds client connections in a
+# pool, and takes one from the pool while `isopen` is true. A socket stays open until the operating
+# system reports the FIN of the peer, so the pool can give a dead connection. The write to it
+# fails, and the request does not leave the client. HTTP sends a failed request again, but only
+# when it can send the body again. `HTTP.get` carries such a body. `HTTP.open` sends no body, so
+# HTTP does not send the upgrade again.
+#
+# `ws_open` makes no new try after the block starts. An error from the block is the result the test
+# asks for, and it must reach the test.
 @testsnippet WsOpen begin
     using HTTP
 
-    function ws_open(f, url)
+    function ws_open(f, url; attempts = 3)
         out = Ref{Any}(nothing)
-        HTTP.WebSockets.open(url) do ws
-            out[] = f(ws)
+        entered = Ref(false)
+        for attempt in 1:attempts
+            try
+                HTTP.WebSockets.open(url) do ws
+                    entered[] = true
+                    out[] = f(ws)
+                end
+                break
+            catch
+                (entered[] || attempt == attempts) && rethrow()
+                sleep(0.1 * attempt)
+            end
         end
         return out[]
     end
