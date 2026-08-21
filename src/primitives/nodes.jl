@@ -1,7 +1,9 @@
 """
     MARKERS
 
-The stock marker glyphs a node family may be drawn with.
+The stock marker glyphs a node family may be drawn with. These are the names the package owns and
+validates. They are not the whole set a [`Nodes`](@ref) family may name: `marker` also takes an
+image of your own, and the name of a sprite a browser module registered.
 """
 const MARKERS = (:disc, :star, :square, :triangle)
 

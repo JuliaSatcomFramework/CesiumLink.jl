@@ -71,6 +71,8 @@ const SOLAR = Module(:SolarElevation)
 Base.include(SOLAR, joinpath(EXAMPLES, "solar_elevation.jl"))
 const SATELLITES = Module(:Satellites)
 Base.include(SATELLITES, joinpath(EXAMPLES, "Satellites", "run.jl"))
+const PULSE = Module(:PulseEdges)
+Base.include(PULSE, joinpath(EXAMPLES, "PulseEdges", "run.jl"))
 using Constellation
 import RegionCount
 
@@ -127,7 +129,8 @@ end
 const EXAMPLE_SOURCE = Dict("solar-elevation.md" => "solar_elevation.jl",
                             "satellites.md" => "Satellites",
                             "constellation.md" => "Constellation",
-                            "region-count.md" => "RegionCount")
+                            "region-count.md" => "RegionCount",
+                            "pulse-edges.md" => "PulseEdges")
 const FENCE = Dict("jl" => "julia", "js" => "js", "md" => "markdown", "toml" => "toml")
 
 function stage_examples()
@@ -280,6 +283,19 @@ function record_examples()
         # and the recording names the module by that path. The player rebuilds the URL from the
         # module id, so both files are put where it looks for them.
         cp(scene.served, joinpath(SRC, "public", "viewer", "modules", "regioncount"); force = true)
+        return scene
+    end
+
+    record_example("pulse-edges.jsonl") do server
+        scene = PULSE.install_pulse_scene!(server)
+        @assert size(scene.position) == (3, PULSE.NSAT, PULSE.KEYFRAMES)
+        # A closed ring: every satellite is an end of exactly two links. A layout that stops closing
+        # the ring still records a valid scene of lines that go nowhere.
+        @assert sort(vec(scene.links)) == repeat(1:PULSE.NSAT; inner = 2)
+        # The module is served from the directory beside the example, and the recording names it by
+        # that path. The player rebuilds the URL from the module id, so put the file where it looks.
+        cp(joinpath(EXAMPLES, "PulseEdges", "assets"),
+           joinpath(SRC, "public", "viewer", "modules", PULSE.MODULE_ID); force = true)
         return scene
     end
 
@@ -458,6 +474,7 @@ makedocs(;
             "2 · Satellite trails" => "examples/satellites.md",
             "3 · Constellation" => "examples/constellation.md",
             "4 · Satellites over a region" => "examples/region-count.md",
+            "5 · A line material of your own" => "examples/pulse-edges.md",
         ],
     ],
 )

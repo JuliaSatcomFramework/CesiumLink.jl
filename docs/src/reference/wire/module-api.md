@@ -720,6 +720,10 @@ They implement this contract and nothing more:
   resolves through `positionOf`, so a camera rides the midpoint of a link as readily as a satellite.
   A target it cannot read, a kind no family owns, and an index a family does not have all answer
   nothing. The Core writes one line and the camera stands still.
+
+  It also exports `defineNodeSprite(name, factory)` and `defineEdgeMaterial(name, factory)`, so
+  another module adds a glyph or a line material to the set a family draws from — see
+  [Extending a vendored module](#extending-a-vendored-module).
 - **`ui`** owns the overlay panel, the tooltip, the floating objects and the widget registry, and
   exports `defineWidget(kind, factory)` so another module can add a widget kind under an
   owner-namespaced name such as `"orbits.shell-picker"`. Nothing about it is privileged: it reaches a
@@ -735,6 +739,67 @@ They implement this contract and nothing more:
   attitude. It carries no position of its own: a model stands where its anchor stands, and a click
   on it reports that entity in the `primitives` namespace, as though no model were there. It names no
   colour either: what a model looks like belongs to the file.
+
+### Extending a vendored module
+
+A vendored module draws stock things from a list it owns. A module of your own adds to that list
+rather than replacing the vendored one.
+
+**One rule names every customizable thing, and the first token of the name says where the thing
+comes from.** The four forms cannot collide, so no seam depends on the order they are read in
+(ADR-0032):
+
+| The name | Where the thing comes from |
+|---|---|
+| `data:image/png;base64,…` | the bytes travel in the payload |
+| `assets/<mount>/<file>` | the server serves the file, and the host rebases the URL |
+| `orbits.pulse` — holds a `.` | a module registered it in the browser under its own id |
+| `star` — holds neither | a stock name the vendored module owns |
+
+A stock name never holds a `.` or a `/`. **Namespace a registered name with the id of the module
+that registers it**: a name that holds no dot is refused, with a line saying so.
+
+Three seams take a registration:
+
+| Module | Call | What it adds |
+|---|---|---|
+| `ui` | `defineWidget(kind, factory)` | a widget kind for the overlay and the tooltip |
+| `primitives` | `defineNodeSprite(name, factory)` | what a `Nodes` family draws its markers with |
+| `primitives` | `defineEdgeMaterial(name, factory)` | the material an `Edges` appearance is drawn in |
+
+```ts
+type SpriteFactory = () => HTMLCanvasElement | string;
+type EdgeMaterialFactory =
+  (C: typeof import("@cesium/engine"), look: { color: Color; dashLength: number }) => Material;
+```
+
+A sprite factory answers a canvas or an image URL, and **answers the same one every call**: Cesium
+keys its texture cache on what comes back, so a fresh canvas per call costs a texture per call. An
+edge material factory runs once per distinct appearance and answers a **fresh** material every call:
+the family owns what it is handed and destroys it when that appearance goes out of use.
+
+Call `define…` from your own `setup`, and **declare the vendored module first**. Registration order
+is the order the viewer runs the setups in, so a module declared ahead of the one it extends reaches
+that one before its state is built, and the Core says so.
+
+```js
+export default {
+  setup(ctx) {
+    ctx.modules.get("primitives").defineEdgeMaterial("pulse.travelling", travelling);
+  },
+};
+```
+
+The registry empties when the vendored module unloads, so a factory never outlives the context it
+closed over. A name nobody registered writes one line and falls back to the stock default — a
+missing material draws solid, a missing sprite draws the disc. It never throws.
+
+**Reach for a registration last.** Prefer a stock name; then an assets mount, for a file; then a
+`data:` URI, for something small. A registration is for a thing that needs code in the browser — a
+shader, or a canvas drawn per frame.
+
+`examples/PulseEdges/` is both halves of one registration in working code: the JavaScript that
+registers an edge material, and the Julia `Edges` family that names it.
 
 ### Filling a `ui` content site
 

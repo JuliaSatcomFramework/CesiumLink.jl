@@ -8,10 +8,13 @@ a ground cell to a satellite is one family over one of each. `pairs` is a `2 × 
 **1-based** `(from, to)` index pairs — or a vector of one such matrix per keyframe, which is how
 connectivity that changes over the window is expressed.
 
-`style` is one of $(STYLES), per family or per edge, so one family draws both the glowing active form
-of a link and the idle solid one as two batches. `width` is pixels and `dash_length` the pixels of
-one dash period. Where `pairs` changes per keyframe the per-edge knobs do too, as a vector of one
-array per keyframe sized to that keyframe's edges.
+`style` names the material a line is drawn in, per family or per edge, so one family draws both the
+glowing active form of a link and the idle solid one as two batches. It takes four forms: one of the
+stock materials $(STYLES), an `assets/<mount>/<file>` path or a `data:` URI to a texture repeated
+along the line, or the owner-namespaced name of a material a browser module registered
+(`"orbits.pulse"`). `width` is pixels and `dash_length` the pixels of one dash period. Where `pairs`
+changes per keyframe the per-edge knobs do too, as a vector of one array per keyframe sized to that
+keyframe's edges.
 
 **An edge's colour is its batch key.** A line's colour lives in its material, and the renderer emits
 one draw command per run of lines sharing one, so a family costs one draw command per distinct
@@ -20,6 +23,12 @@ appearances — active and idle, served and unserved — and not for a continuou
 thousand edges through [`CesiumLink.rgba`](@ref) draws a correct picture through a thousand draw commands.
 `width` and `show` are batch-table attributes and vary per edge for free. On [`Nodes`](@ref) and
 [`CesiumLink.Primitives.Areas`](@ref) colour is a per-entity attribute and a ramp costs nothing.
+
+**A material of your own costs the same as a stock one.** A texture or a registered material is one
+more appearance, so it is one more draw command and no more, and the paragraph above prices it. What
+a name outside the stock list resolves to is browser-side: Julia checks the shape of the name and
+passes any well-formed one on, because it cannot know what a module registered. A name nothing
+answers for draws a solid line and writes one line to the browser console.
 
 `show` masks per edge exactly as it does on [`Nodes`](@ref), and **reads only this family's own**: an
 edge whose endpoint is masked still draws, hanging off an invisible end. Hiding a cell and the links
@@ -34,6 +43,7 @@ one `pairs` under a mask than as one `pairs` per keyframe.
 ```julia
 Edges(:isl; from = :sat, to = :sat, pairs = isl, style = active_style, width = active_width)
 Edges(:feeder; from = :gw, to = :sat, pairs = feeders, style = :dashed, dash_length = 16)
+Edges(:beam; from = :gw, to = :sat, pairs = beams, style = "pulse.travelling")
 ```
 """
 struct Edges
