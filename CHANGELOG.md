@@ -2,6 +2,29 @@
 
 All notable changes to CesiumLink are in this file.
 
+## [Unreleased]
+
+### Added
+
+- A node `marker` and an edge `style` take four forms of name: a stock name, an
+  `assets/<mount>/<file>` path, a `data:` URI, and the owner-namespaced name of something a browser
+  module registered. The first token of the name says where the thing comes from. See ADR-0032.
+- The `primitives` module exports `defineNodeSprite(name, factory)` and
+  `defineEdgeMaterial(name, factory)`. A module of your own adds a marker glyph or a line material
+  with them, instead of copying the whole vendored module. `examples/PulseEdges/` shows both halves
+  of one registration.
+- A marker takes an `assets/<mount>/<file>` path. The server serves the image as a file. Before, a
+  marker image had to be a `data:` URI, which travelled again in every window that re-declared the
+  family.
+
+### Changed
+
+- `marker = "https://example.com/sat.png"` no longer throws when the family is built. The `/` makes
+  the name an asset path, and the viewer reports it as the malformed asset path it is.
+- Julia checks only the form of a `marker` or a `style` name, because it cannot know what a browser
+  registered. A registered name that no module answers for writes one line to the browser console
+  and draws the stock default. It does not throw.
+
 ## [0.1.1] - 2026-08-20
 
 ### Added
