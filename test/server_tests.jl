@@ -75,7 +75,7 @@ end
     @test under_root(joinpath(root, "index.html"), root * "/")
 end
 
-@testitem "server push + ready replay" setup=[DemoWindow, FreePort] begin
+@testitem "server push + ready replay" setup=[DemoWindow, FreePort, WsOpen] begin
     using HTTP, JSON
 
     port = freeport()
@@ -85,7 +85,7 @@ end
         push_window(server, demo_payloads(); start_frame = 1, count = 2, dt_seconds = 60,
                     total_frames = 8)
 
-        got = HTTP.WebSockets.open("ws://[::1]:$port/ws") do ws
+        got = ws_open("ws://[::1]:$port/ws") do ws
             HTTP.WebSockets.send(ws, JSON.json((; method = "ready",
                                                 params = (; protocol = CesiumLink.PROTOCOL_VERSION))))
             HTTP.WebSockets.receive(ws)             # the `modules` declaration, discarded
@@ -101,7 +101,7 @@ end
     end
 end
 
-@testitem "core/need reaches its listener with a 1-based start frame, its count and its mode" setup=[FreePort] begin
+@testitem "core/need reaches its listener with a 1-based start frame, its count and its mode" setup=[FreePort, WsOpen] begin
     using HTTP, JSON
 
     port = freeport()
@@ -114,7 +114,7 @@ end
             seen[] = (ev.start_frame, ev.count, ev.mode)
         end
 
-        ask(payload) = HTTP.WebSockets.open("ws://[::1]:$port/ws") do ws
+        ask(payload) = ws_open("ws://[::1]:$port/ws") do ws
             seen[] = nothing
             # `module` is a Julia keyword, so the event's params are built as a Dict here.
             HTTP.WebSockets.send(ws, JSON.json((; method = "event",
@@ -135,7 +135,7 @@ end
     end
 end
 
-@testitem "a throwing core/need listener leaves the connection open" setup=[FreePort] begin
+@testitem "a throwing core/need listener leaves the connection open" setup=[FreePort, WsOpen] begin
     using HTTP, JSON
 
     port = freeport()
@@ -143,7 +143,7 @@ end
     try
         on_event((ev, reply) -> error("ran out of frames"), server, "core", "need")
 
-        got = HTTP.WebSockets.open("ws://[::1]:$port/ws") do ws
+        got = ws_open("ws://[::1]:$port/ws") do ws
             HTTP.WebSockets.send(ws, JSON.json((; method = "event",
                 params = Dict("module" => "core", "topic" => "need",
                               "payload" => Dict("startFrame" => 3)))))
@@ -159,7 +159,7 @@ end
     end
 end
 
-@testitem "a core/need event is answered by appending to the delivered buffer" setup=[DemoWindow, FreePort] begin
+@testitem "a core/need event is answered by appending to the delivered buffer" setup=[DemoWindow, FreePort, WsOpen] begin
     using HTTP, JSON
 
     port = freeport()
@@ -172,7 +172,7 @@ end
                         count = ev.count, dt_seconds = 60, total_frames = 8, mode = ev.mode)
         end
 
-        HTTP.WebSockets.open("ws://[::1]:$port/ws") do ws
+        ws_open("ws://[::1]:$port/ws") do ws
             # `module` is a Julia keyword, so the event's params are built as a Dict here.
             HTTP.WebSockets.send(ws, JSON.json((; method = "event",
                 params = Dict("module" => "core", "topic" => "need",
@@ -289,7 +289,7 @@ end
     end
 end
 
-@testitem "with nothing to ask for a window, the retained one is replayed as it stands" setup=[DemoWindow, FreePort] begin
+@testitem "with nothing to ask for a window, the retained one is replayed as it stands" setup=[DemoWindow, FreePort, WsOpen] begin
     using HTTP, JSON
 
     port = freeport()
@@ -300,7 +300,7 @@ end
         push_window(server, demo_payloads(); start_frame = 3, count = 2, dt_seconds = 240,
                     total_frames = 10, mode = :append)
 
-        p = HTTP.WebSockets.open("ws://[::1]:$port/ws") do ws
+        p = ws_open("ws://[::1]:$port/ws") do ws
             HTTP.WebSockets.send(ws, JSON.json((; method = "ready",
                                                 params = (; protocol = CesiumLink.PROTOCOL_VERSION))))
             HTTP.WebSockets.receive(ws)             # the `modules` declaration, discarded
@@ -313,7 +313,7 @@ end
     end
 end
 
-@testitem "a pushed window carries its start frame, declared range, mode and identity" setup=[DemoWindow, FreePort] begin
+@testitem "a pushed window carries its start frame, declared range, mode and identity" setup=[DemoWindow, FreePort, WsOpen] begin
     using HTTP, JSON
 
     port = freeport()
@@ -326,7 +326,7 @@ end
         push_window(server, demo_payloads(); start_frame = 5, count = 2, dt_seconds = 240,
                     total_frames = 20, mode = :append)
 
-        got = HTTP.WebSockets.open("ws://[::1]:$port/ws") do ws
+        got = ws_open("ws://[::1]:$port/ws") do ws
             HTTP.WebSockets.send(ws, JSON.json((; method = "ready",
                                                 params = (; protocol = CesiumLink.PROTOCOL_VERSION))))
             HTTP.WebSockets.receive(ws)             # the `modules` declaration, discarded
@@ -343,7 +343,7 @@ end
     end
 end
 
-@testitem "a listener's replacement window becomes the scene a reconnecting client replays" setup=[DemoWindow, FreePort] begin
+@testitem "a listener's replacement window becomes the scene a reconnecting client replays" setup=[DemoWindow, FreePort, WsOpen] begin
     using HTTP, JSON
 
     port = freeport()
@@ -360,7 +360,7 @@ end
             return nothing
         end
 
-        HTTP.WebSockets.open("ws://[::1]:$port/ws") do ws
+        ws_open("ws://[::1]:$port/ws") do ws
             HTTP.WebSockets.send(ws, JSON.json((; method = "event",
                 params = Dict("module" => "ui", "topic" => "control", "frame" => 3,
                               "payload" => Dict("id" => "user", "value" => false)))))
@@ -371,7 +371,7 @@ end
         # bounded, so a listener that never ran fails rather than hangs.
         # The listener's own subscription is retained alongside the window and replayed with it, so
         # the window is picked out of the replay by method rather than by position.
-        replay() = HTTP.WebSockets.open("ws://[::1]:$port/ws") do ws
+        replay() = ws_open("ws://[::1]:$port/ws") do ws
             HTTP.WebSockets.send(ws, JSON.json((; method = "ready",
                                                 params = (; protocol = CesiumLink.PROTOCOL_VERSION))))
             HTTP.WebSockets.receive(ws)             # the `modules` declaration, discarded
@@ -392,7 +392,7 @@ end
     end
 end
 
-@testitem "retained replay: latest per (module, topic), all topics on connect" setup=[FreePort] begin
+@testitem "retained replay: latest per (module, topic), all topics on connect" setup=[FreePort, WsOpen] begin
     using HTTP, JSON
 
     port = freeport()
@@ -403,7 +403,7 @@ end
         send_command(server, "heatmap", "field", Dict("a" => 2))   # overwrites the first
         send_command(server, "ui", "declare", Dict("b" => 9))
 
-        got = HTTP.WebSockets.open("ws://[::1]:$port/ws") do ws
+        got = ws_open("ws://[::1]:$port/ws") do ws
             HTTP.WebSockets.send(ws, JSON.json((; method = "ready",
                                                 params = (; protocol = CesiumLink.PROTOCOL_VERSION))))
             HTTP.WebSockets.receive(ws)             # the `modules` declaration, discarded
@@ -441,14 +441,14 @@ end
     end
 end
 
-@testitem "a window's identity is new on a replace and held across an append" setup=[DemoWindow, FreePort] begin
+@testitem "a window's identity is new on a replace and held across an append" setup=[DemoWindow, FreePort, WsOpen] begin
     using HTTP, JSON
 
     port = freeport()
     server = start_server(; host = "::1", port)
     try
         # The retained window is what a client reads the identity from, so replay it after each push.
-        window() = HTTP.WebSockets.open("ws://[::1]:$port/ws") do ws
+        window() = ws_open("ws://[::1]:$port/ws") do ws
             HTTP.WebSockets.send(ws, JSON.json((; method = "ready",
                                                 params = (; protocol = CesiumLink.PROTOCOL_VERSION))))
             HTTP.WebSockets.receive(ws)             # the `modules` declaration, discarded
@@ -470,7 +470,7 @@ end
     end
 end
 
-@testitem "a registered module is declared on ready and served from its own directory" setup=[FreePort] begin
+@testitem "a registered module is declared on ready and served from its own directory" setup=[FreePort, WsOpen] begin
     using HTTP, JSON
 
     mktempdir() do dir
@@ -485,7 +485,7 @@ end
         server = start_server(; dist_dir = dist, host = "::1", port)
         try
             register_module!(server, :heatmap, joinpath(mod_dir, "heatmap.js"))
-            got = HTTP.WebSockets.open("ws://[::1]:$port/ws") do ws
+            got = ws_open("ws://[::1]:$port/ws") do ws
                 HTTP.WebSockets.send(ws, JSON.json((; method = "ready",
                                                     params = (; protocol = CesiumLink.PROTOCOL_VERSION))))
                 JSON.parse(CesiumLink.unpack(HTTP.WebSockets.receive(ws)).header)
@@ -558,14 +558,14 @@ end
     end
 end
 
-@testitem "the declared ellipsoid reaches the client on the session declaration" setup=[FreePort] begin
+@testitem "the declared ellipsoid reaches the client on the session declaration" setup=[FreePort, WsOpen] begin
     using HTTP, JSON
 
     port = freeport()
     # Mars: visibly not Earth, so a globe built on it cannot be mistaken for the default.
     server = start_server(; host = "::1", port, ellipsoid = (a = 3396190.0, b = 3376200.0))
     try
-        got = HTTP.WebSockets.open("ws://[::1]:$port/ws") do ws
+        got = ws_open("ws://[::1]:$port/ws") do ws
             HTTP.WebSockets.send(ws, JSON.json((; method = "ready",
                                                 params = (; protocol = CesiumLink.PROTOCOL_VERSION))))
             JSON.parse(CesiumLink.unpack(HTTP.WebSockets.receive(ws)).header)
@@ -768,7 +768,7 @@ end
     end
 end
 
-@testitem "a client announcing another protocol version is closed, not humoured" setup=[FreePort] begin
+@testitem "a client announcing another protocol version is closed, not humoured" setup=[FreePort, WsOpen] begin
     using HTTP, JSON
     using CesiumLink: PROTOCOL_VERSION
 
@@ -777,7 +777,7 @@ end
     try
         # A viewer built against another version of the framing parses no frame this server sends,
         # and reports nothing about it. Refusing it names the disagreement instead.
-        HTTP.WebSockets.open("ws://[::1]:$port/ws") do ws
+        ws_open("ws://[::1]:$port/ws") do ws
             HTTP.WebSockets.send(ws, JSON.json((; method = "ready",
                                                 params = (; protocol = PROTOCOL_VERSION + 1))))
             # No declaration, no retained scene — the socket closes instead.
@@ -1039,7 +1039,7 @@ end
     end
 end
 
-@testitem "the declaration carries the lighting flag, and omits it when the globe is evenly lit" setup=[FreePort] begin
+@testitem "the declaration carries the lighting flag, and omits it when the globe is evenly lit" setup=[FreePort, WsOpen] begin
     using HTTP, JSON
 
     # The declaration a server sends on `ready`, as the client reads it.
@@ -1047,7 +1047,7 @@ end
         port = freeport()
         server = start_server(; host = "::1", port, dist_dir = nothing, kw...)
         try
-            return HTTP.WebSockets.open("ws://[::1]:$port/ws") do ws
+            return ws_open("ws://[::1]:$port/ws") do ws
                 HTTP.WebSockets.send(ws, JSON.json((; method = "ready",
                     params = (; protocol = CesiumLink.PROTOCOL_VERSION))))
                 JSON.parse(CesiumLink.unpack(HTTP.WebSockets.receive(ws)).header)["params"]
@@ -1064,7 +1064,7 @@ end
     @test declared(; stars = true)["stars"] == true
 end
 
-@testitem "core/stop stops the server, and no listener can refuse it" setup=[FreePort] begin
+@testitem "core/stop stops the server, and no listener can refuse it" setup=[FreePort, WsOpen] begin
     using HTTP, JSON, Sockets
 
     stop_frame = JSON.json((; method = "event",
@@ -1090,7 +1090,7 @@ end
 
             # A second client, connected and holding the socket, to watch it drop.
             dropped = Ref(false)
-            @async HTTP.WebSockets.open("ws://[::1]:$port/ws") do ws
+            @async ws_open("ws://[::1]:$port/ws") do ws
                 try
                     HTTP.WebSockets.receive(ws)     # nothing is sent; this ends when the socket goes
                 catch
@@ -1105,7 +1105,7 @@ end
 
             # The stop client sends no `ready`: an `event` needs no handshake.
             try
-                HTTP.WebSockets.open("ws://[::1]:$port/ws") do ws
+                ws_open("ws://[::1]:$port/ws") do ws
                     HTTP.WebSockets.send(ws, stop_frame)
                 end
             catch
@@ -1139,7 +1139,7 @@ end
     end
 end
 
-@testitem "a module registered while a client is connected is declared to it" setup=[FreePort] begin
+@testitem "a module registered while a client is connected is declared to it" setup=[FreePort, WsOpen] begin
     using HTTP, JSON
 
     # A frame that never comes must fail this test rather than hang it: a server that stops
@@ -1157,7 +1157,7 @@ end
         port = freeport()
         server = start_server(; dist_dir = nothing, host = "::1", port)
         try
-            got = HTTP.WebSockets.open("ws://[::1]:$port/ws") do ws
+            got = ws_open("ws://[::1]:$port/ws") do ws
                 HTTP.WebSockets.send(ws, JSON.json((; method = "ready",
                                                     params = (; protocol = CesiumLink.PROTOCOL_VERSION))))
                 # A scene registers its modules after its server starts, so a page can be connected

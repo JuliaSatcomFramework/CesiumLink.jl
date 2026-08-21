@@ -45,6 +45,21 @@ end
     using CesiumLink: declared
 end
 
+# `setup=[WsOpen]` brings `ws_open` into scope: a websocket connection whose block's value comes
+# back to the caller. `HTTP.WebSockets.open` returns that value under HTTP 2 and the handshake
+# `Response` under HTTP 1, so a test that reads what its block returned goes through here.
+@testsnippet WsOpen begin
+    using HTTP
+
+    function ws_open(f, url)
+        out = Ref{Any}(nothing)
+        HTTP.WebSockets.open(url) do ws
+            out[] = f(ws)
+        end
+        return out[]
+    end
+end
+
 # `setup=[Joining]` brings `first_window` into scope: the `params` of the first window a client that
 # has just connected is sent, or `nothing` if none arrives. Reading on a task and waiting on a
 # deadline rather than blocking on `receive` is what makes "this client was sent no window at all" a
@@ -53,8 +68,8 @@ end
     using CesiumLink, HTTP, JSON
 
     function first_window(port; timeout = 10.0)
+        got = Ref{Any}(nothing)
         HTTP.WebSockets.open("ws://[::1]:$port/ws") do ws
-            got = Ref{Any}(nothing)
             reader = @async try
                 for msg in ws
                     m = JSON.parse(CesiumLink.unpack(msg).header)
@@ -69,8 +84,8 @@ end
             HTTP.WebSockets.send(ws, JSON.json((; method = "ready",
                                                 params = (; protocol = CesiumLink.PROTOCOL_VERSION))))
             timedwait(() -> got[] !== nothing, timeout)
-            got[]
         end
+        return got[]
     end
 end
 

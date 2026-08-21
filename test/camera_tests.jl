@@ -142,7 +142,7 @@ end
     end
 end
 
-@testitem "a ride goes out on the wire and never displaces the declared track" setup=[Furnished, FreePort] begin
+@testitem "a ride goes out on the wire and never displaces the declared track" setup=[Furnished, FreePort, WsOpen] begin
     using HTTP, JSON
 
     # One `commands` frame carrying a `core/camera` payload with a `follow` statement in it. The
@@ -162,7 +162,7 @@ end
     try
         declare_camera(server, Viewpoint(; lon = 12.5, lat = 41.9, at = 4))
 
-        got = HTTP.WebSockets.open("ws://[::1]:$port/ws") do ws
+        got = ws_open("ws://[::1]:$port/ws") do ws
             HTTP.WebSockets.send(ws, JSON.json((; method = "ready",
                                                 params = (; protocol = CesiumLink.PROTOCOL_VERSION))))
             HTTP.WebSockets.receive(ws)                       # the `modules` declaration

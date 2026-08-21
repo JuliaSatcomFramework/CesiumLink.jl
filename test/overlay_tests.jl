@@ -86,14 +86,14 @@ end
     @test issorted(first.(stops))
 end
 
-@testitem "the overlay declaration reaches the ui module and survives a reconnect" setup=[FreePort] begin
+@testitem "the overlay declaration reaches the ui module and survives a reconnect" setup=[FreePort, WsOpen] begin
     using HTTP, JSON
 
     port = freeport()
     server = start_server(; host = "::1", port)
     try
         declare_overlay(server, [Title("Visibility demo"), Toggle(:isl, "ISL links", true)])
-        got = HTTP.WebSockets.open("ws://[::1]:$port/ws") do ws
+        got = ws_open("ws://[::1]:$port/ws") do ws
             HTTP.WebSockets.send(ws, JSON.json((; method = "ready",
                                                 params = (; protocol = CesiumLink.PROTOCOL_VERSION))))
             HTTP.WebSockets.receive(ws)                       # the `modules` declaration, discarded
@@ -183,14 +183,14 @@ end
     @test_throws "1-based" Entity(:primitives, :sat, 0)
 end
 
-@testitem "the float set reaches the ui module and survives a reconnect" setup=[FreePort] begin
+@testitem "the float set reaches the ui module and survives a reconnect" setup=[FreePort, WsOpen] begin
     using HTTP, JSON
 
     port = freeport()
     server = start_server(; host = "::1", port)
     try
         declare_floating(server, [Floating(:pin; anchor = Screen(10, 20), html = "<b>pinned</b>")])
-        got = HTTP.WebSockets.open("ws://[::1]:$port/ws") do ws
+        got = ws_open("ws://[::1]:$port/ws") do ws
             HTTP.WebSockets.send(ws, JSON.json((; method = "ready",
                                                 params = (; protocol = CesiumLink.PROTOCOL_VERSION))))
             HTTP.WebSockets.receive(ws)                       # the `modules` declaration, discarded
