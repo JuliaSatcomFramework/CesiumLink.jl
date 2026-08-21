@@ -9,7 +9,9 @@ import { sourceOf } from "../../core/src/source.ts";
 import { registry } from "./registry.ts";
 
 // A stock name holds no `.` and no `/`: either would read as a module name or an asset path.
-export type Marker = "disc" | "star" | "square" | "triangle";
+export type Marker = "disc" | "square" | "diamond" | "triangle" | "triangle_down"
+                   | "triangle_right" | "triangle_left" | "pentagon" | "hexagon" | "star"
+                   | "cross" | "x";
 
 const SIZE = 32;
 
@@ -45,6 +47,19 @@ function regular(sides: number, r: number, phase: number): [number, number][] {
   });
 }
 
+// Corners of a plus in units of its radius, going around from the tip of the right arm. Turned an
+// eighth of a turn it is the x.
+const PLUS: [number, number][] = [
+  [1, 0.3], [0.3, 0.3], [0.3, 1], [-0.3, 1], [-0.3, 0.3], [-1, 0.3],
+  [-1, -0.3], [-0.3, -0.3], [-0.3, -1], [0.3, -1], [0.3, -0.3], [1, -0.3],
+];
+
+/** `PLUS` scaled to radius `r`, turned by `phase`, about the canvas centre. */
+function plus(r: number, phase: number): [number, number][] {
+  const c = SIZE / 2, k = Math.cos(phase), n = Math.sin(phase);
+  return PLUS.map(([x, y]) => [c + r * (x * k - y * n), c + r * (x * n + y * k)] as [number, number]);
+}
+
 const DRAW: Record<Marker, (g: CanvasRenderingContext2D, s: number) => void> = {
   disc: (g, s) => {
     g.beginPath();
@@ -60,7 +75,15 @@ const DRAW: Record<Marker, (g: CanvasRenderingContext2D, s: number) => void> = {
     }));
   },
   square: (g, s) => polygon(g, regular(4, s * 0.42, Math.PI / 4)),
+  diamond: (g, s) => polygon(g, regular(4, s * 0.44, -Math.PI / 2)),
   triangle: (g, s) => polygon(g, regular(3, s * 0.44, -Math.PI / 2)),
+  triangle_down: (g, s) => polygon(g, regular(3, s * 0.44, Math.PI / 2)),
+  triangle_right: (g, s) => polygon(g, regular(3, s * 0.44, 0)),
+  triangle_left: (g, s) => polygon(g, regular(3, s * 0.44, Math.PI)),
+  pentagon: (g, s) => polygon(g, regular(5, s * 0.44, -Math.PI / 2)),
+  hexagon: (g, s) => polygon(g, regular(6, s * 0.44, -Math.PI / 2)),
+  cross: (g, s) => polygon(g, plus(s * 0.44, 0)),
+  x: (g, s) => polygon(g, plus(s * 0.44, Math.PI / 4)),
 };
 
 /** What a registered sprite answers with: an image URL, or a canvas drawn in the browser. */

@@ -89,7 +89,9 @@ appearances small.
 
 ## Draw with an image of your own
 
-`marker` takes one of the stock glyphs — `:disc`, `:star`, `:square`, `:triangle` — or an image, which
+`marker` takes one of the stock glyphs — `:disc`, `:square`, `:diamond`, `:triangle`,
+`:triangle_down`, `:triangle_right`, `:triangle_left`, `:pentagon`, `:hexagon`, `:star`,
+`:cross`, `:x` — or an image, which
 [`marker_image`](@ref) reads off disk:
 
 ```julia

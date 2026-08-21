@@ -21,6 +21,9 @@ All notable changes to CesiumLink are in this file.
 - A marker takes an `assets/<mount>/<file>` path. The server serves the image as a file. Before, a
   marker image had to be a `data:` URI, which travelled again in every window that re-declared the
   family.
+- Eight more stock marker glyphs for a `Nodes` family: `:diamond`, `:triangle_down`,
+  `:triangle_right`, `:triangle_left`, `:pentagon`, `:hexagon`, `:cross` and `:x`, beside the
+  `:disc`, `:square`, `:triangle` and `:star` that were there already.
 
 ### Changed
 
