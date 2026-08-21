@@ -11,7 +11,7 @@ const KnobValue = Union{Nothing,Float64,AbstractArray}
     STYLES
 
 The stock line materials, in the order their codes travel on the wire. These are the names the
-package owns and validates. They are not the whole set an [`CesiumLink.Primitives.Edges`](@ref)
+package owns and validates. They are not the whole set a [`CesiumLink.Primitives.Edges`](@ref)
 family may name: `style` also takes a texture, and the name of a material a browser module
 registered.
 """

@@ -768,6 +768,8 @@ Three seams take a registration:
 | `primitives` | `defineEdgeMaterial(name, factory)` | the material an `Edges` appearance is drawn in |
 
 ```ts
+import type { Color, Material } from "@cesium/engine";
+
 type SpriteFactory = () => HTMLCanvasElement | string;
 type EdgeMaterialFactory =
   (C: typeof import("@cesium/engine"), look: { color: Color; dashLength: number }) => Material;
