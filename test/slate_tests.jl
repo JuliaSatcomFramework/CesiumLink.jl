@@ -46,8 +46,6 @@ end
     server = start_server()
     try
         render_in(slate, server, "cell-a")
-        # A route stays for the life of the process, and the test items share one. Each item that
-        # registers a module therefore needs a name of its own.
         @test !haskey(asset_routes(), "CesiumLink-module-route_late")
 
         # `register_module!` declares the module to the clients that are already connected. The page
@@ -58,6 +56,9 @@ end
         @test haskey(asset_routes(), "CesiumLink-module-route_late")
     finally
         stop_server(server)
+        # A route stays for the life of the process, and the test items share one. This item asserts
+        # that its own route is absent before it registers it, so it must take the route back out.
+        delete!(asset_routes(), "CesiumLink-module-route_late")
     end
 end
 
@@ -81,6 +82,7 @@ end
         @test length(setdiff(keys(slate.handlers), [dead])) == 1
     finally
         stop_server(server)
+        delete!(asset_routes(), "CesiumLink-module-evict_late")
     end
 end
 
