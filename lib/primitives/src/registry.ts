@@ -21,7 +21,8 @@ export function registry<F>(what: string) {
   return {
     define(name: string, f: F): void {
       if (sourceOf(name).kind !== "module") {
-        console.warn(`primitives: a ${what} name is owner-namespaced, e.g. "orbits.${name}"`);
+        console.warn(`primitives: ${what} ${JSON.stringify(name)} is not owner-namespaced ` +
+                     `(e.g. "orbits.${name}"); the registration is ignored`);
         return;
       }
       if (map.has(name)) {

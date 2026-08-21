@@ -19,6 +19,7 @@ test("a name that is not owner-namespaced is refused and warns", () => {
   const r = registry<number>("sprite");
   const said = warnings(() => r.define("pulse", 1));
   assert.equal(r.get("pulse"), undefined);
+  assert.match(said.join("\n"), /"pulse" is not owner-namespaced/);
   assert.match(said.join("\n"), /orbits\.pulse/);
 });
 
