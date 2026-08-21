@@ -45,6 +45,16 @@ test("a supplied image passes through, and a stock glyph is drawn once and share
   assert.deepEqual(said, []);
 });
 
+// The names `MARKERS` in `src/primitives/nodes.jl` admits. A name the server accepts and this
+// module has no glyph for draws the disc, silently, so nothing else would report the gap.
+const STOCK = ["disc", "square", "diamond", "triangle", "triangle_down", "triangle_right",
+               "triangle_left", "pentagon", "hexagon", "star", "cross", "x"];
+
+test("every stock name draws a glyph of its own", () => {
+  const drawn = STOCK.map((name) => markerSprite(name, served));
+  assert.equal(new Set(drawn).size, STOCK.length, "a name fell through to the disc");
+});
+
 test("an asset path goes through the host's resolver, and a path it cannot reach is the disc", () => {
   assert.equal(markerSprite("assets/sprites/sat.png", served), "https://host/assets/sprites/sat.png",
                "the url came from assetUrl rather than from the payload's own path");

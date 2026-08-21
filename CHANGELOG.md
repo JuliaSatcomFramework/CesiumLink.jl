@@ -2,6 +2,14 @@
 
 All notable changes to CesiumLink are in this file.
 
+## [Unreleased]
+
+### Added
+
+- Eight more stock marker glyphs for a `Nodes` family: `:diamond`, `:triangle_down`,
+  `:triangle_right`, `:triangle_left`, `:pentagon`, `:hexagon`, `:cross` and `:x`, beside the
+  `:disc`, `:square`, `:triangle` and `:star` that were there already.
+
 ## [0.1.1] - 2026-08-20
 
 ### Added

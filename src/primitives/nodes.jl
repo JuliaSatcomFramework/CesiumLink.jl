@@ -3,7 +3,8 @@
 
 The stock marker glyphs a node family may be drawn with.
 """
-const MARKERS = (:disc, :star, :square, :triangle)
+const MARKERS = (:disc, :square, :diamond, :triangle, :triangle_down, :triangle_right,
+                 :triangle_left, :pentagon, :hexagon, :star, :cross, :x)
 
 """
     marker_image(path) -> String
