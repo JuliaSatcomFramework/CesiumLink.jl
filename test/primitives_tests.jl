@@ -97,6 +97,14 @@ end
     @test first(lowered(primitives_payload(gws, sats, one)))["edges"][1]["style"] == 1
     # A family drawn in stock materials alone sends no style table at all.
     @test !haskey(first(lowered(primitives_payload(sats, e)))["edges"][1], "styles")
+
+    # A style may also arrive as the code itself, per family or per edge, which is the spelling the
+    # wire carries and the one a caller reaches for after it has read a code back.
+    codes = Edges(:num; from = :sat, to = :sat, pairs = [1 2; 3 4], style = UInt8[0, 2])
+    q, region = lowered(primitives_payload(sats, codes))
+    @test decode_arrays(q["edges"][1]["style"], region) == UInt8[0, 2]
+    lone = Edges(:lone; from = :sat, to = :sat, pairs = [1; 2;;], style = 2)
+    @test first(lowered(primitives_payload(sats, lone)))["edges"][1]["style"] == 2
 end
 
 @testitem "an edge style names a custom material, and the family carries the table" setup=[Wire] begin
