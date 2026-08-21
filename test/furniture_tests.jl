@@ -78,12 +78,12 @@ end
     end
 end
 
-@testitem "the declared furniture reaches the client on the session declaration" setup=[Furnished] begin
+@testitem "the declared furniture reaches the client on the session declaration" setup=[Furnished, WsOpen] begin
     using HTTP, JSON
 
     # What the first message a client receives carries under `params`.
     function declaration(server)
-        HTTP.WebSockets.open("ws://[::1]:$(CesiumLink.bound_port(server))/ws") do ws
+        ws_open("ws://[::1]:$(CesiumLink.bound_port(server))/ws") do ws
             HTTP.WebSockets.send(ws, JSON.json((; method = "ready",
                                                 params = (; protocol = CesiumLink.PROTOCOL_VERSION))))
             JSON.parse(CesiumLink.unpack(HTTP.WebSockets.receive(ws)).header)["params"]

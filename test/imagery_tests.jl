@@ -132,7 +132,7 @@ end
           Dict("url" => "assets/imagery/", "layout" => "tms")
 end
 
-@testitem "the mount serves a tile and refuses a path that climbs out of it" setup=[Pyramid, FreePort] begin
+@testitem "the mount serves a tile and refuses a path that climbs out of it" setup=[Pyramid, FreePort, WsOpen] begin
     using HTTP, JSON
 
     mktempdir() do root
@@ -157,7 +157,7 @@ end
                            status_exception = false).status in (403, 404)
 
             # The one thing the viewer needs before it builds its globe.
-            got = HTTP.WebSockets.open("ws://[::1]:$port/ws") do ws
+            got = ws_open("ws://[::1]:$port/ws") do ws
                 HTTP.WebSockets.send(ws, JSON.json((; method = "ready",
                                                     params = (; protocol = CesiumLink.PROTOCOL_VERSION))))
                 JSON.parse(CesiumLink.unpack(HTTP.WebSockets.receive(ws)).header)

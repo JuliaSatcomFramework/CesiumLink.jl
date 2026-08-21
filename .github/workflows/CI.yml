@@ -60,12 +60,19 @@ jobs:
       - run: npm test
 
   julia:
-    name: Julia (${{ matrix.os }})
+    name: Julia (${{ matrix.os }}${{ matrix.http && format(', HTTP {0}', matrix.http) || '' }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
+        # The compat entry names two HTTP majors, and they disagree on what a listener reports for a
+        # port it was asked to pick and on what `WebSockets.open` gives back. Resolution takes the
+        # newest, so the lower bound is only covered if a run asks for it: this one Linux entry is
+        # what stops `HTTP = "1.10, 2"` from becoming a claim nothing checks.
+        include:
+          - os: ubuntu-latest
+            http: "1.10"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -86,6 +93,9 @@ jobs:
         with:
           version: "1"
       - uses: julia-actions/cache@v2
+      - name: Resolve HTTP to ${{ matrix.http }}
+        if: matrix.http
+        run: julia --project=. -e 'using Pkg; Pkg.add(PackageSpec(name = "HTTP", version = "${{ matrix.http }}"))'
       - uses: julia-actions/julia-runtest@v1
       # `src` alone: `tools/` and `examples/` carry Julia the package does not ship, and counting
       # them would report the package as far less covered than it is.
@@ -94,11 +104,11 @@ jobs:
       # `Sys.iswindows()`, so neither run alone reaches every line. macOS takes the same branches as
       # Linux, and a third upload of those lines says nothing more than the first.
       - uses: julia-actions/julia-processcoverage@v1
-        if: matrix.os != 'macos-latest'
+        if: matrix.os != 'macos-latest' && !matrix.http
         with:
           directories: src
       - uses: codecov/codecov-action@v5
-        if: matrix.os != 'macos-latest'
+        if: matrix.os != 'macos-latest' && !matrix.http
         with:
           files: lcov.info
           token: ${{ secrets.CODECOV_TOKEN }}

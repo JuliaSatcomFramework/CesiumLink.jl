@@ -40,7 +40,7 @@
     @test isempty(pointer_subscription(EventListener[]))
 end
 
-@testitem "a listener declares its subscription to the viewer, and it survives a reconnect" setup=[FreePort] begin
+@testitem "a listener declares its subscription to the viewer, and it survives a reconnect" setup=[FreePort, WsOpen] begin
     using HTTP, JSON
 
     port = freeport()
@@ -48,7 +48,7 @@ end
     try
         on_pointer((ev, reply) -> nothing, server; type = :click, alt = true, ctrl = false,
                  shift = false, coordinate = true)
-        got = HTTP.WebSockets.open("ws://[::1]:$port/ws") do ws
+        got = ws_open("ws://[::1]:$port/ws") do ws
             HTTP.WebSockets.send(ws, JSON.json((; method = "ready",
                                                 params = (; protocol = CesiumLink.PROTOCOL_VERSION))))
             HTTP.WebSockets.receive(ws)                       # the `modules` declaration, discarded
@@ -331,7 +331,7 @@ end
     end
 end
 
-@testitem "an answered event sends one batch echoing its seq" setup=[FreePort] begin
+@testitem "an answered event sends one batch echoing its seq" setup=[FreePort, WsOpen] begin
     using HTTP, JSON
 
     port = freeport()
@@ -345,7 +345,7 @@ end
             command!(reply, "tracks", "emphasize", (; kind = String(ev.entity.kind),
                                                   idx = ev.entity.idx))
         end
-        got = HTTP.WebSockets.open("ws://[::1]:$port/ws") do ws
+        got = ws_open("ws://[::1]:$port/ws") do ws
             HTTP.WebSockets.send(ws, JSON.json((; method = "ready",
                                                 params = (; protocol = CesiumLink.PROTOCOL_VERSION))))
             HTTP.WebSockets.receive(ws)                       # the `modules` declaration

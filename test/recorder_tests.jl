@@ -1,4 +1,4 @@
-@testitem "a replay puts a client where the recorded session would have" setup=[DemoWindow, FreePort] begin
+@testitem "a replay puts a client where the recorded session would have" setup=[DemoWindow, FreePort, WsOpen] begin
     using HTTP, JSON
 
     mktempdir() do dir
@@ -27,7 +27,7 @@
             # replay is sent: the same modules to load, the same scene, the same overlay.
             # Read on a task against a deadline rather than blocking on `receive`, so a frame the
             # replay failed to send is a failure here instead of a hang.
-            got = HTTP.WebSockets.open("ws://[::1]:$port/ws") do ws
+            got = ws_open("ws://[::1]:$port/ws") do ws
                 frames = Any[]
                 @async try
                     for msg in ws
@@ -189,7 +189,7 @@ end
     end
 end
 
-@testitem "a replayed answer carries no sequence number of its own" setup=[FreePort] begin
+@testitem "a replayed answer carries no sequence number of its own" setup=[FreePort, WsOpen] begin
     using HTTP, JSON
 
     mktempdir() do dir
@@ -208,7 +208,7 @@ end
         port = freeport()
         target = start_server(; dist_dir = nothing, host = "::1", port)
         try
-            got = HTTP.WebSockets.open("ws://[::1]:$port/ws") do ws
+            got = ws_open("ws://[::1]:$port/ws") do ws
                 frames = Any[]
                 @async try
                     for msg in ws

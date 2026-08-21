@@ -241,7 +241,8 @@ for a program that has to build something else out of it.
 function bound_port(server::Server)
     server.listener === nothing &&
         throw(ArgumentError("this server is $(no_listener(server))"))
-    return server.listener.bound_port
+    # `HTTP.port` is the accessor both HTTP 1 and HTTP 2 export; the field behind it differs.
+    return HTTP.port(server.listener)
 end
 
 # The host half of a URL that reaches a server bound to `host`. A wildcard bind answers on every
@@ -472,10 +473,12 @@ function start_server(; dist_dir = viewer_dist(), host = "127.0.0.1", port = 0,
     listen || (watch_float_rects!(server); return server)
     # A bind that did not happen must never return a `Server`. HTTP.jl binds inside a task and
     # reports a failure two ways: the task's error reaches here, or the task's ready notification
-    # wins the race and `listen!` returns with `bound_port` left at zero. The second one is the
+    # wins the race and `listen!` returns with a bound port of zero. The second one is the
     # dangerous one — it hands back a server that answers nothing and says nothing.
+    # `listenany` is what makes the listener record the port the operating system picked; without it
+    # HTTP 1 keeps reporting the zero it was asked for.
     listener = try
-        HTTP.listen!(host, port) do stream
+        HTTP.listen!(host, port; listenany = port == 0) do stream
             if HTTP.WebSockets.isupgrade(stream.message)
                 HTTP.WebSockets.upgrade(stream) do ws
                     client = Client(ws)
@@ -501,7 +504,7 @@ function start_server(; dist_dir = viewer_dist(), host = "127.0.0.1", port = 0,
     catch e
         throw(ArgumentError("could not listen on $host:$port — $(bind_reason(e))"))
     end
-    if listener.bound_port == 0
+    if HTTP.port(listener) == 0
         close(listener)
         throw(ArgumentError("could not listen on $host:$port — the address is already in use"))
     end

@@ -70,7 +70,7 @@ end
     end
 end
 
-@testitem "the declaration carries the base each mount answers, and not the directory" setup=[FreePort] begin
+@testitem "the declaration carries the base each mount answers, and not the directory" setup=[FreePort, WsOpen] begin
     using HTTP, JSON
 
     # A browser host needs none of this — a same-origin path already resolves against the page — but
@@ -86,7 +86,7 @@ end
         server = start_server(; dist_dir = nothing, host = "::1", port, assets = dir)
         try
             @test CesiumLink.declared_assets(server) == Dict("glb" => "assets/glb/")
-            got = HTTP.WebSockets.open("ws://[::1]:$port/ws") do ws
+            got = ws_open("ws://[::1]:$port/ws") do ws
                 HTTP.WebSockets.send(ws, JSON.json((; method = "ready",
                                                     params = (; protocol = CesiumLink.PROTOCOL_VERSION))))
                 JSON.parse(CesiumLink.unpack(HTTP.WebSockets.receive(ws)).header)
