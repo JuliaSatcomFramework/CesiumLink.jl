@@ -112,21 +112,27 @@ Two events say where the clock is and where it goes, so a listener can build the
 answer `core/need` from a cache:
 
 ```julia
+const TOTAL = 50_000             # the declared range, which is what an index must stay inside
+const DT = 30                    # the dt_seconds this scene declared
+
 cache = Dict{Int,Any}()          # absolute keyframe index → the payload for it
 lead = Ref(8)                    # how many frames ahead to hold
 step = Ref(1)                    # +1 forwards, -1 backwards
 
 # Which way playback runs, and how fast. `ev.multiplier` is mission seconds per real second, so
-# `abs(ev.multiplier) / dt_seconds` is keyframes per real second.
+# `abs(ev.multiplier) / DT` is keyframes per real second.
 on_event(server, "core", "clock") do ev, _
     step[] = ev.multiplier < 0 ? -1 : 1
-    rate = abs(ev.multiplier) / 30            # the dt_seconds this scene declared
+    rate = abs(ev.multiplier) / DT
     lead[] = max(4, ceil(Int, rate * 0.5))    # half a second of frames
 end
 
 # Where the clock is now. Build what comes next, off the listener task.
 on_event(server, "core", "keyframe") do ev, _
     @async for k in ev.index .+ step[] .* (0:lead[])
+        # The run ends at both ends. Near either one the clock has fewer frames left to play than
+        # the lead asks for, and a frame outside the range is one nothing can ever ask for.
+        1 <= k <= TOTAL || continue
         get!(() -> payload_for(k), cache, k)
     end
 end
@@ -135,7 +141,7 @@ on_event(server, "core", "need") do ev, _
     frames = ev.start_frame:(ev.start_frame + ev.count - 1)
     push_window(server, [get!(() -> payload_for(k), cache, k) for k in frames];
                 start_frame = ev.start_frame, count = ev.count, mode = ev.mode,
-                total_frames = 50_000, dt_seconds = 30)
+                total_frames = TOTAL, dt_seconds = DT)
 end
 ```
 

@@ -318,9 +318,36 @@ export function createWindows(deps: WindowsDeps): Windows {
   // Crossings reported so far. A late handler is told the one already on screen, and this is how it
   // learns whether a real one reached it first — the index alone cannot say, because a re-push
   // re-fires the very index the handler is waiting to be told about.
+  // The playback state last reported upward. Undefined until the first tick, which is what makes
+  // that tick state the opening values rather than compare against a guess.
+  let saidMultiplier: number | undefined;
+  let saidPlaying: boolean | undefined;
+  /**
+   * Report the clock's direction, speed and play/pause when either has changed. Read every tick
+   * because nothing announces a write to them: the Animation widget, a scrub and this file all set
+   * them directly. Only a change is sent, so a still clock costs nothing — but a shuttle-ring drag
+   * writes a new multiplier per rendered frame and sends one event per frame while it lasts.
+   */
+  const reportClock = (c: Clock) => {
+    const playing = !!c.shouldAnimate;
+    if (c.multiplier === saidMultiplier && playing === saidPlaying) return;
+    saidMultiplier = c.multiplier;
+    saidPlaying = playing;
+    try {
+      deps.onClock?.(c.multiplier, playing);
+    } catch (err) {
+      warn(`window: onClock threw: ${err}`);
+    }
+  };
+
   let crossings = 0;
   const fireKeyframe = (i: number) => {
     crossings++;
+    // The clock first, always. A window declaring a new range writes the multiplier and the play
+    // flag itself and then crosses, all before the next tick — so a crossing published on its own
+    // would reach the server under the direction and speed of the run that just ended. The change
+    // check makes this free on the crossings a tick already reported the clock for.
+    reportClock(clock);
     try {
       deps.onCrossing?.(i);
     } catch (err) {
@@ -347,28 +374,6 @@ export function createWindows(deps: WindowsDeps): Windows {
       deps.onNeed(from, count);
     } catch (err) {
       warn(`window: onNeed(${from}) threw: ${err}`);
-    }
-  };
-
-  // The playback state last reported upward. Undefined until the first tick, which is what makes
-  // that tick state the opening values rather than compare against a guess.
-  let saidMultiplier: number | undefined;
-  let saidPlaying: boolean | undefined;
-  /**
-   * Report the clock's direction, speed and play/pause when either has changed. Read every tick
-   * because nothing announces a write to them: the Animation widget, a scrub and this file all set
-   * them directly. Only a change is sent, so a still clock costs nothing — but a shuttle-ring drag
-   * writes a new multiplier per rendered frame and sends one event per frame while it lasts.
-   */
-  const reportClock = (c: Clock) => {
-    const playing = !!c.shouldAnimate;
-    if (c.multiplier === saidMultiplier && playing === saidPlaying) return;
-    saidMultiplier = c.multiplier;
-    saidPlaying = playing;
-    try {
-      deps.onClock?.(c.multiplier, playing);
-    } catch (err) {
-      warn(`window: onClock threw: ${err}`);
     }
   };
 

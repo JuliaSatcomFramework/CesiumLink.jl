@@ -587,6 +587,10 @@ Core-produced topics:
   payload rather than read off the event's `frame` stamp, because the opening window crosses into
   its first keyframe before the clock has ticked once and `frame` is null until it has.
 
+  A `core/clock` for the state the crossing happened under always precedes it, so a server never
+  builds ahead in the direction of the run that just ended. A window declaring a new range writes
+  the multiplier itself and crosses at once, before the next tick.
+
   Together with `core/clock` this is what a server builds frames ahead of `core/need` from: the
   crossing says where the clock is, and the multiplier says which way it goes and how fast. See
   [Deliver a long mission a piece at a time](../../how-to/lazy-delivery.md).
