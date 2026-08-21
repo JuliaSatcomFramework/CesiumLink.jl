@@ -16,6 +16,9 @@ import { AreaFamily, type AreaSpec } from "./areas.ts";
 import { EdgeFamily, type EdgeSpec, type EndpointFamily } from "./edges.ts";
 import { NodeFamily, type NodeSpec } from "./nodes.ts";
 import type { CesiumRuntime } from "./paint.ts";
+import { clearNodeSprites } from "./sprites.ts";
+
+export { defineNodeSprite } from "./sprites.ts";
 
 /** One window's scene, as Julia's `primitives_payload` builds it. */
 interface ScenePayload {
@@ -92,7 +95,8 @@ export default {
         }
         for (const spec of p.nodes ?? []) {
           family(nodes, spec.kind,
-                 () => new NodeFamily(spec.kind, Cesium, scene, pickId, ctx.perWindow()))
+                 () => new NodeFamily(spec.kind, Cesium, scene, pickId, ctx.assetUrl,
+                                      ctx.perWindow()))
             .onWindow(spec, w);
         }
         for (const spec of p.areas ?? []) {
@@ -124,6 +128,7 @@ export default {
       for (const f of nodes.values()) f.destroy();
       for (const f of edges.values()) f.destroy();
       for (const f of areas.values()) f.destroy();
+      clearNodeSprites();
       nodes.clear();
       edges.clear();
       areas.clear();

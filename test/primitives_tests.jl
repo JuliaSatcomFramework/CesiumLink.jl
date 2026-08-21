@@ -52,10 +52,12 @@ end
     write(svg, "<svg/>")
     @test startswith(marker_image(svg), "data:image/svg+xml;base64,")
     @test_throws ".png, .svg" marker_image("satellite.gif")
-    # A link to an image on a server draws in a browser tab and draws nothing in an editor tab, so
-    # the two hosts are held to the one form both admit.
-    @test_throws "is a `data:` URI" Nodes(:sat; position = zeros(Float32, 3, 2),
-                                          marker = "https://example.com/sat.png")
+    # The other two forms a marker takes. Julia checks the shape of the name and passes it on: what
+    # a served file resolves to, and what a browser module registered, are known in the viewer only.
+    b = Nodes(:sat; position = zeros(Float32, 3, 2), marker = "assets/sprites/sat.png")
+    @test first(lowered(primitives_payload(b)))["nodes"][1]["marker"] == "assets/sprites/sat.png"
+    c = Nodes(:sat; position = zeros(Float32, 3, 2), marker = "orbits.pulse")
+    @test first(lowered(primitives_payload(c)))["nodes"][1]["marker"] == "orbits.pulse"
 end
 
 @testitem "a node family's shapes are checked where they are built" begin
@@ -63,7 +65,7 @@ end
 
     pos = zeros(Float32, 3, 2, 4)
     @test_throws "position is 3 × N" Nodes(:sat; position = zeros(Float32, 2, 5))
-    @test_throws "marker must be one of" Nodes(:sat; position = pos, marker = :blob)
+    @test_throws "sat.marker is one of" Nodes(:sat; position = pos, marker = :blob)
     @test_throws "2 labels for 3 entities" Nodes(:sat; position = zeros(Float32, 3, 3),
                                                  label = ["a", "b"])
     # A size that is neither a lone value, one per entity, nor one per entity per keyframe.

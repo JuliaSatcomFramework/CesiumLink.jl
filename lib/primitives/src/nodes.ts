@@ -23,7 +23,8 @@ export interface NodeSpec {
   color?: unknown;
   size?: unknown;
   show?: unknown;
-  /** A stock glyph name, or a `data:` URI of the image to draw each entity with. */
+  /** What to draw each entity with: a stock glyph name, an `assets/<mount>/<file>` path, a
+   *  `data:` URI, or the owner-namespaced name of a sprite a peer module registered. */
   marker?: string;
   /** One label per entity, drawn beside the marker. */
   label?: string[];
@@ -56,18 +57,21 @@ export class NodeFamily {
   private readonly C: CesiumRuntime;
   private readonly scene: Scene;
   private readonly pickId: (kind: string, idx: number) => object;
+  private readonly assetUrl: (path: string) => string | null;
 
   constructor(
     kind: string,
     C: CesiumRuntime,
     scene: Scene,
     pickId: (kind: string, idx: number) => object,
+    assetUrl: (path: string) => string | null,
     timeline: Timeline<NodeWindow>,
   ) {
     this.kind = kind;
     this.C = C;
     this.scene = scene;
     this.pickId = pickId;
+    this.assetUrl = assetUrl;
     this.scratch = new C.Color();
     this.timeline = timeline;
   }
@@ -122,7 +126,7 @@ export class NodeFamily {
       ? new C.NearFarScalar(scaleByDistance[0], scaleByDistance[1], scaleByDistance[2], scaleByDistance[3])
       : undefined;
     const billboards = scene.primitives.add(new C.BillboardCollection({ scene })) as BillboardCollection;
-    const image = markerSprite(marker);
+    const image = markerSprite(marker, this.assetUrl);
     for (let i = 0; i < n; i++) {
       const position = new C.Cartesian3();
       this.positions.push(position);

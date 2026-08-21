@@ -1,6 +1,14 @@
-// The stock marker glyphs. Each is a small white canvas drawn once and shared by every family that
-// asks for it, so per-entity colour is the billboard's tint and no family needs an image of its own.
+// What a node family draws its entities with, in the four forms a marker name takes: a stock glyph,
+// a file the server serves, a `data:` URI, or a sprite a peer module registered here.
+//
+// Each stock glyph is a small white canvas drawn once and shared by every family that asks for it,
+// so per-entity colour is the billboard's tint and no family needs an image of its own.
 
+import { sayOnce } from "../../core/src/once.ts";
+import { sourceOf } from "../../core/src/source.ts";
+import { registry } from "./registry.ts";
+
+// A stock name holds no `.` and no `/`: either would read as a module name or an asset path.
 export type Marker = "disc" | "star" | "square" | "triangle";
 
 const SIZE = 32;
@@ -55,24 +63,82 @@ const DRAW: Record<Marker, (g: CanvasRenderingContext2D, s: number) => void> = {
   triangle: (g, s) => polygon(g, regular(3, s * 0.44, -Math.PI / 2)),
 };
 
+/** What a registered sprite answers with: an image URL, or a canvas drawn in the browser. */
+export type SpriteFactory = () => HTMLCanvasElement | string;
+
+const sprites = registry<SpriteFactory>("node sprite");
+
 /**
- * What a family draws its entities with: the shared canvas for a stock glyph, drawn on first use, or
- * a `data:` URI passed to Cesium as it stands. An unknown name falls back to the disc.
+ * Register a node sprite another module draws, under an owner-namespaced name (`orbits.pulse`) that
+ * a scene then names as its `marker`. Call it from your module's `setup`.
  *
- * A `data:` URI is the one image source both hosts admit. The webview serves the page under
- * `default-src 'none'`, and its `img-src` names `data:` but no remote origin, so a marker fetched
- * over http draws in the browser and draws nothing at all in an editor tab.
+ * Cesium keys its texture cache on what the factory answers, so answer the same canvas — or the same
+ * URL — every call. A factory that draws a fresh canvas per call costs one texture per call.
+ */
+export const defineNodeSprite = sprites.define;
+
+/**
+ * Drop every registered sprite. Called when `primitives` unloads: the modules that registered them
+ * are unloaded alongside it, and their factories close over a context that no longer exists.
  *
- * Cesium loads the URI itself, and asynchronously: the family stands unmarked for the frames that
+ * The names already warned about go with them. A host re-imports this module from its own cache, so
+ * a name still unanswered after a reload gets its line again rather than staying silent behind the
+ * set the last session filled.
+ */
+export function clearNodeSprites(): void {
+  sprites.clear();
+  say = reporter();
+}
+
+// One line per unresolvable name. A family rebuilds on every replacing window, so a marker nobody
+// answers for is unanswered on every one of them.
+const reporter = () => sayOnce((message: string) => console.warn(message));
+let say = reporter();
+
+/**
+ * What a family draws its entities with, read off the marker name: a `data:` URI passed to Cesium as
+ * it stands, a file the server serves, a sprite a peer module registered, or the shared canvas of a
+ * stock glyph. A name nothing answers for falls back to the disc, which keeps a typo visible rather
+ * than leaving the family unmarked.
+ *
+ * A remote URL is no form of the rule. The webview serves the page under `default-src 'none'`, and
+ * its `img-src` names `data:` and its own origin only, so a marker fetched from another origin draws
+ * in a browser tab and draws nothing at all in an editor tab. `assetUrl` answers a URL on the host's
+ * own origin, which is why an `assets/<mount>/<file>` path is a form and an `https://` one is not.
+ *
+ * Cesium loads a URL itself, and asynchronously: the family stands unmarked for the frames that
  * takes. It also keys its texture cache on the string, so one image serves every family that names
  * it however long the string is.
  */
-export function markerSprite(marker: string): HTMLCanvasElement | string {
-  if (marker.startsWith("data:")) return marker;
-  const stock = marker as Marker;
-  const draw = DRAW[stock] ?? DRAW.disc;
-  const key = DRAW[stock] ? stock : "disc";
+export function markerSprite(marker: string,
+                             assetUrl: (path: string) => string | null): HTMLCanvasElement | string {
+  const source = sourceOf(marker);
+  switch (source.kind) {
+    case "data":
+      return source.uri;
+    case "asset":
+      // `assetUrl` writes its own line for a path this host cannot reach, so this only draws.
+      return assetUrl(source.path) ?? stock("disc");
+    case "module": {
+      const factory = sprites.get(source.name);
+      if (factory) return factory();
+      say(marker, `primitives: no node sprite named ${JSON.stringify(marker)} is registered; ` +
+                  "the disc is drawn");
+      return stock("disc");
+    }
+    case "stock":
+      // Silent: the stock table is this module's own, and a name outside it is a typo the disc shows.
+      return stock(source.name);
+  }
+}
+
+/** True for a name the stock table draws. */
+const isStock = (name: string): name is Marker => name in DRAW;
+
+/** The shared canvas of a stock glyph, drawn on first use. An unknown name is the disc. */
+function stock(name: string): HTMLCanvasElement {
+  const key = isStock(name) ? name : "disc";
   let cv = cache.get(key);
-  if (!cv) cache.set(key, (cv = canvas(draw)));
+  if (!cv) cache.set(key, (cv = canvas(DRAW[key])));
   return cv;
 }
