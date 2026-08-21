@@ -547,7 +547,7 @@ The only thing the viewer ever sends after `ready`.
 
 | Field | Meaning |
 |---|---|
-| `module`/`topic` | The listener key. `core/pointer` and `core/need` are Core-produced; anything else is a module calling `ctx.notify` |
+| `module`/`topic` | The listener key. The `core/*` topics below are Core-produced; anything else is a module calling `ctx.notify` |
 | `seq` | Monotonic per connection. Echoed by the answering batch |
 | `frame` | Absolute keyframe index the clock is on — the last one at or before the current instant |
 | `window` | Identity of the window on screen |
@@ -571,6 +571,30 @@ Core-produced topics:
   this index. `count` is 1 where the window continues the buffer at either end, and 2 where it lands
   somewhere new. The request also names the `mode` wanted, `append` unless stated otherwise. Only the
   server asks for a `replace`, on the `ready` path above; a viewer never sends `mode`.
+- **`core/clock`** — `{ "multiplier": -2.0, "playing": true }`. Where the animation is going and how
+  fast, sent whenever either changes and once at the start. The sign of `multiplier` is the
+  direction and its magnitude is the speed, in mission seconds per real second; a declared range
+  sets it to one keyframe step per real-time interval, and the shuttle ring then moves it.
+  `playing` is the play/pause button and nothing else. The Core's own hold — the clock stopped while
+  the buffer tops up — is not a pause and is not reported, so buffering does not read upward as the
+  user pressing pause and play again. A drag of the shuttle ring writes a new multiplier per
+  rendered frame and therefore sends one event per frame while it lasts.
+
+- **`core/keyframe`** — `{ "index": 17 }`. The clock crossed into this **0-based** absolute
+  keyframe, forwards or backwards. Sent on every crossing the modules are drawn for, and on the
+  window that lands under a held clock. It is not sent while the buffer fails to cover the clock:
+  that instant raises `core/need` instead, which is the ask a server can answer. The index is in the
+  payload rather than read off the event's `frame` stamp, because the opening window crosses into
+  its first keyframe before the clock has ticked once and `frame` is null until it has.
+
+  A `core/clock` for the state the crossing happened under always precedes it, so a server never
+  builds ahead in the direction of the run that just ended. A window declaring a new range writes
+  the multiplier itself and crosses at once, before the next tick.
+
+  Together with `core/clock` this is what a server builds frames ahead of `core/need` from: the
+  crossing says where the clock is, and the multiplier says which way it goes and how fast. See
+  [Deliver a long mission a piece at a time](../../how-to/lazy-delivery.md).
+
 - **`core/ellipsoid`** — `{ "a": 6378137.0, "b": 6356752.3142451793 }`. The radii the globe is built
   on, sent once, as soon as it exists. It expects no reply; it confirms the numbers the server
   declared. A server that receives different ones must say so loudly: a scene drawn on the wrong

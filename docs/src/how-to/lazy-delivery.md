@@ -102,6 +102,67 @@ push_window(server, payload;
             start_frame = ev.start_frame, count = ev.count, mode = ev.mode, ...)
 ```
 
+## 6. Build the frames before they are asked for
+
+`core/need` gives you very little warning. The Core asks two keyframes before the buffer runs out,
+so at `interval_seconds = 0.15` you have about 300 ms. That is enough to look a payload up. It is
+not enough to compute one.
+
+Two events say where the clock is and where it goes, so a listener can build the frames first and
+answer `core/need` from a cache:
+
+```julia
+const TOTAL = 50_000             # the declared range, which is what an index must stay inside
+const DT = 30                    # the dt_seconds this scene declared
+
+cache = Dict{Int,Any}()          # absolute keyframe index → the payload for it
+lead = Ref(8)                    # how many frames ahead to hold
+step = Ref(1)                    # +1 forwards, -1 backwards
+
+# Which way playback runs, and how fast. `ev.multiplier` is mission seconds per real second, so
+# `abs(ev.multiplier) / DT` is keyframes per real second.
+on_event(server, "core", "clock") do ev, _
+    step[] = ev.multiplier < 0 ? -1 : 1
+    rate = abs(ev.multiplier) / DT
+    lead[] = max(4, ceil(Int, rate * 0.5))    # half a second of frames
+end
+
+# Where the clock is now. Build what comes next, off the listener task.
+on_event(server, "core", "keyframe") do ev, _
+    @async for k in ev.index .+ step[] .* (0:lead[])
+        # The run ends at both ends. Near either one the clock has fewer frames left to play than
+        # the lead asks for, and a frame outside the range is one nothing can ever ask for.
+        1 <= k <= TOTAL || continue
+        get!(() -> payload_for(k), cache, k)
+    end
+end
+
+on_event(server, "core", "need") do ev, _
+    frames = ev.start_frame:(ev.start_frame + ev.count - 1)
+    push_window(server, [get!(() -> payload_for(k), cache, k) for k in frames];
+                start_frame = ev.start_frame, count = ev.count, mode = ev.mode,
+                total_frames = TOTAL, dt_seconds = DT)
+end
+```
+
+`ev.index` and `ev.start_frame` are both **1-based**, like every index the Julia API reports.
+
+Three things to know:
+
+- **A crossing stops arriving when you fall behind.** The viewer reports a crossing only while the
+  buffer covers the clock. An instant it does not cover raises `core/need`. So a crossing means
+  playback runs well, and a need means it starves. Do not build a timer that waits for crossings.
+- **`ev.playing` is the button, not the buffer.** The Core holds the clock while the buffer fills,
+  and `ev.playing` stays true through it. Use it to know what the user wants. Do not use it to ask
+  whether you keep up.
+- **Do not try to hold a copy of the viewer's buffer.** The Core drops frames on its own and you
+  cannot see which. Key the cache on the absolute index, answer whatever `core/need` asks for, and
+  let the overlap be free. Bound the cache yourself: drop what the clock left behind.
+
+A scrub needs no event of its own. A scrub inside the buffer crosses keyframes, so the crossings
+tell you where the user went. A scrub outside it raises `core/need` at the new index, and you build
+from there.
+
 ## A worked example
 
 [Constellation](../examples/constellation.md) delivers three hundred keyframes sixty at a time, with
