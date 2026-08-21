@@ -13,14 +13,66 @@
 // between keyframes without holding a copy of anything. An endpoint family is a node family or an
 // area family: a node contributes its position, an area its footprint centre.
 
-import type { Cartesian3, Material, PolylineCollection, Scene } from "@cesium/engine";
+import type { Cartesian3, Color, Material, PolylineCollection, Scene } from "@cesium/engine";
+import { sayOnce } from "../../core/src/once.ts";
+import { sourceOf } from "../../core/src/source.ts";
 import type { WindowInfo } from "../../core/src/windows.ts";
 import { at, knob, type Knob } from "./knobs.ts";
 import { channel, WHITE, type CesiumRuntime } from "./paint.ts";
+import { registry } from "./registry.ts";
 import type { At, Placement, Timeline } from "../../core/src/windows.ts";
 
+// A stock name holds no `.` and no `/`: either would read as a module name or an asset path.
 /** The stock line materials, in the order their codes travel on the wire. */
 const STYLES = ["solid", "dashed", "glow"] as const;
+
+/**
+ * What a registered edge material answers with: the Cesium `Material` one appearance is drawn with.
+ * `color` is that appearance's colour and `dashLength` the family's dash period, so a factory can
+ * honour either without reading the payload.
+ *
+ * Answer a fresh material every call. The family owns what it is handed and frees it when the
+ * appearance goes out of use, so one material shared across two calls is freed twice.
+ */
+export type EdgeMaterialFactory =
+  (C: CesiumRuntime, look: { color: Color; dashLength: number }) => Material;
+
+const custom = registry<EdgeMaterialFactory>("edge material");
+
+/**
+ * Register an edge material another module builds, under an owner-namespaced name (`orbits.pulse`)
+ * that a scene then names as its `style`. Call it from your module's `setup`.
+ *
+ * The factory runs once per distinct appearance and every line of that appearance shares the one
+ * material, so a family stays one draw command per appearance.
+ */
+export const defineEdgeMaterial = custom.define;
+
+/**
+ * Drop every registered material. Called when `primitives` unloads: the modules that registered them
+ * are unloaded alongside it, and their factories close over a context that no longer exists.
+ *
+ * The names already warned about go with them, so a name still unanswered after a reload gets its
+ * line again rather than staying silent behind the set the last session filled.
+ */
+export function clearEdgeMaterials(): void {
+  custom.clear();
+  say = reporter();
+}
+
+// One line per unresolvable name. A family rebuilds on every replacing window, so a style nobody
+// answers for is unanswered on every one of them.
+const reporter = () => sayOnce((message: string) => console.warn(message));
+let say = reporter();
+
+/**
+ * The material name a style code stands for: the family's own table entry where it has one, and the
+ * stock name of that code otherwise. A code past both draws solid, which keeps a bad code visible
+ * rather than leaving the family undrawn.
+ */
+function styleName(code: number, styles?: (string | null)[]): string {
+  return styles?.[code] ?? STYLES[code] ?? "solid";
+}
 
 /**
  * What an edge reads of the family at either of its ends. A node family contributes its position
@@ -47,8 +99,14 @@ export interface EdgeSpec {
   /** 0-based `(from, to)` index pairs: `2 x M`, or one such array per keyframe. */
   pairs: unknown;
   color?: unknown;
-  /** Stock material code per the `STYLES` order: family-wide, per edge, or per edge per keyframe. */
+  /** Material code, indexing `styles`: family-wide, per edge, or per edge per keyframe. */
   style?: unknown;
+  /**
+   * One entry per material code: a name, an asset path or a `data:` URI for a code beyond the stock
+   * ones, and nothing for a stock code. Codes `0`, `1` and `2` stay `solid`, `dashed` and `glow`, so
+   * the first three entries stand empty and a family that names no custom material sends no table.
+   */
+  styles?: (string | null)[];
   /** Line width in pixels. */
   width?: unknown;
   show?: unknown;
@@ -69,9 +127,10 @@ interface EdgeWindow {
   restyles: boolean;
 }
 
-/** One distinct line appearance: the stock material, and the colour its uniforms carry. */
+/** One distinct line appearance: the material it is drawn with, and the colour its uniforms carry. */
 interface Look {
-  code: number;
+  /** What the style code resolved to: a stock name, a registered name, an asset path or a URI. */
+  style: string;
   rgba: [number, number, number, number];
 }
 
@@ -102,6 +161,7 @@ export class EdgeFamily {
   private readonly scene: Scene;
   private readonly endpoints: (kind: string) => EndpointFamily | undefined;
   private readonly pickId: (kind: string, idx: number) => object;
+  private readonly assetUrl: (path: string) => string | null;
 
   constructor(
     kind: string,
@@ -109,6 +169,7 @@ export class EdgeFamily {
     scene: Scene,
     endpoints: (kind: string) => EndpointFamily | undefined,
     pickId: (kind: string, idx: number) => object,
+    assetUrl: (path: string) => string | null,
     timeline: Timeline<EdgeWindow>,
   ) {
     this.kind = kind;
@@ -116,6 +177,7 @@ export class EdgeFamily {
     this.scene = scene;
     this.endpoints = endpoints;
     this.pickId = pickId;
+    this.assetUrl = assetUrl;
     this.timeline = timeline;
   }
 
@@ -189,11 +251,13 @@ export class EdgeFamily {
     const m = pairs.length;
     for (let e = 0; e < m; e++) {
       const look: Look = {
-        code: style ? at(style, e) : 0,
+        style: styleName(style ? at(style, e) : 0, w.spec.styles),
         rgba: [channel(color, e, 0, WHITE), channel(color, e, 1, WHITE),
                channel(color, e, 2, WHITE), channel(color, e, 3, WHITE)],
       };
-      const key = `${look.code}|${look.rgba}|${dash}`;
+      // Keyed on the resolved name rather than the code: a replacing window may hand the same code
+      // a different material, and the cache outlives the window.
+      const key = `${look.style}|${look.rgba}|${dash}`;
       const group = byLook.get(key);
       if (group) group.edges.push(e);
       else byLook.set(key, { look, edges: [e] });
@@ -267,15 +331,56 @@ export class EdgeFamily {
     const held = this.materials.get(key);
     if (held) return held;
     const [r, g, b, a] = look.rgba;
-    const color = this.C.Color.fromBytes(r, g, b, a);
-    const style = STYLES[look.code] ?? "solid";
-    const material = style === "dashed"
-      ? this.C.Material.fromType("PolylineDash", { color, dashLength })
-      : style === "glow"
-        ? this.C.Material.fromType("PolylineGlow", { color, glowPower: 0.28, taperPower: 1.0 })
-        : this.C.Material.fromType("Color", { color });
+    const material = this.build(look.style, this.C.Color.fromBytes(r, g, b, a), dashLength);
     this.materials.set(key, material);
     return material;
+  }
+
+  /**
+   * What one appearance is drawn with, in the four forms a style name takes: a `data:` URI or a file
+   * the server serves, textured along the line; a material a peer module registered; or one of the
+   * stock three. A name nothing answers for falls back to the solid line, which keeps a typo visible
+   * rather than leaving the family undrawn.
+   *
+   * An image material repeats along the line, so the author picks its aspect ratio. Cesium loads it
+   * asynchronously and the line draws plain for the frames that takes, and it puts the raw URI in
+   * the material id until the texture arrives — which is why anything large belongs on an assets
+   * mount rather than in a `data:` URI.
+   *
+   * Cesium buckets a collection by material type and uniform values, so a custom material buckets
+   * the way the stock three do: one more appearance is one more draw command, and no more.
+   */
+  private build(style: string, color: Color, dashLength: number): Material {
+    const source = sourceOf(style);
+    switch (source.kind) {
+      case "data":
+        return this.C.Material.fromType("Image", { image: source.uri, color });
+      case "asset": {
+        // `assetUrl` writes its own line for a path this host cannot reach, so this only draws.
+        const url = this.assetUrl(source.path);
+        return url ? this.C.Material.fromType("Image", { image: url, color })
+                   : this.stock("solid", color, dashLength);
+      }
+      case "module": {
+        const factory = custom.get(source.name);
+        if (factory) return factory(this.C, { color, dashLength });
+        say(style, `primitives: no edge material named ${JSON.stringify(style)} is registered; ` +
+                   "the solid line is drawn");
+        return this.stock("solid", color, dashLength);
+      }
+      case "stock":
+        // Silent: the stock table is this module's own, and a name outside it is a typo solid shows.
+        return this.stock(source.name, color, dashLength);
+    }
+  }
+
+  /** One of the stock three, by name. Anything else is the solid line. */
+  private stock(name: string, color: Color, dashLength: number): Material {
+    return name === "dashed"
+      ? this.C.Material.fromType("PolylineDash", { color, dashLength })
+      : name === "glow"
+        ? this.C.Material.fromType("PolylineGlow", { color, glowPower: 0.28, taperPower: 1.0 })
+        : this.C.Material.fromType("Color", { color });
   }
 
   // Materials outlive a rebuild, so a family cycling through the same few appearances every keyframe

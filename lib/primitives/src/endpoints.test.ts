@@ -146,7 +146,8 @@ test("an edge over an area endpoint resolves the centre, and it is the family's 
   const nodes = movingNodes();
   const win = window();
   const edges = new EdgeFamily("user", C, scene,
-    (kind) => (kind === "cell" ? areas : nodes), (kind, idx) => ({ kind, idx }), new Timeline());
+    (kind) => (kind === "cell" ? areas : nodes), (kind, idx) => ({ kind, idx }),
+    () => null, new Timeline());
   edges.onWindow({
     kind: "user",
     from: "cell",
@@ -171,7 +172,8 @@ test("one moving end is enough to keep an edge following it", () => {
     } as unknown as import("@cesium/engine").Scene;
     const win = window();
     const edges = new EdgeFamily("user", C, scene2,
-      (kind) => (kind === "cell" ? areas : to), (kind, idx) => ({ kind, idx }), new Timeline());
+      (kind) => (kind === "cell" ? areas : to), (kind, idx) => ({ kind, idx }),
+      () => null, new Timeline());
     edges.onWindow({
       kind: "user", from: "cell", to: "sat",
       pairs: { data: Uint32Array.from([0, 0]), shape: [1, 2] },

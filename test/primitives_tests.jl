@@ -95,6 +95,35 @@ end
     # A whole family in one stock style is a number, not an array.
     one = Edges(:feeder; from = :gw, to = :sat, pairs = [1; 2;;], style = :dashed)
     @test first(lowered(primitives_payload(gws, sats, one)))["edges"][1]["style"] == 1
+    # A family drawn in stock materials alone sends no style table at all.
+    @test !haskey(first(lowered(primitives_payload(sats, e)))["edges"][1], "styles")
+end
+
+@testitem "an edge style names a custom material, and the family carries the table" setup=[Wire] begin
+    using CesiumLink: Edges, Nodes, primitives_payload, decode_arrays
+
+    sats = Nodes(:sat; position = zeros(Float32, 3, 4))
+    e = Edges(:isl; from = :sat, to = :sat, pairs = [1 2 3; 3 4 1],
+              style = [:glow, "orbits.pulse", "orbits.pulse"])
+    p, region = lowered(primitives_payload(sats, e))
+    p = p["edges"][1]
+    # The stock codes keep the front of the table, so a stock style keeps the code it always had.
+    @test p["styles"] == [nothing, nothing, nothing, "orbits.pulse"]
+    @test decode_arrays(p["style"], region) == UInt8[2, 3, 3]
+
+    # One table for the whole family, however many keyframes name the material.
+    frames = [[1 2; 3 4], reshape([1, 2], 2, 1)]
+    per = Edges(:link; from = :sat, to = :sat, pairs = frames,
+                style = [[:solid, "orbits.pulse"], ["orbits.pulse"]])
+    q, region = lowered(primitives_payload(sats, per))
+    q = q["edges"][1]
+    @test q["styles"] == [nothing, nothing, nothing, "orbits.pulse"]
+    @test decode_arrays(q["style"][2], region) == UInt8[3]
+
+    # Julia checks the form of the name and passes any well-formed one on. A bare name that names
+    # no stock material is neither a form nor a stock style, so it is refused here.
+    @test_throws "owner-namespaced name" Edges(:isl; from = :sat, to = :sat, pairs = [1; 2;;],
+                                               style = :squiggle)
 end
 
 @testitem "edge connectivity may change per keyframe, and its knobs change with it" setup=[Wire] begin

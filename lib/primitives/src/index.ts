@@ -4,20 +4,21 @@
 // switched at the keyframe crossing.
 //
 // What it will not draw is as deliberate as what it will: geometry here is a pure function of a
-// position and a few scalars, in a fixed set of stock materials and stock marker glyphs. Custom
-// shaders, materials or textures, extruded or volumetric geometry, anything needing re-tessellation
-// per frame, and anything whose shape depends on simulated state rather than on a position are what
-// a module of your own is for.
+// position and a few scalars. Its two appearance lists are open — a peer module registers a node
+// sprite or an edge material by name, and a scene names it — but the geometry is not. Extruded or
+// volumetric shapes, anything needing re-tessellation per frame, and anything whose shape depends on
+// simulated state rather than on a position are what a module of your own is for.
 
 import type { Cartesian3 } from "@cesium/engine";
 import type { AnchorPosition } from "../../core/src/camera.ts";
 import type { Disposable, ModuleContext } from "../../core/src/module-host.ts";
 import { AreaFamily, type AreaSpec } from "./areas.ts";
-import { EdgeFamily, type EdgeSpec, type EndpointFamily } from "./edges.ts";
+import { clearEdgeMaterials, EdgeFamily, type EdgeSpec, type EndpointFamily } from "./edges.ts";
 import { NodeFamily, type NodeSpec } from "./nodes.ts";
 import type { CesiumRuntime } from "./paint.ts";
 import { clearNodeSprites } from "./sprites.ts";
 
+export { defineEdgeMaterial } from "./edges.ts";
 export { defineNodeSprite } from "./sprites.ts";
 
 /** One window's scene, as Julia's `primitives_payload` builds it. */
@@ -106,7 +107,8 @@ export default {
         }
         for (const spec of p.edges ?? []) {
           family(edges, spec.kind,
-                 () => new EdgeFamily(spec.kind, Cesium, scene, endpoint, pickId, ctx.perWindow()))
+                 () => new EdgeFamily(spec.kind, Cesium, scene, endpoint, pickId, ctx.assetUrl,
+                                      ctx.perWindow()))
             .onWindow(spec, w);
         }
       }),
@@ -129,6 +131,7 @@ export default {
       for (const f of edges.values()) f.destroy();
       for (const f of areas.values()) f.destroy();
       clearNodeSprites();
+      clearEdgeMaterials();
       nodes.clear();
       edges.clear();
       areas.clear();

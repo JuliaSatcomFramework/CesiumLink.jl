@@ -87,7 +87,8 @@ lower(f::Nodes) = (; f.kind, position = f.position, marker = f.marker,
                         scaleByDistance = f.scale_by_distance)...)
 
 lower(f::Edges) = (; f.kind, f.from, f.to, pairs = f.pairs,
-                   sent(; f.color, f.style, f.width, f.show, dashLength = f.dash_length)...)
+                   sent(; f.color, f.style, styles = f.styles, f.width, f.show,
+                        dashLength = f.dash_length)...)
 
 lower(f::Areas) = (; f.kind, geometry(f)..., sent(; f.color, f.outline, f.show)...)
 

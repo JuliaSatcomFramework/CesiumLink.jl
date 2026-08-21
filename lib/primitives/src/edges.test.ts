@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { EdgeFamily, type EdgeSpec } from "./edges.ts";
+import { clearEdgeMaterials, defineEdgeMaterial, EdgeFamily, type EdgeSpec } from "./edges.ts";
 import type { NodeFamily } from "./nodes.ts";
 import { Timeline, type WindowInfo } from "../../core/src/windows.ts";
 
@@ -26,8 +26,11 @@ class FakePolyline {
 class FakeMaterial {
   destroyed = false;
   type: string;
-  constructor(type: string) {
+  /** What the family asked the material to carry, which is where an image URL lands. */
+  uniforms: Record<string, unknown>;
+  constructor(type: string, uniforms: Record<string, unknown> = {}) {
     this.type = type;
+    this.uniforms = uniforms;
   }
   destroy() {
     this.destroyed = true;
@@ -61,8 +64,8 @@ const C = {
   PolylineCollection: FakePolylineCollection,
   Color: { fromBytes: (r: number, g: number, b: number, a: number) => ({ r, g, b, a }) },
   Material: {
-    fromType: (type: string) => {
-      const m = new FakeMaterial(type);
+    fromType: (type: string, uniforms: Record<string, unknown>) => {
+      const m = new FakeMaterial(type, uniforms);
       made.push(m);
       return m;
     },
@@ -86,6 +89,9 @@ const stubNodes = (n: number): NodeFamily =>
 const window = (count: number, mode: "replace" | "append" = "replace"): WindowInfo =>
   ({ startFrame: 0, count, id: 1, mode, totalFrames: 10, dtSeconds: 60, epoch: null as never });
 
+/** A host that serves every asset path, which is what a browser page is. */
+const served = (path: string) => `https://host/${path}`;
+
 const nd = (data: number[], shape: number[]) => ({ data: Uint32Array.from(data), shape });
 const bytes = (data: number[], shape: number[]) => ({ data: Uint8Array.from(data), shape });
 
@@ -94,7 +100,7 @@ function build(spec: Omit<EdgeSpec, "kind" | "from" | "to">, count: number) {
   added.length = 0;
   const nodes = stubNodes(4);
   const family = new EdgeFamily("link", C, scene, () => nodes,
-                                (kind, idx) => ({ kind, idx }), new Timeline());
+                                (kind, idx) => ({ kind, idx }), served, new Timeline());
   const win = window(count);
   family.onWindow({ kind: "link", from: "a", to: "b", ...spec }, win);
   // What the Core answers for an absolute keyframe: this window, and the offset within it.
@@ -163,4 +169,58 @@ test("a keyframed colour rebuilds, and drops the materials no line uses any more
   assert.equal(first.destroyed, true, "the material nothing uses any more was freed");
   // One colour across the whole family at either keyframe, so one live material at a time.
   assert.equal(made.filter((m) => !m.destroyed).length, 1);
+});
+
+/** Run `f` with `console.warn` captured, and answer what it wrote. */
+function warnings(f: () => void): string[] {
+  const said: string[] = [];
+  const warn = console.warn;
+  console.warn = (m: string) => said.push(m);
+  try {
+    f();
+  } finally {
+    console.warn = warn;
+  }
+  return said;
+}
+
+const PIXEL = "data:image/png;base64,iVBORw0KGgo=";
+
+test("a style table names the material of a code beyond the stock three", () => {
+  defineEdgeMaterial("orbits.pulse", (_C, look) =>
+    new FakeMaterial("Pulse", { color: look.color, dashLength: look.dashLength }) as unknown as
+      import("@cesium/engine").Material);
+
+  // One edge per form: solid, a `data:` URI, an asset path, a registered name, and a name nobody
+  // answers for. The three leading nulls keep the stock codes where they are.
+  const { family, pl, at } = build(
+    {
+      pairs: nd([0, 1, 1, 2, 2, 3, 3, 0, 0, 2], [5, 2]),
+      style: bytes([0, 3, 4, 5, 6], [5]),
+      styles: [null, null, null, PIXEL, "assets/lines/pulse.png", "orbits.pulse", "orbits.absent"],
+      dashLength: 8,
+    },
+    1,
+  );
+  const said = warnings(() => family.onKeyframe(at(0)));
+
+  const types = pl.lines.map((l) => l.material!.type);
+  assert.deepEqual(types, ["Color", "Image", "Image", "Pulse", "Color"],
+                   "each form built its own material, and the unanswered name fell back to solid");
+  assert.equal(pl.lines[1].material!.uniforms.image, PIXEL, "a data URI goes to Cesium as it stands");
+  assert.equal(pl.lines[2].material!.uniforms.image, "https://host/assets/lines/pulse.png",
+               "an asset path went through the host's resolver");
+  assert.equal(pl.lines[3].material!.uniforms.dashLength, 8, "the factory gets the family's dash period");
+  assert.equal(said.length, 1);
+  assert.match(said[0], /no edge material named "orbits.absent" is registered/);
+
+  clearEdgeMaterials();
+});
+
+test("a family that names no custom material builds exactly the stock materials", () => {
+  const { family, pl, at } = build({ pairs: SIX, style: bytes([0, 1, 2, 0, 1, 2], [6]) }, 1);
+  family.onKeyframe(at(0));
+  assert.deepEqual(new Set(pl.lines.map((l) => l.material!.type)),
+                   new Set(["Color", "PolylineDash", "PolylineGlow"]));
+  assert.equal(made.length, 3, "three appearances, three materials, table or no table");
 });
