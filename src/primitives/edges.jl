@@ -10,7 +10,7 @@ connectivity that changes over the window is expressed.
 
 `style` names the material a line is drawn in, per family or per edge, so one family draws both the
 glowing active form of a link and the idle solid one as two batches. It takes four forms: one of the
-stock materials $(STYLES), an `assets/<mount>/<file>` path or a `data:` URI to a texture repeated
+stock materials `$(STYLES)`, an `assets/<mount>/<file>` path or a `data:` URI to a texture repeated
 along the line, or the owner-namespaced name of a material a browser module registered
 (`"orbits.pulse"`). `width` is pixels and `dash_length` the pixels of one dash period. Where `pairs`
 changes per keyframe the per-edge knobs do too, as a vector of one array per keyframe sized to that

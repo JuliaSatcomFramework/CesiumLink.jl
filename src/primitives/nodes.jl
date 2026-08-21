@@ -5,7 +5,8 @@ The stock marker glyphs a node family may be drawn with. These are the names the
 validates. They are not the whole set a [`Nodes`](@ref) family may name: `marker` also takes an
 image of your own, and the name of a sprite a browser module registered.
 """
-const MARKERS = (:disc, :star, :square, :triangle)
+const MARKERS = (:disc, :square, :diamond, :triangle, :triangle_down, :triangle_right,
+                 :triangle_left, :pentagon, :hexagon, :star, :cross, :x)
 
 """
     marker_image(path) -> String
@@ -42,7 +43,7 @@ still through the window or `3 × N × count` for one whose positions are interp
 
 `color`, `size` and `show` follow the array convention and switch at the keyframe crossing:
 a lone value covers the family, one value per entity varies across it, and a trailing keyframe
-dimension varies it over time. `marker` names what each entity is drawn with: one of $(MARKERS) — a
+dimension varies it over time. `marker` names what each entity is drawn with: one of `$(MARKERS)` — a
 white glyph the per-entity colour tints — an image of your own from [`marker_image`](@ref), an
 `assets/<mount>/<file>` path the server serves, or the owner-namespaced name of a sprite a browser
 module registered (`"orbits.pulse"`). The same tint multiplies a supplied image, which the default
