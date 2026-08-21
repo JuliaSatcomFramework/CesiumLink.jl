@@ -45,17 +45,19 @@ end
     using CesiumLink: declared
 end
 
-# `setup=[WsOpen]` brings `ws_open` into scope: a websocket connection whose block's value comes
-# back to the caller. `HTTP.WebSockets.open` returns that value under HTTP 2 and the handshake
-# `Response` under HTTP 1, so a test that reads what its block returned goes through here.
+# `setup=[WsOpen]` brings `ws_open` into scope. It opens a websocket and gives back the value of
+# its block. `HTTP.WebSockets.open` gives back that value under HTTP 2, and the handshake
+# `Response` under HTTP 1. A test that reads the value of its block calls `ws_open`.
 #
-# The retry answers a second difference. HTTP 1 pools client connections and admits one whose peer
-# has already gone, because the check is `isopen`, and a socket reads as open until the operating
-# system reports the peer's FIN. The write then fails with "stream is closed or unusable" before
-# the request leaves. HTTP's own retry covers that error, but only for a request whose body it can
-# send again, and `HTTP.open` sends no body at all — so every `HTTP.get` in this suite recovers by
-# itself and the upgrade is the one call that cannot. Retry it here, and only while the block has
-# not run: an error the block itself raises is the test's answer and must reach the test.
+# `ws_open` opens the websocket again if the upgrade fails. HTTP 1 holds client connections in a
+# pool, and takes one from the pool while `isopen` is true. A socket stays open until the operating
+# system reports the FIN of the peer, so the pool can give a dead connection. The write to it
+# fails, and the request does not leave the client. HTTP sends a failed request again, but only
+# when it can send the body again. `HTTP.get` carries such a body. `HTTP.open` sends no body, so
+# HTTP does not send the upgrade again.
+#
+# `ws_open` makes no new try after the block starts. An error from the block is the result the test
+# asks for, and it must reach the test.
 @testsnippet WsOpen begin
     using HTTP
 
