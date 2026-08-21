@@ -29,7 +29,8 @@ where the set of legal values is known.
 refuses anything outside it, and restores the `Symbol` when the value comes back. These
 are `region` (`:top_left` …), the pointer `type` (`:hover`, `:click`), the pointer
 modifiers (`:alt`, `:ctrl`, `:shift`), the window `mode` (`:replace`, `:append`), a
-node `marker`, an edge `style`, a model reference `frame` and the imagery `tiling`. A
+node `marker`, an edge `style` — the stock half of each, see below — a model reference
+`frame` and the imagery `tiling`. A
 `Symbol` here reads as one choice out of a closed set, which is what it is, and the
 round trip is total because the decoder can check the value against the list.
 
@@ -37,6 +38,15 @@ round trip is total because the decoder can check the value against the list.
 `id`, a module id, an entity `kind`, an edge's `from` and `to`, and a model's `of`.
 CesiumLink does not know the set, so no decoder can restore a `Symbol` for it, and the
 declaring side must therefore say what the answering side hears.
+
+**A vocabulary the package owns may still be part open.** ADR-0032 opens a node `marker`
+and an edge `style` to a name the package does not own: an `assets/<mount>/<file>` path, a
+`data:` URI, or the owner-namespaced name of something a browser module registered. The
+threshold above decides each form on its own. The stock list stays a closed set of
+`Symbol`s the package validates, and each of the three open forms is a `String`, because
+the package does not own it and Julia can check only the **form** of the name. A
+constructor keeps taking either spelling, so `marker = :star` and `style = :dashed` build
+exactly as before.
 
 **Both sides of a name now spell it the same way.** A listener compares
 `ev.payload.id == "isl"` against the `Toggle("isl", …)` that declared it, and
