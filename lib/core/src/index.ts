@@ -193,6 +193,15 @@ export async function createViewer(
     // A declared range is what the ruler shows, so point the ruler at it. Whether the ruler is on
     // screen at all is the server's declaration to make, not this range's.
     onRange: (start, stop) => furniture.zoomTimeline(start, stop),
+    // Where the animation is going and how fast, whenever that changes. The server cannot see the
+    // play/pause button or the shuttle ring — they are the viewer's own widgets — so this is the
+    // only way a scene learns the user turned playback around.
+    onClock: (multiplier, playing) => sendEvent("core", "clock", { multiplier, playing }),
+    // Every crossing, so a scene can build the frames the clock is heading for before the buffer
+    // runs short enough to ask for them. The index travels in the payload rather than being read
+    // off the event's own `frame` stamp: the opening window crosses into its first keyframe before
+    // any tick has run, and there is no clock position to stamp yet.
+    onCrossing: (index) => sendEvent("core", "keyframe", { index }),
   });
   // The keyframe readout names the keyframe last crossed into rather than wherever the clock has
   // since run to, so it and the scene report the same frame.
