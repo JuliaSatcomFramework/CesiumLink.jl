@@ -2,7 +2,7 @@
 
 All notable changes to CesiumLink are in this file.
 
-## [Unreleased]
+## [0.1.2] - 2026-08-24
 
 ### Added
 
