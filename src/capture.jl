@@ -20,17 +20,21 @@ end
 
 # A `core/capture` event arrived. Give the payload to the task that waits for this token.
 #
-# The `pop!` is what makes the first answer win, and it runs under the lock, so two answers that
-# arrive together cannot both find the entry. An answer to no entry is a later answer, or an answer
-# to a request that timed out; both are dropped here.
+# Every answer goes in, and the waiting task picks the one that wins. A viewer that refuses answers
+# far sooner than a viewer that draws: it returns before the resize, the render and the encode. So
+# taking the first answer to arrive would let one viewer that cannot draw beat every viewer that
+# can, on every capture, and not by chance.
 #
-# The channel holds one value and the waiting task takes one, so this never blocks. The task that
-# reads a client's socket calls it, and that task must never wait on a user's task.
+# The entry stays until the waiting task takes it away. An answer to no entry is an answer to a
+# request that already finished, and it is dropped here.
+#
+# The channel holds any number of answers, so this never blocks. The task that reads a client's
+# socket calls it, and that task must never wait on a user's task.
 function deliver_capture!(server::Server, payload, region)
     token = get(payload, "token", nothing)
     token isa AbstractString || return nothing
     waiting = lock(server.clients_lock) do
-        pop!(server.pending_captures, token, nothing)
+        get(server.pending_captures, token, nothing)
     end
     waiting === nothing && return nothing
     put!(waiting, decode_arrays(payload, region))
@@ -79,7 +83,7 @@ function capture_canvas(server::Server, path::AbstractString; scale = 1, timeout
         throw(ArgumentError("`timeout` is how many seconds to wait for a viewer, so it takes a " *
                             "number above zero (got $(repr(timeout)))"))
     token = capture_token()
-    answer = Channel{Any}(1)
+    answer = Channel{Any}(Inf)
     lock(server.clients_lock) do
         server.pending_captures[token] = answer
     end
@@ -91,9 +95,24 @@ function capture_canvas(server::Server, path::AbstractString; scale = 1, timeout
                                  commands_message([Command(CORE_CAPTURE..., (; token, scale))]);
                                  record = false)
         reached == 0 && error("no viewer holds this scene, so nothing can make a capture")
-        timedwait(() -> isready(answer), Float64(timeout)) === :ok ||
+        # A picture wins over a refusal, whoever answered first (ADR-0033). Read answers until one
+        # carries a picture, until every viewer refused, or until the clock runs out. A viewer that
+        # refuses answers sooner than a viewer that draws, so the order they arrive in says nothing
+        # about which one to keep.
+        deadline = time() + Float64(timeout)
+        picture, refusals = nothing, String[]
+        while picture === nothing && length(refusals) < reached
+            left = deadline - time()
+            left > 0 && timedwait(() -> isready(answer), left) === :ok || break
+            given = take!(answer)
+            reason = get(given, "error", nothing)
+            reason === nothing ? (picture = given) : push!(refusals, string(reason))
+        end
+        # Report a viewer's own reason over a bare timeout: every viewer refusing is a thing the
+        # caller can act on, and waiting the whole timeout out to say nothing is not.
+        picture === nothing && isempty(refusals) &&
             error("no viewer answered a capture in $timeout seconds")
-        take!(answer)
+        picture === nothing ? Dict{String,Any}("error" => first(refusals)) : picture
     finally
         # This request is over, whatever happened. Take the entry away here and nowhere else: a
         # request that timed out would otherwise leave one behind for every call.

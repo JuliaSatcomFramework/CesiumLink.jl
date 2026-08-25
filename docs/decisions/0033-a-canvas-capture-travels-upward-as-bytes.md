@@ -37,8 +37,12 @@ in the browser and that no window can state. A picture qualifies. Scene state ne
 
 **The server broadcasts, and the first answer wins.** A `Client` has no id, and giving it one would
 add a public noun to the API for a case that is rare. Every connected viewer therefore renders and
-answers, and the server keeps the first picture for that token and drops the rest. Two viewers on
-different camera angles give an undefined choice between them, which is the cost.
+answers, and the server keeps the first picture for that token and drops the rest.
+
+A refusal never wins over a picture. A viewer that cannot draw answers sooner than a viewer that
+can, because it returns before the resize, the render and the encode. So the server reads answers
+until one carries a picture, until every viewer refused, or until the clock runs out. Two viewers
+that both draw give an undefined choice between them, which is the cost.
 
 ## Alternatives declined
 

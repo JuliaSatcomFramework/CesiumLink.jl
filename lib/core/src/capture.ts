@@ -358,10 +358,16 @@ export function captureCell(cell: HTMLElement, widget: CesiumWidget): CaptureCel
     shut();
   };
 
-  // A long press already opened the popup, so the press that follows it must do nothing.
+  // A long press already opened the popup, so the click that follows it must do nothing.
+  //
+  // Every new press clears the flag first. A long press does not always end in a `click` on this
+  // button: a finger that slides off sends the click to an ancestor, and Android raises its own
+  // `contextmenu` and then drops the click. Cleared only by the click, the flag would outlive its
+  // own press and swallow the next tap.
   let holdOpened = false;
   let holdTimer: ReturnType<typeof setTimeout> | undefined;
   const onPointerDown = (e: PointerEvent) => {
+    holdOpened = false;
     if (e.pointerType !== "touch") return;
     holdTimer = setTimeout(() => {
       holdTimer = undefined;
@@ -375,10 +381,7 @@ export function captureCell(cell: HTMLElement, widget: CesiumWidget): CaptureCel
   };
 
   const onClick = () => {
-    if (holdOpened) {
-      holdOpened = false;
-      return;
-    }
+    if (holdOpened) return;
     if (open) {
       shut();
       return;

@@ -124,3 +124,36 @@ end
         stop_server(server)
     end
 end
+
+@testitem "a picture beats a refusal that arrived first" setup=[Capturing, WsOpen] begin
+    server = start_server(; dist_dir = nothing, host = "::1", port = 0)
+    try
+        mktempdir() do dir
+            path = joinpath(dir, "shot.png")
+            png = UInt8[0x89, 0x50, 0x4e, 0x47, 9, 9]
+            url = "ws://[::1]:$(bound_port(server))/ws"
+            # Two viewers, and the one that refuses answers first. A viewer that refuses returns
+            # before the resize, the render and the encode, so it always answers sooner than a
+            # viewer that draws. The picture must still win.
+            ws_open(url) do refuser
+                ws_open(url) do drawer
+                    @test timedwait(() -> length(server.clients) == 2, 10.0) === :ok
+                    refusing = @async begin
+                        request = capture_request(refuser)
+                        answer_capture!(refuser, request["token"], nothing)
+                    end
+                    drawing = @async begin
+                        request = capture_request(drawer)
+                        wait(refusing)
+                        answer_capture!(drawer, request["token"], png)
+                    end
+                    @test capture_canvas(server, path) == path
+                    @test read(path) == png
+                    wait(drawing)
+                end
+            end
+        end
+    finally
+        stop_server(server)
+    end
+end
