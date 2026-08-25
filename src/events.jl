@@ -23,6 +23,10 @@ const CORE_ELLIPSOID = ("core", "ellipsoid")
 const CORE_STOP      = ("core", "stop")
 const CORE_DROPPED   = ("core", "dropped")
 const CORE_REPLAY    = ("core", "replay")
+# A capture answers a request one task waits on, so `handle_msg` routes it to that task and never to
+# the listener chain (ADR-0033). It is the one pair here that travels down as a command and comes
+# back up as an event.
+const CORE_CAPTURE   = ("core", "capture")
 
 """
     EventListener

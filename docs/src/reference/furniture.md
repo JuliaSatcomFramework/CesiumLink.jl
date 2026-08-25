@@ -28,6 +28,7 @@ its ruler as a bottom bar. The **group** travels whole into the region the decla
 | `projection` | group | `false` | the projection toggle |
 | `nav_help` | group | `false` | the navigation help |
 | `inspector` | group | `false` | the inspector |
+| `canvas_capture` | group | `false` | the button that copies or downloads a **canvas capture** |
 | `region` | — | `:top_right` | which region the group travels into |
 | `style` | — | `nothing` | CSS merged over the group's own rule |
 
@@ -40,4 +41,17 @@ declare_furniture
 ```@docs
 declare_regions
 overlay_style
+```
+
+## Capturing the canvas
+
+A **canvas capture** is one PNG of the viewer's canvas. The furniture, the overlay and the floats
+are HTML above the canvas, so a capture holds none of them.
+
+The feature has two doors. `capture_canvas` asks from Julia and writes the file. The
+`canvas_capture` furniture button copies a capture to the clipboard, or downloads one; the clipboard
+needs a real click, so only the button reaches it.
+
+```@docs
+capture_canvas
 ```

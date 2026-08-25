@@ -9,11 +9,11 @@
 
 import type { OverlayRegion } from "./overlay";
 
-/** The ten items the server can ask for. The wire spells an id in camelCase. */
+/** The eleven items the server can ask for. The wire spells an id in camelCase. */
 export type FurnitureId =
   | "timeline" | "animation" | "keyframe" | "cameraFollow"
   | "sceneMode" | "fullscreen" | "home"
-  | "projection" | "navHelp" | "inspector";
+  | "projection" | "navHelp" | "inspector" | "canvasCapture";
 
 /**
  * What is on screen when a declaration names nothing. This table is the one place a default lives;
@@ -32,6 +32,9 @@ export const FURNITURE_DEFAULTS: Record<FurnitureId, boolean> = {
   projection: false,
   navHelp: false,
   inspector: false,
+  // Off by default, so no scene grows a button it did not ask for. A capture also reaches the
+  // clipboard, and a session that never asked for one wants no button that writes there.
+  canvasCapture: false,
 };
 
 /**

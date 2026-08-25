@@ -57,7 +57,8 @@ const FLAT = "font:inherit;color:inherit;background:none;border:0;padding:0;curs
 const DEFAULT_REGION: OverlayRegion = "top-right";
 
 /** Top to bottom inside the group. The order is fixed here, not declared. */
-const GROUP_ORDER = ["home", "sceneMode", "projection", "navHelp", "fullscreen", "inspector"] as const;
+const GROUP_ORDER = ["home", "sceneMode", "projection", "navHelp", "fullscreen", "canvasCapture",
+  "inspector"] as const;
 type GroupId = (typeof GROUP_ORDER)[number];
 
 // The group's own rule; a declared style merges over it. It carries `pointer-events:auto` because
@@ -106,6 +107,7 @@ export function buildFurniture(
   clock: Clock,
   overlay: Overlay,
   expand?: () => void,
+  captureCell?: (el: HTMLElement) => { destroy(): void },
 ): Furniture {
   // Bottom-left: analog clock + shuttle ring + play/pause.
   const animEl = document.createElement("div");
@@ -195,6 +197,9 @@ export function buildFurniture(
     navHelp: (el) => new NavigationHelpButton({ container: el }),
     fullscreen: (el) =>
       expand ? expandButton(el, expand) : new FullscreenButton(el, container),
+    // The capture cell is built outside this file, because it reads the widget rather than the
+    // scene: a scaled picture goes through `resolutionScale`, which the widget owns.
+    canvasCapture: (el) => captureCell!(el),
     inspector: (el) => new CesiumInspector(el, scene),
   };
   const mounted = new Map<
@@ -210,9 +215,13 @@ export function buildFurniture(
    * dead: the widget binds its enable flag to `document.fullscreenEnabled`, and the setter ANDs with
    * the real capability, so the button cannot be forced on and a click on it does nothing. Such a
    * host supplies `expand` instead, and then the cell is a substitute button that calls it.
+   *
+   * The capture cell has the same shape: only a caller that handed one over can show it.
    */
-  const available = (id: GroupId): boolean =>
-    id !== "fullscreen" || expand !== undefined || document.fullscreenEnabled;
+  const available = (id: GroupId): boolean => {
+    if (id === "canvasCapture") return captureCell !== undefined;
+    return id !== "fullscreen" || expand !== undefined || document.fullscreenEnabled;
+  };
 
   /**
    * Rank `el` above the cells below it exactly while something of its own hangs below it.

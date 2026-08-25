@@ -8,8 +8,9 @@
 //
 // Typed arrays are host-endian, and every target this runs on is little-endian.
 //
-// Nothing here encodes. Zero arrays travel upward, so the upward half of the protocol is specified
-// and not built — see `docs/protocol.md`.
+// One value here encodes: a canvas capture, which is the only array that travels upward
+// (ADR-0033). It rides the same `u8` tag as everything else, so the upward half of the protocol
+// uses this contract and does not extend it. See `docs/protocol.md`.
 
 const CTORS = {
   f32: Float32Array,
@@ -137,6 +138,17 @@ function decodeArray(w: WireArray, region: Uint8Array): NdArray {
   // that is not means the frame is wrong, and the constructor throwing says so.
   const buf = region.buffer as ArrayBuffer;
   return { data: new Ctor(buf, region.byteOffset + w.off, count), shape: w.shape };
+}
+
+/**
+ * Describe `bytes` as the array a payload points at.
+ *
+ * The caller sends `bytes` as the whole region of its frame, so the offset is 0 and the shape is
+ * the byte count. A canvas capture is the one array that travels upward, and it needs one array
+ * per region (ADR-0033).
+ */
+export function encodeU8(bytes: Uint8Array): WireArray {
+  return { $wire: "u8", shape: [bytes.length], off: 0 };
 }
 
 const elementCount = (shape: number[]): number => shape.reduce((a, b) => a * b, 1);
