@@ -363,6 +363,17 @@ own as well: the Core depends only on the `Transport` interface, so a transport 
 reads the file drives a real viewer with no server, and that puts a live scene in a
 documentation page.
 
+**Canvas capture**:
+One PNG of the viewer's canvas as it stands. The **furniture**, the overlay and the
+**floats** are HTML above the canvas, so a capture never holds them. A capture shows
+the globe and everything the modules drew on it. A `scale` multiplies the drawing
+buffer, so a capture at scale 2 holds four times the pixels of the same framing.
+Julia asks for one and saves the file, and the `canvasCapture` furniture item copies
+one to the clipboard or downloads it. The clipboard needs a real click, so only the
+button reaches it.
+_Avoid_: screenshot (the timeline and the buttons are never in one), snapshot
+(**Window** refuses that word), image.
+
 **Example**:
 A whole runnable program that shows what the system is for, and the page that
 presents it. One word covers both: the code under `examples/` and
