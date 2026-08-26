@@ -32,8 +32,12 @@ When two viewers both draw, both answers are valid pictures and the server keeps
 first. The camera belongs to the user, so the two can show different views, and nothing says which
 of them you get. Aim this at a session with one browser open.
 
-The call throws when no viewer holds the scene, when none answers inside `timeout` seconds, and when
-every viewer refuses. A refusal carries the viewer's own reason.
+The call throws in four cases: no viewer receives the request, none answers inside `timeout`
+seconds, every viewer refuses, or one viewer refuses and another never answers. A refusal carries
+the viewer's own reason.
+
+The fourth case waits the whole `timeout` out, then reports the refusal. A picture beats a refusal,
+so the call waits for the silent viewer as long as it may still draw one.
 
 ## Ask for more pixels
 

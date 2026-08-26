@@ -619,8 +619,8 @@ end
 
 # `frame` is one binary frame, or the JSON text a hand-driven client may send instead. The protocol
 # is symmetric, so what arrives upward is split the same way as what goes down: a header and the
-# region its encoded arrays point into. Nothing the viewer sends carries an array today, so the
-# region is normally empty, and a listener that is handed one costs nothing to support.
+# region its encoded arrays point into. A `core/capture` event carries the PNG there (ADR-0033), and
+# every other event the viewer sends leaves the region empty.
 function handle_msg(server::Server, client, frame)
     # A malformed frame or a throwing user tooltip callback must not tear the connection down.
     local msg, region

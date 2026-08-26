@@ -184,9 +184,9 @@ export async function createViewer(
   };
 
   // The picture the server asked for (ADR-0033). Every connected viewer answers, and the server
-  // keeps the first answer for the token and drops the rest. The bytes travel as the frame's
-  // region, and the payload names them; a viewer that cannot draw the picture answers with the
-  // reason and an empty region.
+  // keeps the first answer that carries a picture and drops the rest. The bytes travel as the
+  // frame's region, and the payload names them; a viewer that cannot draw the picture answers
+  // with the reason and an empty region.
   const answerCapture = (payload: unknown) => {
     const ask = (payload ?? {}) as { token?: string; scale?: number };
     const token = ask.token ?? null;

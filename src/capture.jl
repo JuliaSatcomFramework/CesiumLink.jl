@@ -7,8 +7,9 @@
 # so no part of the wire format changes for this.
 #
 # A `Client` has no id and the server broadcasts, so every connected viewer answers one request. The
-# first answer wins and the server drops the rest. Two viewers on different camera angles give an
-# undefined choice between them, which is the cost of keeping a client anonymous.
+# first answer that carries a picture wins and the server drops the rest. Two viewers on different
+# camera angles give an undefined choice between them, which is the cost of keeping a client
+# anonymous.
 
 # The token of one request, from a counter that runs for the whole Julia session. A late answer to a
 # request that timed out therefore matches no request made after it.
@@ -60,13 +61,18 @@ allows, and answers with the reason.
 
 `timeout` is how many seconds to wait for an answer.
 
-The call throws in three cases: no viewer holds this scene, no viewer answers in `timeout`
-seconds, or the viewer reports that it cannot make the picture. The third case throws the viewer's
-own message.
+The call throws in four cases:
+
+- No viewer receives the request.
+- No viewer answers in `timeout` seconds.
+- Every viewer reports that it cannot make the picture. The call throws the first reason it read.
+- One viewer reports that, and another viewer never answers. The call waits the whole `timeout`,
+  then throws the reason it read. A picture beats a reason, so the call waits for the silent viewer
+  as long as it may still send one.
 
 Every connected viewer answers, because the server broadcasts and a client has no name. The first
-answer is the one written, and the server drops the rest. So two browsers on different camera angles
-give an undefined choice between them.
+answer that carries a picture is the one written, and the server drops the rest. So two browsers on
+different camera angles give an undefined choice between them.
 
 The clipboard needs a real click, so only the `canvasCapture` furniture button reaches it. See
 [`declare_furniture`](@ref).
@@ -76,12 +82,12 @@ capture_canvas(server, "fig.png"; scale = 2)
 ```
 """
 function capture_canvas(server::Server, path::AbstractString; scale = 1, timeout = 10)
-    scale isa Real && scale > 0 ||
-        throw(ArgumentError("`scale` multiplies the drawing buffer, so it takes a number above " *
-                            "zero (got $(repr(scale)))"))
-    timeout isa Real && timeout > 0 ||
+    scale isa Real && isfinite(scale) && scale > 0 ||
+        throw(ArgumentError("`scale` multiplies the drawing buffer, so it takes a finite number " *
+                            "above zero (got $(repr(scale)))"))
+    timeout isa Real && isfinite(timeout) && timeout > 0 ||
         throw(ArgumentError("`timeout` is how many seconds to wait for a viewer, so it takes a " *
-                            "number above zero (got $(repr(timeout)))"))
+                            "finite number above zero (got $(repr(timeout)))"))
     token = capture_token()
     answer = Channel{Any}(Inf)
     lock(server.clients_lock) do
@@ -94,7 +100,10 @@ function capture_canvas(server::Server, path::AbstractString; scale = 1, timeout
         reached = broadcast_all!(server,
                                  commands_message([Command(CORE_CAPTURE..., (; token, scale))]);
                                  record = false)
-        reached == 0 && error("no viewer holds this scene, so nothing can make a capture")
+        # `broadcast_all!` counts the viewers the command reached, and not the viewers connected.
+        # A viewer whose send queue is full is left out, and that is the number this call wants: a
+        # viewer that never receives the request never answers it. Do not count the clients instead.
+        reached == 0 && error("no viewer received a capture request, so nothing can make a picture")
         # A picture wins over a refusal, whoever answered first (ADR-0033). Read answers until one
         # carries a picture, until every viewer refused, or until the clock runs out. A viewer that
         # refuses answers sooner than a viewer that draws, so the order they arrive in says nothing
@@ -125,6 +134,11 @@ function capture_canvas(server::Server, path::AbstractString; scale = 1, timeout
     png = get(payload, "png", nothing)
     png isa AbstractArray{UInt8} ||
         error("a viewer answered a capture with neither a picture nor a reason")
+    # A frame arrives from outside this process, so the bytes are checked here as well as in the
+    # browser. An empty answer must not become a file of zero bytes that the caller reads as a
+    # picture.
+    isempty(png) &&
+        error("a viewer answered a capture with an empty picture, so no file was written")
     write(path, png)
     return String(path)
 end

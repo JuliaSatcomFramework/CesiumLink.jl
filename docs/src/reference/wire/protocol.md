@@ -655,8 +655,8 @@ Core-produced topics:
   `{ "token": "cap-7", "error": "…" }`. One PNG of the canvas, answering the `core/capture` command
   that carries the same token. The PNG rides the frame's region, and it is the only event that
   sends bytes upward. No listener sees this pair: the server hands the answer to the task that
-  waits for that token. The server keeps the first answer and drops every later one, because every
-  connected viewer answers.
+  waits for that token. The server keeps the first answer that carries a picture and drops every
+  later one, because every connected viewer answers.
 
 - **`core/stop`** — `{}`. Stop this server. The server removes its discovery file, then drops every
   client socket and frees the port, exactly as `stop_server` does. No listener sees this pair, so a

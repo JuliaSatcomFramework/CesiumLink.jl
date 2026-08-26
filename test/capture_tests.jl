@@ -86,9 +86,37 @@ end
     server = start_server(; dist_dir = nothing, host = "::1", port = 0)
     try
         path = joinpath(mktempdir(), "shot.png")
-        @test_throws "no viewer holds this scene" capture_canvas(server, path)
+        @test_throws "no viewer received a capture request" capture_canvas(server, path)
         @test_throws "`scale`" capture_canvas(server, path; scale = 0)
         @test_throws "`timeout`" capture_canvas(server, path; timeout = 0)
+        # `Inf` passes a test for a number above zero. The guard states the argument it refuses,
+        # and JSON, which writes no infinity, would report the shape of the payload instead.
+        @test_throws "`scale`" capture_canvas(server, path; scale = Inf)
+        @test_throws "`timeout`" capture_canvas(server, path; timeout = Inf)
+    finally
+        stop_server(server)
+    end
+end
+
+@testitem "a capture of zero bytes throws, and writes no file" setup=[Capturing, WsOpen] begin
+    server = start_server(; dist_dir = nothing, host = "::1", port = 0)
+    try
+        mktempdir() do dir
+            path = joinpath(dir, "shot.png")
+            ws_open("ws://[::1]:$(bound_port(server))/ws") do ws
+                @test wait_for_client(server)
+                # A browser answers a canvas it cannot encode with a picture of zero bytes and no
+                # error. A file of zero bytes reads as a capture that worked, so the call refuses.
+                answering = @async begin
+                    request = capture_request(ws)
+                    answer_capture!(ws, request["token"], UInt8[])
+                end
+                @test_throws "empty picture" capture_canvas(server, path)
+                wait(answering)
+                @test !isfile(path)
+                @test isempty(server.pending_captures)
+            end
+        end
     finally
         stop_server(server)
     end
@@ -100,7 +128,8 @@ end
         mktempdir() do dir
             session = joinpath(dir, "session.jsonl")
             record!(server, session)
-            @test_throws "no viewer holds this scene" capture_canvas(server, joinpath(dir, "shot.png"))
+            shot = joinpath(dir, "shot.png")
+            @test_throws "no viewer received a capture request" capture_canvas(server, shot)
             stop_recording!(server)
             # The header alone. A recorded request would ask a viewer that has no server behind it
             # for a picture that reaches nobody.

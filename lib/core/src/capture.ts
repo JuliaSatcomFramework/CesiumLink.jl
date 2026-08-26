@@ -31,19 +31,56 @@ const HOLD_MS = 500;
 const NOTE_MS = 1600;
 
 /**
- * The largest texture this GPU builds, or 0 where the scene will not say.
+ * What the GPU says about the size it draws: the largest texture side, or the reason it says
+ * nothing usable.
+ */
+type GpuLimit = { max: number } | { error: string };
+
+/**
+ * The largest texture this GPU builds, or the reason a capture cannot go ahead.
  *
  * `scene.context` is internal, and reaching it is what `warnIfSoftwareRenderer` in `scene.ts` does
- * for the renderer string. A 0 turns the size check off, which is better than a refusal built on a
- * number nobody could read.
+ * for the renderer string. A scene that does not give the context up at all gives a `max` of 0,
+ * which turns the size check off: a refusal built on a number nobody could read is worse than no
+ * refusal.
+ *
+ * A context that gives no limit is the other case, and it refuses. A lost context answers null for
+ * every parameter, so the limit computes as 0 and the size check stands down at the one moment it
+ * must not. The canvas then encodes a picture that is fully transparent, and a transparent picture
+ * reads as a real one.
  */
-function maxTextureSize(scene: Scene): number {
+function gpuLimit(scene: Scene): GpuLimit {
+  let max: number;
   try {
     const gl = (scene as unknown as { context: { _gl: WebGLRenderingContext } }).context._gl;
-    return Number(gl.getParameter(gl.MAX_TEXTURE_SIZE)) || 0;
+    if (gl.isContextLost()) {
+      return {
+        error: "the graphics context is lost, so the viewer draws nothing until the page reloads",
+      };
+    }
+    max = Number(gl.getParameter(gl.MAX_TEXTURE_SIZE)) || 0;
   } catch {
-    return 0;
+    return { max: 0 };
   }
+  if (max <= 0) {
+    return { error: "the graphics context states no texture size, so no scale is safe" };
+  }
+  return { max };
+}
+
+/** The eight bytes every PNG starts with. */
+const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+
+/**
+ * Whether these bytes are a PNG.
+ *
+ * Check the bytes of every capture. `Scene.render` catches a failed pass and returns as if it drew,
+ * so a `try` around the render sees nothing. A canvas the browser refuses to encode answers
+ * `toDataURL` with `data:,`, which reads as zero bytes and not as a throw. The bytes are therefore
+ * the check that also covers a cause nobody listed here.
+ */
+function isPng(bytes: PngBytes): boolean {
+  return bytes.length > PNG_SIGNATURE.length && PNG_SIGNATURE.every((b, i) => bytes[i] === b);
 }
 
 /**
@@ -94,8 +131,12 @@ export function bytesOfDataUrl(url: string): PngBytes {
  */
 export function takeCapture(widget: CesiumWidget, scale: number): Capture {
   const canvas = widget.canvas;
-  const bad = scaleError(scale, canvas.width, canvas.height, maxTextureSize(widget.scene));
+  const limit = gpuLimit(widget.scene);
+  if ("error" in limit) return { ok: false, error: limit.error };
+  const bad = scaleError(scale, canvas.width, canvas.height, limit.max);
   if (bad) return { ok: false, error: bad };
+  const w = Math.round(canvas.width * scale);
+  const h = Math.round(canvas.height * scale);
   const held = widget.resolutionScale;
   const resized = scale !== 1;
   try {
@@ -106,7 +147,17 @@ export function takeCapture(widget: CesiumWidget, scale: number): Capture {
     // One tick, no `await`: the drawing buffer is not preserved, so anything that yields between
     // these two lines gives a blank picture.
     widget.scene.render(widget.clock.currentTime);
-    return { ok: true, bytes: bytesOfDataUrl(canvas.toDataURL("image/png")) };
+    const bytes = bytesOfDataUrl(canvas.toDataURL("image/png"));
+    // The size check above answers the GPU. A browser also limits the area of one canvas, far below
+    // that, and it answers a canvas over the limit with an empty picture and no error.
+    if (!isPng(bytes)) {
+      return {
+        ok: false,
+        error: `the canvas gave no picture at ${w}x${h} pixels, and ${bytes.length} bytes came ` +
+          "back. Ask for a smaller scale: a browser limits the area of one canvas.",
+      };
+    }
+    return { ok: true, bytes };
   } catch (err) {
     return { ok: false, error: `the viewer did not draw the picture (${err})` };
   } finally {
@@ -277,11 +328,13 @@ export function captureCell(cell: HTMLElement, widget: CesiumWidget): CaptureCel
   /** The scale list, built against the canvas as it stands. It disables a scale the GPU refuses. */
   const listScales = () => {
     const canvas = widget.canvas;
-    const max = maxTextureSize(widget.scene);
+    const limit = gpuLimit(widget.scene);
     scaleEl.replaceChildren(
       ...SCALES.map((scale) => {
         const option = document.createElement("option");
-        const bad = scaleError(scale, canvas.width, canvas.height, max);
+        const bad = "error" in limit
+          ? limit.error
+          : scaleError(scale, canvas.width, canvas.height, limit.max);
         option.value = String(scale);
         option.textContent = `${scale}x`;
         option.disabled = bad !== null;

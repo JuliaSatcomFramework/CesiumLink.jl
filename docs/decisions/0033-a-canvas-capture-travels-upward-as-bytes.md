@@ -35,7 +35,7 @@ This is the first request and reply in the protocol, and it stays the only one. 
 it from spreading: a round trip is allowed when the server asks for something that exists **only**
 in the browser and that no window can state. A picture qualifies. Scene state never does.
 
-**The server broadcasts, and the first answer wins.** A `Client` has no id, and giving it one would
+**The server broadcasts, and the first picture wins.** A `Client` has no id, and giving it one would
 add a public noun to the API for a case that is rare. Every connected viewer therefore renders and
 answers, and the server keeps the first picture for that token and drops the rest.
 
