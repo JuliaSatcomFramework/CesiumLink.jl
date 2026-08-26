@@ -45,12 +45,8 @@ overlay_style
 
 ## Capturing the canvas
 
-A **canvas capture** is one PNG of the viewer's canvas. The furniture, the overlay and the floats
-are HTML above the canvas, so a capture holds none of them.
-
-The feature has two doors. `capture_canvas` asks from Julia and writes the file. The
-`canvas_capture` furniture button copies a capture to the clipboard, or downloads one; the clipboard
-needs a real click, so only the button reaches it.
+A **canvas capture** is one PNG of the viewer's canvas. To take one, see
+[Take a picture of the globe](../how-to/capture.md).
 
 ```@docs
 capture_canvas
