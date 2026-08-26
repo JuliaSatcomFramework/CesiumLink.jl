@@ -240,6 +240,18 @@ end
     @test_throws "carries no ring" Areas(:region; boundary = [[]])
     @test_throws "one entry per region" Areas(:region; boundary = square)
 
+    # Co-located consecutive vertices, which Cesium throws on. `==` is not the test. Two vertices
+    # can hold distinct numbers and still be co-located: ±180° is one meridian, and every longitude
+    # at a pole is the same point.
+    @test_throws "are co-located" Areas(:region;
+        boundary = [[0.0 10.0 10.0 20.0; 0.0 0.0 0.0 10.0]])
+    @test_throws "are co-located" Areas(:region;
+        boundary = [[-180.0 -90.0 0.0 90.0 180.0; 45.0 45.0 45.0 45.0 45.0]])
+    # A polar cap written as a box carries the pole twice, as the wrap-around pair, which counts
+    # because the ring closes itself.
+    @test_throws "are co-located" Areas(:region;
+        boundary = [[0.0 0.0 90.0 90.0; 90.0 20.0 20.0 90.0]])
+
     # A hole outside the ring it is a hole in: rings given in the wrong order, and the one silent
     # mistake the bounding boxes catch.
     @test_throws "lies outside ring 1" Areas(:region; boundary = [[hole, square]])

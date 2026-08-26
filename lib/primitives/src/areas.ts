@@ -214,7 +214,14 @@ export class AreaFamily {
       this.shown[i] = show ? at(show, i) !== 0 : true;
       const shown = new C.ShowGeometryInstanceAttribute(this.shown[i]);
       fills[i] = new C.GeometryInstance({
-        geometry: new C.PolygonGeometry({ polygonHierarchy: hierarchy, ...shape }),
+        // Keep this vertex format. The default format stops every region in the scene when one
+        // polygon is 180° or wider: Cesium then computes its texture coordinates through a path
+        // that throws `normalized result is not a number`. The appearance below is `flat`, so it
+        // reads the position only and drops the normal and the texture coordinate anyway.
+        geometry: new C.PolygonGeometry({
+          polygonHierarchy: hierarchy, ...shape,
+          vertexFormat: C.PerInstanceColorAppearance.FLAT_VERTEX_FORMAT,
+        }),
         attributes: {
           color: C.ColorGeometryInstanceAttribute.fromColor(this.color(color, i, WHITE)),
           show: shown,
