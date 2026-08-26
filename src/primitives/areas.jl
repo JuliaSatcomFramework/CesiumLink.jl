@@ -24,6 +24,10 @@ validation belongs to a GIS library.
 A region in two pieces, and a region crossing ±180°, are one family entry per piece. Split them
 before you call, and map the pieces back to one region when you write the tooltip.
 
+Write a polar cap as the parallel alone, with no vertex at the pole: the pole is a point inside a
+cap, not a corner of one. The constructor rejects a cap written as a box, because two vertices of
+such a box are co-located.
+
 A large footprint follows the curve of the globe, and a small one does not. A polygon drawn from its
 vertices alone is a flat plane that cuts through the globe, so its middle sinks below the surface
 and its edges float above it. The sag is `θ/8` of the span, for an angular span `θ`. The angle alone
@@ -180,9 +184,33 @@ function to_rings(kind, i, region::AbstractVector)
             "(got $(Base.size(m)))"))
         all(isfinite, m) || throw(ArgumentError(
             "$kind.boundary[$i] ring $j has a coordinate that is not finite"))
+        check_vertices_distinct(kind, i, j, m)
         rings[j] = m
     end
     return rings
+end
+
+# Checks that no two consecutive vertices are co-located. Cesium subdivides an edge by normalizing
+# the difference between its two vertices, so a co-located pair throws there and stops the whole
+# scene. The ring closes itself, so the last vertex and the first are a consecutive pair too.
+function check_vertices_distinct(kind, i, j, m)
+    V = Base.size(m, 2)
+    for a in 1:V
+        b = a == V ? 1 : a + 1
+        co_located(@view(m[:, a]), @view(m[:, b])) && throw(ArgumentError(
+            "$kind.boundary[$i] ring $j vertices $a and $b are co-located: " *
+            "($(m[1, a]), $(m[2, a])) and ($(m[1, b]), $(m[2, b])). Note that ±180° is one " *
+            "meridian, and that every longitude at a pole is the same point"))
+    end
+    return nothing
+end
+
+# `==` misses two cases that real data carries: -180° and +180° are one meridian, and at a pole the
+# longitude carries no information.
+function co_located(p, q)
+    abs(p[2]) ≥ 90 && abs(q[2]) ≥ 90 && return sign(p[2]) == sign(q[2])
+    isapprox(p[2], q[2]; atol = 1e-9) || return false
+    return abs(mod(p[1] - q[1] + 180, 360) - 180) ≤ 1e-9
 end
 
 # One ring's bounding box, as (lon_min, lon_max, lat_min, lat_max).
