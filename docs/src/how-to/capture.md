@@ -26,8 +26,11 @@ The call blocks. It writes the file and returns the path.
     itself.
 
 Every connected viewer answers, because the server broadcasts and a client has no id. A picture
-wins over a refusal, whoever answered first. Two viewers that both draw give an undefined choice
-between them, so aim this at a session with one browser open.
+wins over a refusal, whoever answered first.
+
+When two viewers both draw, both answers are valid pictures and the server keeps whichever arrived
+first. The camera belongs to the user, so the two can show different views, and nothing says which
+of them you get. Aim this at a session with one browser open.
 
 The call throws when no viewer holds the scene, when none answers inside `timeout` seconds, and when
 every viewer refuses. A refusal carries the viewer's own reason.

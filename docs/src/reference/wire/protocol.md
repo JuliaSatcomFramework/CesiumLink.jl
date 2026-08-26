@@ -388,8 +388,9 @@ A viewer that cannot draw the picture answers with a reason instead. The region 
                "error": "the scale 8 asks for 6400x4800 pixels, and this GPU draws at most 4096" }}
 ```
 
-The server matches on `token`. It keeps the first answer and drops every later one. Two viewers on
-different camera angles therefore give an undefined choice between them.
+The server matches on `token`. It keeps the first answer that carries a picture and drops every
+later one. Two viewers on different camera angles both answer with a valid picture, and nothing
+says which of the two the server keeps.
 
 This command travels no other way. The server sends it when a caller asks for one, so it joins no
 retained state and no recording.

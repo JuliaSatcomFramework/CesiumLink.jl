@@ -41,8 +41,12 @@ answers, and the server keeps the first picture for that token and drops the res
 
 A refusal never wins over a picture. A viewer that cannot draw answers sooner than a viewer that
 can, because it returns before the resize, the render and the encode. So the server reads answers
-until one carries a picture, until every viewer refused, or until the clock runs out. Two viewers
-that both draw give an undefined choice between them, which is the cost.
+until one carries a picture, until every viewer refused, or until the clock runs out.
+
+When two viewers both draw, both answers are valid pictures and the server keeps whichever arrived
+first. The camera belongs to the user (ADR-0017), so the two can show different views of the scene,
+and nothing says which of them the caller receives. That is the cost of leaving a `Client` without
+an id.
 
 ## Alternatives declined
 
