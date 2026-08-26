@@ -31,7 +31,7 @@ declare_furniture!() = declare_furniture(server;
 
 ## The items
 
-The first four are the **band** along the bottom edge. The other six are one **group** of buttons
+The first four are the **band** along the bottom edge. The other seven are one **group** of buttons
 that travels whole into one region.
 
 | Keyword | Default | What it is |
@@ -46,6 +46,7 @@ that travels whole into one region.
 | `projection` | **off** | The perspective / orthographic picker |
 | `nav_help` | **off** | The navigation instructions |
 | `inspector` | **off** | The Cesium inspector panel |
+| `canvas_capture` | **off** | The button that copies a **canvas capture** to the clipboard, or downloads it. A right click opens its popup |
 
 The band is fixed to the bottom edge. Only the group takes a `region` and a `style`:
 

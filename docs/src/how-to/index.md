@@ -59,5 +59,7 @@ cannot, read the [tutorials](../tutorials/index.md) first. For the whole surface
 
 - [Record and replay a session](record-replay.md) — write the frames to a file, and drive a viewer
   from that file later.
+- [Take a picture of the globe](capture.md) — one PNG of the canvas, to a file from Julia or to
+  the clipboard from a button.
 - [Look at what the wire carried](inspect-the-wire.md) — read a frame, its header and its region by
   hand.

@@ -27,9 +27,14 @@ expecting `{id, result}`; without one it is a notification.
 **The protocol uses no requests.** Every message is a notification, because every answer may arrive
 later, more than once, or not at all.
 
-The framing is symmetric, and **only the upward half of the array _encoder_ is missing**. A viewer
-sends an empty region and refuses a typed array in an event payload, naming `Array.from()`. The
-server decodes an inbound event's payload against the region it arrived with.
+The framing is symmetric, and both halves of the array encoder exist. A viewer still refuses a
+typed array in an event payload, naming `Array.from()`, and sends an empty region for every event
+but one: a **canvas capture** carries a PNG upward as a `u8` array (ADR-0033). The server decodes
+an inbound event's payload against the region it arrived with.
+
+One exchange reads as a request. A `core/capture` command carries a token, and the answering event
+echoes it. The framing does not change: both halves stay notifications, and the token correlates
+them the way a `seq` correlates an event and its batch.
 
 Three methods travel down (server → viewer), two travel up.
 
@@ -39,7 +44,7 @@ Three methods travel down (server → viewer), two travel up.
 | ↓ | `window` | A run of keyframes, with every module's payload |
 | ↓ | `commands` | A batch of module-addressed commands |
 | ↑ | `ready` | Handshake; triggers retained-state replay |
-| ↑ | `event` | Anything the viewer reports: pointer, buffer need, control input |
+| ↑ | `event` | Anything the viewer reports: pointer, buffer need, control input, a capture |
 
 Unknown methods are ignored.
 
@@ -312,7 +317,8 @@ command states the whole set.
   "payload": {
     "items": { "timeline": true, "animation": true, "keyframe": true, "cameraFollow": true,
                "sceneMode": true, "fullscreen": true, "home": true,
-               "projection": false, "navHelp": false, "inspector": false },
+               "projection": false, "navHelp": false, "inspector": false,
+               "canvasCapture": false },
     "region": "top-right",
     "style": { "gap": "4px" } }}
 ```
@@ -329,6 +335,7 @@ command states the whole set.
 | `projection` | **off** | The perspective / orthographic picker |
 | `navHelp` | **off** | The navigation instructions |
 | `inspector` | **off** | The Cesium inspector panel |
+| `canvasCapture` | **off** | The button that copies a **canvas capture** to the clipboard, or downloads it. A right click opens its popup |
 
 A viewer shows these defaults before any declaration arrives, and an item the declaration does not
 name falls back to them. The viewer owns them; a server's keyword arguments mirror this table.
@@ -337,7 +344,7 @@ The same payload rides the session declaration (§ ↓ `modules`), which builds 
 command states the set at any time after that.
 
 `items` carries the whole set. The first four are the **band**, fixed to the bottom edge. The other
-six are one **group**, a column of buttons that travels whole into the region `region` names — one of
+seven are one **group**, a column of buttons that travels whole into the region `region` names — one of
 the four overlay regions, default `top-right`. An unknown name warns and falls back to `top-right`.
 `style` is CSS merged over the group's own rule, in the spelling the browser reads
 (`flex-direction`, not `flex_direction`).
@@ -353,6 +360,44 @@ furniture: timeline hidden on a 120-keyframe range; frames 2..120 are unreachabl
 
 The warning states each entry into that state once. A range and a furniture declaration arrive
 independently, so either order produces it.
+
+### `core/capture`
+
+A **canvas capture** is one PNG of the viewer's canvas. The furniture, the overlay and the floats
+are HTML above the canvas, so a capture never holds them (ADR-0033).
+
+The server asks. `token` is a string the server makes, and `scale` multiplies the drawing buffer.
+`scale` defaults to 1.
+
+```json
+{ "module": "core", "topic": "capture", "payload": { "token": "cap-7", "scale": 2 }}
+```
+
+Every connected viewer answers, because the server broadcasts and a client has no id. The PNG
+rides the frame's region, and it is the whole region, so `off` is 0.
+
+```json
+{ "module": "core", "topic": "capture", "seq": 12, "frame": null, "window": null,
+  "payload": { "token": "cap-7", "png": { "$wire": "u8", "shape": [40213], "off": 0 }}}
+```
+
+A viewer that cannot draw the picture answers with a reason instead. The region is then empty.
+
+```json
+{ "payload": { "token": "cap-7",
+               "error": "the scale 8 asks for 6400x4800 pixels, and this GPU draws at most 4096" }}
+```
+
+The server matches on `token`. It keeps the first answer that carries a picture and drops every
+later one. Two viewers on different camera angles both answer with a valid picture, and nothing
+says which of the two the server keeps.
+
+This command travels no other way. The server sends it when a caller asks for one, so it joins no
+retained state and no recording.
+
+The `canvasCapture` furniture item makes a capture without the server. It copies one to the
+clipboard, or downloads it. The clipboard needs a real click and a secure context, so only that
+button reaches it: `localhost` and HTTPS work, and plain HTTP to another machine does not.
 
 ### `core/regions`
 
@@ -605,6 +650,13 @@ Core-produced topics:
   command, and the server answers it itself; no listener sees the pair. The reply is the same set a
   client connecting now is replayed. Ask for it as often as needed: a replay changes no server
   state.
+
+- **`core/capture`** — `{ "token": "cap-7", "png": { "$wire": "u8", … }}`, or
+  `{ "token": "cap-7", "error": "…" }`. One PNG of the canvas, answering the `core/capture` command
+  that carries the same token. The PNG rides the frame's region, and it is the only event that
+  sends bytes upward. No listener sees this pair: the server hands the answer to the task that
+  waits for that token. The server keeps the first answer that carries a picture and drops every
+  later one, because every connected viewer answers.
 
 - **`core/stop`** — `{}`. Stop this server. The server removes its discovery file, then drops every
   client socket and frees the port, exactly as `stop_server` does. No listener sees this pair, so a

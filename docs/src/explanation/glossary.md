@@ -157,15 +157,15 @@ locally; the server answers with a replacement window. A widget always shows the
 **Furniture**:
 An item the Core puts on screen itself — the timeline ruler, the animation clock,
 the keyframe readout, the scene-mode picker, the fullscreen, home and projection
-buttons, the navigation help, the inspector, and the camera-follow indicator that
-says who holds **camera authority**. It exists in a session that declares no modules
-at all, and the server states which pieces are on screen as one declared set. A
-**Control** differs: it names its own region per item, carries a declared value,
-reports the user's input, and needs a module to exist. Furniture divides into the
-**band**, fixed to the bottom edge because Cesium builds its ruler as a bottom bar,
-and the **group**, which travels whole into one region the declaration names.
-_Avoid_: chrome (that is the `ui` panel's border), widget (that is the `ui`
-module's), decoration.
+buttons, the navigation help, the inspector, the **canvas capture** button, and
+the camera-follow indicator that says who holds **camera authority**. It exists
+in a session that declares no modules at all, and the server states which pieces
+are on screen as one declared set. A **Control** differs: it names its own region
+per item, carries a declared value, reports the user's input, and needs a module
+to exist. Furniture divides into the **band**, fixed to the bottom edge because
+Cesium builds its ruler as a bottom bar, and the **group**, which travels whole
+into one region the declaration names. _Avoid_: chrome (that is the `ui` panel's
+border), widget (that is the `ui` module's), decoration.
 
 **Float**:
 A box of server-authored content at a point on screen rather than in an overlay
@@ -362,6 +362,17 @@ listener is registered against the replaying server. The browser plays one on it
 own as well: the Core depends only on the `Transport` interface, so a transport that
 reads the file drives a real viewer with no server, and that puts a live scene in a
 documentation page.
+
+**Canvas capture**:
+One PNG of the viewer's canvas as it stands. The **furniture**, the overlay and the
+**floats** are HTML above the canvas, so a capture never holds them. A capture shows
+the globe and everything the modules drew on it. A `scale` multiplies the drawing
+buffer, so a capture at scale 2 holds four times the pixels of the same framing.
+Julia asks for one and saves the file, and the `canvasCapture` furniture item copies
+one to the clipboard or downloads it. The clipboard needs a real click, so only the
+button reaches it.
+_Avoid_: screenshot (the timeline and the buttons are never in one), snapshot
+(**Window** refuses that word), image.
 
 **Example**:
 A whole runnable program that shows what the system is for, and the page that

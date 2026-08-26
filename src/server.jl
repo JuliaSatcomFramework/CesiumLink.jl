@@ -154,6 +154,10 @@ mutable struct Server
     # the `:replace` it extends established — so a client that has received neither is asked for a
     # replacement over these frames instead of being replayed it. Guarded by `clients_lock`.
     window_span::Any
+    # The capture requests that are still open, keyed by request token: each entry is the channel the
+    # task that asked waits on. A capture is a one-shot request and never scene state, so it is not
+    # retained and no client connecting later hears about it (ADR-0033). Guarded by `clients_lock`.
+    const pending_captures::Dict{String,Channel{Any}}
     const dist_dir::Union{String,Nothing}
     # The ellipsoid this session's coordinates are on, declared to every client, or `nothing` to
     # leave the viewer on its WGS84 default. The viewer builds its globe from the declaration, so a
@@ -464,6 +468,7 @@ function start_server(; dist_dir = viewer_dist(), host = "127.0.0.1", port = 0,
     server = Server(nothing, Set{Client}(), ReentrantLock(), ModuleEntry[],
                     Pair{Tuple{String,String},Frame}[], EventListener[], nothing,
                     EventListener[], Dict{String,Any}(), Any[], 0, nothing,
+                    Dict{String,Channel{Any}}(),
                     dist_dir === nothing ? nothing : normpath(String(dist_dir)),
                     ellipsoid === nothing ? nothing : ellipsoid_radii(ellipsoid),
                     declared_imagery, asset_dirs, origins, lighting, stars, nothing, 0.0,
@@ -614,8 +619,8 @@ end
 
 # `frame` is one binary frame, or the JSON text a hand-driven client may send instead. The protocol
 # is symmetric, so what arrives upward is split the same way as what goes down: a header and the
-# region its encoded arrays point into. Nothing the viewer sends carries an array today, so the
-# region is normally empty, and a listener that is handed one costs nothing to support.
+# region its encoded arrays point into. A `core/capture` event carries the PNG there (ADR-0033), and
+# every other event the viewer sends leaves the region empty.
 function handle_msg(server::Server, client, frame)
     # A malformed frame or a throwing user tooltip callback must not tear the connection down.
     local msg, region
@@ -681,6 +686,10 @@ function handle_msg(server::Server, client, frame)
             for m in retained_messages(server)
                 enqueue_frame!(client, pack(m))
             end
+        elseif pair == CORE_CAPTURE
+            # A capture answers a request that a task is waiting on, so it goes to that task and not
+            # to the listener chain. This event asks for no command, and none is sent back for it.
+            deliver_capture!(server, get(params, "payload", Dict{String,Any}()), region)
         elseif pair == CORE_STOP
             # Schedule the stop; do not run it here. This task is reading the socket that the stop
             # closes. The listener chain never sees this pair either: a scene must not be able to

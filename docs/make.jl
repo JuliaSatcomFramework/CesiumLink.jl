@@ -434,6 +434,7 @@ makedocs(;
             "Write a module with no build step" => "how-to/no-build-module.md",
             "Show a scene in a VSCode tab" => "how-to/vscode-tab.md",
             "Show a scene in a notebook cell" => "how-to/slate-cell.md",
+            "Take a picture of the globe" => "how-to/capture.md",
             "Record and replay a session" => "how-to/record-replay.md",
             "Look at what the wire carried" => "how-to/inspect-the-wire.md",
         ],

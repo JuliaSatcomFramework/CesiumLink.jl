@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { blockAt, decodeArrays, numbers, type NdArray } from "./codec.ts";
+import { blockAt, decodeArrays, encodeU8, numbers, type NdArray } from "./codec.ts";
 
 // A region holding a Julia `Float32[1 3 5; 2 4 6]` (2x3, column-major), whose row-major shape
 // [3, 2] describes the same buffer.
@@ -124,4 +124,24 @@ test("a declared list of numbers reads the same whichever way it travelled", () 
   assert.deepEqual(numbers([1, 2, 3]), [1, 2, 3]);
   assert.deepEqual(numbers(nd([1, 2, 3], 3)), [1, 2, 3]);
   assert.deepEqual(numbers(undefined), []);
+});
+
+// --- the upward half: a canvas capture is the one array that travels that way (ADR-0033) ---
+
+test("a u8 array encoded for the region decodes back to the same bytes", () => {
+  const png = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 0, 255]);
+  const wire = encodeU8(png);
+  assert.deepEqual(wire, { $wire: "u8", shape: [10], off: 0 });
+  const got = decodeArrays({ token: "cap-7", png: wire }, png) as
+    { token: string; png: NdArray };
+  assert.equal(got.token, "cap-7");
+  assert.deepEqual(got.png.shape, [10]);
+  assert.ok(got.png.data instanceof Uint8Array);
+  assert.deepEqual([...got.png.data], [...png]);
+});
+
+test("the encoded descriptor is a plain payload value, so an event carries it untouched", () => {
+  const wire = encodeU8(new Uint8Array(3));
+  assert.equal(ArrayBuffer.isView(wire), false);
+  assert.deepEqual(Object.keys(wire).sort(), ["$wire", "off", "shape"]);
 });

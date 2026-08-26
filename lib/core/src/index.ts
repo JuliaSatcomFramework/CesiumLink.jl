@@ -13,7 +13,8 @@ import {
 import { createPointerDispatch } from "./picking";
 import { createCameraAuthority } from "./camera";
 import { createAssetUrl, type AssetBase, type AssetMounts } from "./assets";
-import { blockAt, decodeArrays, isNdArray } from "./codec";
+import { blockAt, decodeArrays, encodeU8, isNdArray } from "./codec";
+import { captureCell, takeCapture } from "./capture";
 import { createOverlay, REGIONS, type OverlayRegion } from "./overlay";
 import { createWindows, Timeline } from "./windows";
 import { NO_BYTES } from "./transport";
@@ -116,7 +117,8 @@ export async function createViewer(
 
   // The Core's own on-screen items: created once, owned by the Core (single clock/timeline for all
   // modules), and persist across windows (like the scene).
-  const furniture = buildFurniture(container, scene, widget.clock, overlay, opts.expand);
+  const furniture = buildFurniture(container, scene, widget.clock, overlay, opts.expand,
+    (el) => captureCell(el, widget));
   const onResize = () => furniture.resize();
   window.addEventListener("resize", onResize);
 
@@ -137,7 +139,11 @@ export async function createViewer(
   // Everything the viewer reports travels as one message shape. The Core stamps the sequence number
   // and where the clock was — the frame and the window on screen — so a listener can answer against
   // the scene the user was actually looking at rather than whichever one has since been delivered.
-  const sendEvent = (module: string, topic: string, payload: unknown) => {
+  //
+  // `bytes` is the frame's region, which a canvas capture rides and nothing else does (ADR-0033).
+  // The payload then carries the descriptor that points into it, exactly as a window does on the
+  // way down.
+  const sendEvent = (module: string, topic: string, payload: unknown, bytes?: Uint8Array) => {
     transport?.notify("event", {
       module,
       topic,
@@ -145,19 +151,19 @@ export async function createViewer(
       frame: windows.frame?.index ?? null,
       window: windows.info?.id ?? null,
       payload: refuseArrays(payload, `${module}/${topic}`),
-    });
+    }, bytes);
   };
 
-  // Nothing travels upward as bytes. Zero arrays go up today — pointer events, `core/need`,
-  // control input and `core/ellipsoid` are all scalars — and ADR-0007 makes the server
-  // authoritative, so bulk data flowing upward inverts the model rather than using it. The
-  // protocol is specified symmetric, so building the upward half later writes an encoder rather
-  // than amending a contract.
+  // A module sends no bytes upward. Pointer events, `core/need`, control input and
+  // `core/ellipsoid` are all scalars, and ADR-0007 makes the server authoritative, so bulk data
+  // from a module inverts the model rather than using it. A canvas capture is the one exception
+  // and the Core itself sends it, as a descriptor beside the region (ADR-0033). This refuses a
+  // *decoded* array, which carries a typed `data` field; a descriptor carries `$wire` and passes.
   const refuseArrays = (value: unknown, where: string): unknown => {
     if (ArrayBuffer.isView(value) || isNdArray(value)) {
       throw new Error(
-        `core: ${where} put a typed array in an event payload, and nothing travels upward as ` +
-          `bytes. Send Array.from(a) instead.`,
+        `core: ${where} put a typed array in an event payload, and a module sends nothing ` +
+          `upward as bytes. Send Array.from(a) instead.`,
       );
     }
     if (Array.isArray(value)) return value.map((v) => refuseArrays(v, where));
@@ -175,6 +181,18 @@ export async function createViewer(
     const n = (payload as { n?: number } | null)?.n ?? 0;
     console.warn(`core: the server dropped ${n} frame(s) for this client; asking for a replay`);
     sendEvent("core", "replay", {});
+  };
+
+  // The picture the server asked for (ADR-0033). Every connected viewer answers, and the server
+  // keeps the first answer that carries a picture and drops the rest. The bytes travel as the
+  // frame's region, and the payload names them; a viewer that cannot draw the picture answers
+  // with the reason and an empty region.
+  const answerCapture = (payload: unknown) => {
+    const ask = (payload ?? {}) as { token?: string; scale?: number };
+    const token = ask.token ?? null;
+    const shot = takeCapture(widget, ask.scale ?? 1);
+    if (!shot.ok) sendEvent("core", "capture", { token, error: shot.error });
+    else sendEvent("core", "capture", { token, png: encodeU8(shot.bytes) }, shot.bytes);
   };
 
   // One pointer dispatch for all modules: the Core owns the ScreenSpaceEventHandler, resolves a hit
@@ -371,10 +389,10 @@ export async function createViewer(
         camera.windowDelivered();
       });
       // Everything that is not a window: a batch of addressed commands, applied in order. The
-      // pseudo-module id "core" addresses the Core itself, with five topics: the pointer-event
+      // pseudo-module id "core" addresses the Core itself, with six topics: the pointer-event
       // subscription the server derives from its registered listeners, the two declarations of what
-      // the Core puts on screen, the camera track, and the count of frames the server dropped for
-      // this client.
+      // the Core puts on screen, the camera track, the count of frames the server dropped for
+      // this client, and the request for a picture of the canvas.
       t.on("commands", (params, bytes) => {
         const region = bytes ?? NO_BYTES;
         const batch = (params ?? {}) as { seq?: number | null; commands?: Command[] };
@@ -393,6 +411,7 @@ export async function createViewer(
             else if (c.topic === "regions") declareRegions(payload);
             else if (c.topic === "camera") camera.declare(payload);
             else if (c.topic === "dropped") askReplay(payload);
+            else if (c.topic === "capture") answerCapture(payload);
             else console.warn(`core: unknown command topic ${c.topic}; ignored`);
             continue;
           }

@@ -45,6 +45,7 @@ include("geodesy.jl")
 include("recorder.jl")
 include("furniture.jl")
 include("camera.jl")
+include("capture.jl")
 include("ui.jl")
 
 # Each vendored module's payload vocabulary is a submodule. Its names come back up here, and the
@@ -73,5 +74,6 @@ export Nodes, Edges, Areas, primitives_payload, marker_image, rgba, vendored, vi
 export Models, models_payload
 export Raster, rgba_grid, heatmap_index, heatmap_payload
 export record!, stop_recording!, replay
+export capture_canvas
 
 end # module CesiumLink

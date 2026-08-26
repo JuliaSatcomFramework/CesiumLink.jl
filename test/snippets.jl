@@ -206,3 +206,46 @@ end
     # A file that stands in for a viewer module.
     fake_module(name) = (p = joinpath(mktempdir(), name); write(p, "export default {}"); p)
 end
+
+# `setup=[Capturing]` brings `wait_for_client`, `capture_request` and `answer_capture!` into scope:
+# what a viewer does for `capture_canvas`, with the picture left out. A browser renders the canvas
+# and encodes a PNG; a test client reads the request off the socket and sends bytes of its own back.
+@testsnippet Capturing begin
+    using CesiumLink, HTTP, JSON
+    using CesiumLink: Frame, pack, unpack
+
+    # Wait until the server registered the socket that just opened. A capture is broadcast to the
+    # clients the server holds now, and the upgrade completes on the server after `open` returns.
+    function wait_for_client(server; timeout = 10.0)
+        return timedwait(() -> !isempty(server.clients), timeout) === :ok
+    end
+
+    # The payload of the next `core/capture` command this socket is sent, or `nothing` when the
+    # socket closes before one arrives.
+    function capture_request(ws)
+        for msg in ws
+            m = JSON.parse(unpack(msg).header)
+            get(m, "method", nothing) == "commands" || continue
+            for c in m["params"]["commands"]
+                (c["module"], c["topic"]) == ("core", "capture") && return c["payload"]
+            end
+        end
+        return nothing
+    end
+
+    # Answer one request the way a viewer does: the token it carried, and the PNG as an encoded `u8`
+    # array at the start of the frame's region. `bytes = nothing` answers with a reason instead, and
+    # that frame carries an empty region.
+    function answer_capture!(ws, token, bytes)
+        picture = bytes === nothing ?
+                  Dict("error" => "the scale 64 passes the maximum texture size") :
+                  Dict("png" => Dict("\$wire" => "u8", "shape" => [length(bytes)], "off" => 0))
+        header = JSON.json(Dict("method" => "event",
+                                "params" => Dict("module" => "core", "topic" => "capture",
+                                                 "seq" => 1,
+                                                 "payload" => merge(Dict("token" => token),
+                                                                    picture))))
+        HTTP.WebSockets.send(ws, pack(Frame(header, bytes === nothing ? UInt8[] : bytes)))
+        return nothing
+    end
+end

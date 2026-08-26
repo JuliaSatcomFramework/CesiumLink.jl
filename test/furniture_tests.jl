@@ -8,7 +8,7 @@
         @test p["items"] == Dict("timeline" => true, "animation" => true, "keyframe" => true,
                                  "cameraFollow" => true, "sceneMode" => true, "fullscreen" => true,
                                  "home" => true, "projection" => false, "navHelp" => false,
-                                 "inspector" => false)
+                                 "inspector" => false, "canvasCapture" => false)
         @test p["region"] == "top-right"
         # An empty style is left off the wire entirely.
         @test !haskey(p, "style")
@@ -25,7 +25,7 @@ end
         p = declared(server, "core", "furniture")
         @test p["items"]["timeline"] == false
         @test p["items"]["inspector"] == true
-        @test length(p["items"]) == 10
+        @test length(p["items"]) == 11
 
         # The second call carries the second call's values and nothing carried over from the first,
         # so an item this call does not name is back at its default.
