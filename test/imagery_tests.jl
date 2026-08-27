@@ -30,7 +30,7 @@ end
     # Absent, no base layer, and a named set are three declarations. An absent one on Earth is the
     # default set, which the reader picks within; `:none` draws no base layer at all.
     d, dir = CesiumLink.resolve_imagery(nothing)
-    @test length(d) == 4
+    @test length(d) == 2
     @test dir === nothing
     # The default set is of Earth, so a session on another body declares nothing and keeps the
     # texture the viewer bundles. Earth's coastlines on a Moon globe are a picture that lies.
@@ -53,10 +53,11 @@ end
     offline = KNOWN_EARTH_BASEMAPS.offline_natural_earth
     @test offline.bundled && isempty(offline.url) && offline.credit === nothing
 
-    # An absent `imagery` declares this set. Entry 1 is what the globe wears at startup.
+    # The catalogue holds four, and an absent `imagery` declares two of them: entry 1 is what the
+    # globe wears at startup, and the pyramid inside the viewer is there to be picked deliberately.
+    # The other two are named by an author who wants them, not shipped to one who named nothing.
     d, _ = CesiumLink.resolve_imagery(nothing)
-    @test [get(e, :name, nothing) for e in d] ==
-          ["Blue Marble", "Blue Marble Relief", "OpenStreetMap", "Natural Earth"]
+    @test [get(e, :name, nothing) for e in d] == ["Blue Marble", "Natural Earth"]
     @test last(d) == (; bundled = true, name = "Natural Earth")
     @test first(d).backing == true
 end

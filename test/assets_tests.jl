@@ -115,11 +115,12 @@ end
     end
 
     # A set has an origin per entry, and the reader may pick any of them. A webview is given its
-    # policy once, when its panel is created, so every origin has to be in it from the start.
+    # policy once, when its panel is created, so every origin has to be in it from the start. The
+    # default set is Blue Marble over the pyramid inside the viewer, and that pyramid needs no
+    # origin, so a session that named nothing reaches one host and not OpenStreetMap's.
     server = start_server(; dist_dir = nothing, host = "::1", port = freeport())
     try
-        @test server.trusted_origins ==
-              ["https://gibs.earthdata.nasa.gov", "https://tile.openstreetmap.org"]
+        @test server.trusted_origins == ["https://gibs.earthdata.nasa.gov"]
     finally
         stop_server(server)
     end
@@ -162,11 +163,10 @@ end
                     # The extension reads both before it builds the page: a webview is given its
                     # resource roots and its policy when its panel is created.
                     @test entry["assets"] == Dict("glb" => dir)
-                    # What the author listed comes first, and the default basemap set adds its own
-                    # two origins after it.
+                    # What the author listed comes first, and the default basemap set adds the one
+                    # origin it reaches after it.
                     @test entry["trustedOrigins"] == ["https://cdn.example",
-                                                      "https://gibs.earthdata.nasa.gov",
-                                                      "https://tile.openstreetmap.org"]
+                                                      "https://gibs.earthdata.nasa.gov"]
                 finally
                     stop_server(server)
                 end

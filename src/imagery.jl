@@ -134,12 +134,15 @@ const KNOWN_EARTH_BASEMAPS = (;
                   credit = "\u00a9 OpenStreetMap contributors"),
 )
 
-# What a session declares when the caller names nothing: a sharp globe that repairs itself offline.
-# The offline pyramid is in the set as well as under the first entry, so a reader can choose the
-# calm flat map deliberately rather than only by losing the network.
+# What a session declares when the caller names nothing: a sharp globe that repairs itself offline
+# (ADR-0034). The offline pyramid is in the set as well as under the first entry, so a reader can
+# choose the calm flat map deliberately rather than only by losing the network.
+#
+# Two entries and no more. The set is also what the picker offers, and what widens the content
+# policy: every entry's origin reaches `img-src` and `connect-src`. `osm` is in the catalogue for an
+# author to name, and naming it takes on OpenStreetMap's tile usage policy — which is not something
+# a session that named no basemap at all has agreed to.
 const DEFAULT_EARTH_BASEMAPS = [KNOWN_EARTH_BASEMAPS.blue_marble,
-                                KNOWN_EARTH_BASEMAPS.blue_marble_relief,
-                                KNOWN_EARTH_BASEMAPS.osm,
                                 KNOWN_EARTH_BASEMAPS.offline_natural_earth]
 
 # The levels of a tile pyramid: every subdirectory whose name is an integer.
