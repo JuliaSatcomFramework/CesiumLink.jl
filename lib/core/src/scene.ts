@@ -30,6 +30,12 @@ export interface ImagerySpec {
   /** The label the picker draws for this basemap. A set of one draws no picker and needs no name. */
   name?: string;
   /**
+   * Which catalogue basemap this is, as the server's own key: `"blue_marble"`, `"osm"`. The picker
+   * draws its icon and its drop-down category from this, so renaming a label changes nothing. A
+   * basemap an author declared themselves carries none, and the picker falls back.
+   */
+  key?: string;
+  /**
    * Draw the bundled Earth texture below this source. Cesium walks a tile that will not load up to
    * a ready ancestor, finds none, and draws the layer below, so a source that stops answering
    * leaves a globe rather than a hole. It is a property of this basemap and not a second basemap:

@@ -148,7 +148,9 @@ The session declaration. Sent once per connection, before anything else, and ret
   `ctx.assetUrl`. **Optional; absent means the server serves no directory of its own.** A browser
   host needs the map for nothing; a host on another origin builds its own URL per mount out of it.
 - `imagery` is what the globe is textured with: one source as `url`, `layout` (`"xyz"` or `"tms"`),
-  `tiling`, and optionally `maxLevel` and `credit`. It has **three** states. Absent means the viewer
+  `tiling`, and optionally `maxLevel`, `credit` and `key`. `key` names the catalogue basemap the
+  entry is, such as `"blue_marble"`; the viewer draws its picker icon from that and never from the
+  label. A basemap an author declared themselves carries no `key`. It has **three** states. Absent means the viewer
   keeps its bundled Earth texture. `false` means no base layer at all. An object means that tile
   source. A directory of tiles this server serves is the reserved `imagery` mount, so its `url` is a
   path into the `assets` map above (ADR-0021).

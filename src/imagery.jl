@@ -220,9 +220,16 @@ end
 # entry a reader can pick, and once under an entry that asked to be backed.
 bundled_declaration(im::Imagery) = with_common((; bundled = true), im)
 
-# The fields every kind of basemap carries. `name` labels the entry in the picker, and a set of one
-# draws no picker, so a lone basemap without one declares nothing here.
+# The catalogue name of a basemap, or `nothing` for one an author built. It is what the picker looks
+# an icon and a category up by, so renaming a label cannot change what the drop-down draws.
+catalogue_key(im::Imagery) = findfirst(==(im), KNOWN_EARTH_BASEMAPS)
+
+# The fields every kind of basemap carries. `key` names the catalogue entry this is, `name` labels
+# the entry in the picker, and a set of one draws no picker, so a lone basemap without one declares
+# nothing here.
 function with_common(d, im::Imagery)
+    k = catalogue_key(im)
+    k === nothing || (d = (; d..., key = String(k)))
     im.name === nothing || (d = (; d..., im.name))
     im.credit === nothing || (d = (; d..., credit = im.credit))
     im.backing && (d = (; d..., backing = true))

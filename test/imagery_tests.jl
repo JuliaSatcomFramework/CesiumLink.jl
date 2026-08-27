@@ -58,8 +58,11 @@ end
     # The other two are named by an author who wants them, not shipped to one who named nothing.
     d, _ = CesiumLink.resolve_imagery(nothing)
     @test [get(e, :name, nothing) for e in d] == ["Blue Marble", "Natural Earth"]
-    @test last(d) == (; bundled = true, name = "Natural Earth")
+    @test last(d) == (; bundled = true, key = "offline_natural_earth", name = "Natural Earth")
     @test first(d).backing == true
+    # The viewer reads the icon and the drop-down category off `key`, so every catalogue basemap
+    # carries one. Matching by label instead would hand a renamed basemap the fallback icon.
+    @test [e.key for e in d] == ["blue_marble", "offline_natural_earth"]
 end
 
 @testitem "a basemap set is refused when the viewer could not draw it" setup=[Pyramid] begin
@@ -94,7 +97,8 @@ end
     # a source that answers nothing is found by the browser, not here.
     d, dir = CesiumLink.resolve_imagery(template)
     @test dir === nothing
-    # One basemap is a set of one, so the wire shape does not change with the size of the set.
+    # One basemap is a set of one, so the wire shape does not change with the size of the set. A
+    # basemap an author built is in no catalogue, so it declares no `key`.
     @test d == [(; url = template, layout = "xyz", tiling = "mercator")]
 
     d, _ = CesiumLink.resolve_imagery(Imagery(template; tiling = :geographic, max_level = 7,

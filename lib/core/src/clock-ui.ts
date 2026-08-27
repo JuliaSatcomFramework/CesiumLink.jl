@@ -114,18 +114,19 @@ export interface Basemaps {
 }
 
 /**
- * How the picker draws each basemap that `KNOWN_EARTH_BASEMAPS` names.
+ * How the picker draws each basemap that `KNOWN_EARTH_BASEMAPS` names, keyed by the catalogue key
+ * the wire carries. The label is never read: a label is the text a reader sees and an author may
+ * change it, and a table read by label answers a renamed basemap with the wrong icon.
  *
- * The wire carries the label and not the catalogue key, so the label is what this table reads. A
- * basemap the table does not name — an author's own URL — draws the offline icon and sits under
- * `Imagery`, because `ProviderViewModel` throws with no `iconUrl` and the picker groups its
- * drop-down by category.
+ * A basemap with no key, or a key this table does not name — an author's own URL — draws the
+ * offline icon and sits under `Imagery`, because `ProviderViewModel` throws with no `iconUrl` and
+ * the picker groups its drop-down by category.
  */
 const KNOWN_BASEMAPS: Record<string, { icon: string; category: string }> = {
-  "Natural Earth": { icon: BASEMAP_ICONS.offline_natural_earth, category: "Offline" },
-  "Blue Marble": { icon: BASEMAP_ICONS.blue_marble, category: "Imagery" },
-  "Blue Marble Relief": { icon: BASEMAP_ICONS.blue_marble_relief, category: "Imagery" },
-  OpenStreetMap: { icon: BASEMAP_ICONS.osm, category: "Maps" },
+  offline_natural_earth: { icon: BASEMAP_ICONS.offline_natural_earth, category: "Offline" },
+  blue_marble: { icon: BASEMAP_ICONS.blue_marble, category: "Imagery" },
+  blue_marble_relief: { icon: BASEMAP_ICONS.blue_marble_relief, category: "Imagery" },
+  osm: { icon: BASEMAP_ICONS.osm, category: "Maps" },
 };
 
 const UNKNOWN_BASEMAP = { icon: BASEMAP_ICONS.offline_natural_earth, category: "Imagery" };
@@ -149,7 +150,7 @@ const UNKNOWN_BASEMAP = { icon: BASEMAP_ICONS.offline_natural_earth, category: "
 function basemapPicker(el: HTMLElement, scene: Scene, basemaps: Basemaps): { destroy(): void } {
   const models = basemaps.specs.map((spec, i) => {
     const name = spec.name ?? `Basemap ${i + 1}`;
-    const look = KNOWN_BASEMAPS[name] ?? UNKNOWN_BASEMAP;
+    const look = (spec.key === undefined ? undefined : KNOWN_BASEMAPS[spec.key]) ?? UNKNOWN_BASEMAP;
     return new ProviderViewModel({
       name,
       tooltip: name,
