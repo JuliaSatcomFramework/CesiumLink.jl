@@ -4,6 +4,20 @@ All notable changes to CesiumLink are in this file.
 
 ## [Unreleased]
 
+### Added
+
+- `Areas` takes `mesh_deg`, the degrees of arc between the vertices the browser lays inside a draped
+  footprint, for the whole family. It rides the geometry window beside `drape`, and changing it
+  re-tessellates. Reach for it where a footprint's sag would show: on a globe carrying real terrain,
+  or with `depthTestAgainstTerrain` on.
+
+### Changed
+
+- A draped footprint is meshed at 4° per cell instead of 0.5°. The finer mesh was derived from the
+  threshold that decides *whether* a footprint drapes, which is a different question, and it cost 28
+  times the triangles for accuracy no screen resolves — a continent-sized family came to 8.2 M
+  triangles and made panning visibly slow. Pass `mesh_deg` to get the old mesh back.
+
 ### Fixed
 
 - The hover tooltip goes away when the pointer moves off the globe onto a floating object, the

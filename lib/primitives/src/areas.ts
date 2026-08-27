@@ -51,6 +51,11 @@ export interface AreaSpec {
    * angle that region spans; `true` and `false` force it for the whole family.
    */
   drape?: boolean;
+  /**
+   * Degrees of arc between the vertices Cesium lays inside a draped footprint, for the whole family.
+   * Absent takes the module's default. Cost grows with the square of the cell count.
+   */
+  meshDeg?: number;
   color?: unknown;
   /** Outline colour; absent draws no outline. */
   outline?: unknown;
@@ -76,9 +81,41 @@ export const DEFAULT_RADIUS = 1000;
  */
 export const DRAPE_SPAN_DEG = 0.5;
 
-// Cesium subdivides a draped polygon in steps of this angle, in radians. A step at the threshold
-// leaves every cell of the mesh sagging no more than a polygon that never needed subdividing.
-const DRAPE_GRANULARITY_RAD = (DRAPE_SPAN_DEG * Math.PI) / 180;
+/**
+ * Degrees of arc between the vertices Cesium lays inside a draped footprint, when the caller names
+ * no `meshDeg` of its own.
+ *
+ * How finely a footprint drapes is a different question from whether it drapes, so this must not be
+ * derived from the threshold above. The sag of a mesh cell follows the size of the CELL alone and
+ * not the size of the polygon, so one cell size serves a hexagon and a continent alike.
+ *
+ * A footprint smaller than one cell is drawn as a single cell, so between the drape threshold and
+ * this size it becomes one flat plate again. That is not the coupling coming back: the error is the
+ * sag of one cell either way, and a footprint smaller than a cell sags LESS than the budget every
+ * other cell of every other footprint is already drawn to.
+ *
+ * Cost grows with the square of the cell count, so this is the number that decides whether a
+ * continent-sized region is affordable: halving the cell quadruples the triangles. At this cell a
+ * continent sags 4.8 km, which is 0.4 px on a globe drawn 1000 px across.
+ *
+ * 4 is where the return stopped when this was measured: coarser settings gave back no frame time
+ * that could be told from this one, and carried several times the error for it. That reading was
+ * one machine and one family, so treat it as the reason for the number rather than as a law.
+ *
+ * Two traps sit either side of measuring it again. A 2D map is the harder case, not a globe: a
+ * globe hides half of itself and culls the rest against the horizon, while a 2D map draws every
+ * footprint at once, so a number tuned on a globe alone comes out too fine. And a close camera says
+ * nothing either — the edges of a footprint come from the caller's vertices rather than from the
+ * mesh, so zooming in shows no difference at any cell and always reports that coarser is free.
+ *
+ * All of that rests on `Globe.depthTestAgainstTerrain` being false, which is its default: a sagging
+ * polygon then draws over the globe instead of sinking into it. Turn it on, or give the globe real
+ * terrain, and the sag shows at once. That caller is the one `meshDeg` exists for.
+ */
+const MESH_CELL_DEG = 4;
+
+/** The finest cell a caller may ask for, in radians. Julia refuses the same value in degrees. */
+const MIN_MESH_RAD = (0.01 * Math.PI) / 180;
 
 /** Mean Earth radius in metres, to read a footprint radius as the angle it subtends. */
 const EARTH_RADIUS_M = 6_371_000;
@@ -146,11 +183,14 @@ export class AreaFamily {
     if (spec.center || spec.boundary) {
       // Rebuild only when what the geometry is made of changed: a window repeating the same
       // footprints leaves the tessellation standing, whatever it says about colour.
-      const drape = `${spec.drape ?? "span"}`;
+      // Whether a footprint follows the globe and how finely it does are both how the geometry is
+      // made, so a window that changes either and repeats the same footprints must still
+      // re-tessellate them.
+      const mesh = `${spec.drape ?? "span"}|${spec.meshDeg ?? "default"}`;
       const height = digest(scalarData(spec.heightM));
       const signature = spec.boundary
-        ? `${n}|${height}|${drape}|${ringsDigest(spec.boundary)}`
-        : `${n}|${spec.sides ?? DEFAULT_SIDES}|${height}|${drape}|` +
+        ? `${n}|${height}|${mesh}|${ringsDigest(spec.boundary)}`
+        : `${n}|${spec.sides ?? DEFAULT_SIDES}|${height}|${mesh}|` +
           `${digest(spec.center!.data)}|${digest(scalarData(spec.radius))}`;
       if (signature !== this.built) {
         this.build(spec, w, n, count);
@@ -165,6 +205,12 @@ export class AreaFamily {
     this.destroyPrimitives();
     const lonlat = spec.center?.data ?? null;
     const sides = Math.max(3, Math.round(spec.sides ?? DEFAULT_SIDES));
+    // Clamped rather than trusted, as `sides` above is. Cesium's own bounds check on `granularity`
+    // lives inside a debug-only block, so a release build takes a zero and subdivides for ever, and
+    // a whole turn of the globe reaches `chordLength` as a cell of no length at all. Julia refuses
+    // both with a better message; a module speaking the wire directly does not go through Julia.
+    const meshRadians = Math.min(Math.PI, Math.max(MIN_MESH_RAD,
+      ((spec.meshDeg ?? MESH_CELL_DEG) * Math.PI) / 180));
     const heights = knob(spec.heightM, { itemLen: 1, n, count, what: `${this.kind}.height_m` })?.frame(0) ?? null;
     const radius = knob(spec.radius, { itemLen: 1, n, count, what: `${this.kind}.radius` })?.frame(0) ?? null;
     // The colours and mask the instances are born with come from this window's first keyframe,
@@ -205,7 +251,7 @@ export class AreaFamily {
       // across the ellipsoid, and then it reads one height for the whole surface rather than the
       // heights of the vertices.
       const shape = (spec.drape ?? span > DRAPE_SPAN_DEG)
-        ? { height, granularity: DRAPE_GRANULARITY_RAD }
+        ? { height, granularity: meshRadians }
         : { perPositionHeight: true };
       const id = (this.ids[i] = this.pickId(this.kind, i));
       // Every instance carries a `show` attribute whether or not this window masks anything: an
