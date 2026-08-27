@@ -6,20 +6,13 @@ All notable changes to CesiumLink are in this file.
 
 ### Changed
 
-- The viewer builds against `@cesium/engine` `^26.2.0` instead of the exact pin `26.1.0`.
-  `@cesium/widgets` asks for `^26.2.0`, so the old pin made npm install a second engine below
-  `@cesium/widgets`. The bundle carried both, and a class such as `Ellipsoid` or `ImageryLayer`
-  existed twice, so an `instanceof` test across the two could answer no for the same kind of object.
-  One engine now serves both packages, and the viewer chunk falls from 5,359,996 to 4,819,415 bytes.
+- The viewer builds against `@cesium/engine` `^26.2.0`. The exact `26.1.0` pin made npm install a
+  second engine below `@cesium/widgets`, and the bundle carried both. See #38.
 
 ### Fixed
 
-- The release artifact no longer carries 6,103,653 bytes of Cesium worker files that nothing loads.
-  `@cesium/engine` 26.2.0 publishes a `Build/Workers` directory that was not cleaned between two
-  builds, and 172 of its 282 files are named by no other file. The build copied the directory whole.
-  It now keeps only what a worker entry point reaches. `lib/dist` comes to 26,083,240 bytes, below
-  the 26,580,765 it measured before this release. A clean `@cesium/engine` leaves the step with
-  nothing to drop.
+- The release artifact no longer carries the Cesium worker files that nothing loads. `lib/dist` is
+  smaller than it was before the bump. See #38.
 
 ## [0.1.3] - 2026-08-27
 
