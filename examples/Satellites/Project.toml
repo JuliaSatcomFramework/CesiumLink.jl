@@ -7,7 +7,7 @@ SatelliteToolboxTle = "7ff27aeb-5fff-4337-a9ee-a9fe6b7ed35e"
 SatelliteToolboxTransformations = "6b019ec1-7a1e-4f04-96c7-a9db1ca5514d"
 
 [compat]
-CesiumLink = "0.1"
+CesiumLink = "0.2"
 Dates = "1"
 LinearAlgebra = "1"
 SatelliteToolboxPropagators = "1"

@@ -4,8 +4,32 @@ All notable changes to CesiumLink are in this file.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-27
+
+### Added
+
+- `KNOWN_EARTH_BASEMAPS` names three ready-made `Imagery` values of Earth:
+  `offline_natural_earth`, `blue_marble` and `blue_marble_relief`. Each one carries the attribution
+  its source asks for. `Imagery` and `KNOWN_EARTH_BASEMAPS` are both exported.
+- `imagery` takes a list, so a server declares a basemap **set** and the reader picks inside it. A
+  picker button stands in the furniture group while the set holds two or more.
+- `Imagery` takes `backing`. A basemap marked that way draws the viewer's bundled pyramid underneath
+  itself, so a source that stops serving leaves a globe instead of a black ball.
+- `Imagery` takes `credit`, one line of attribution drawn over the bottom right of the globe. The
+  string is HTML, so an attribution that must carry a link can. The viewer sanitizes it before it
+  draws it, and rewrites the line on every switch.
+- `declare_furniture` takes `basemap`. Set it to `false` to declare a set and show no picker over it.
+
 ### Changed
 
+- **Breaking behaviour.** An absent `imagery` on Earth no longer means the bundled texture alone. It
+  declares NASA GIBS Blue Marble backed by the bundled pyramid, so a default session asks
+  `gibs.earthdata.nasa.gov` for tiles. One line takes the network out again:
+  `start_server(; imagery = KNOWN_EARTH_BASEMAPS.offline_natural_earth)`. A session on another body
+  is unchanged: it still wears the bundled texture and reaches no network.
+- A recording carries the whole declared set, not one basemap. A recording made with a keyed URL
+  therefore holds that key in plain text.
+- The content policy of a VSCode panel opens for the origin of every basemap in the set.
 - The viewer builds against `@cesium/engine` `^26.2.0`. The exact `26.1.0` pin made npm install a
   second engine below `@cesium/widgets`, and the bundle carried both. See #38.
 
