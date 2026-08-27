@@ -349,13 +349,33 @@ export default {
       applyNow();
     };
 
+    // A float, the overlay panel or a widget sits over the canvas and takes the pointer off it, so
+    // no hover is raised there and no listener answers with a clear: the box would stand behind the
+    // float until the cursor came back. The crossing hides it here, with nothing asked of the
+    // server, and the next hover over the globe paints it again.
+    //
+    // It has to stay hidden too. The hover raised just before the crossing is still in flight, and
+    // its answer lands after it — carrying the last coordinate the cursor had on the globe, which is
+    // why the box came back reading the edge it left by. Content is dropped for as long as the
+    // pointer is off the canvas, so no answer in flight can paint the box again.
+    let onCanvas = true;
+    const enter = () => {
+      onCanvas = true;
+    };
+    const leave = () => {
+      onCanvas = false;
+      tooltip.apply({ html: null });
+    };
+    ctx.scene.canvas.addEventListener("mouseenter", enter);
+    ctx.scene.canvas.addEventListener("mouseleave", leave);
+
     const disposables = [
       ctx.onCommand("declare", declare),
       ctx.onCommand("floating", (payload) => {
         floats.declare(payload);
         applyNow();
       }),
-      ctx.onCommand("tooltip", (payload) => tooltip.apply(payload)),
+      ctx.onCommand("tooltip", (payload) => tooltip.apply(onCanvas ? payload : { html: null })),
       ctx.onWindow((w, payload) => held.install((payload ?? {}) as OverlayWindow, w)),
       ctx.onKeyframe((index) => {
         for (const row of live) row.onKeyframe?.(index);
@@ -366,6 +386,10 @@ export default {
       ctx.onFrame(() => floats.reposition()),
       // Local dispatch: the box follows the cursor at frame rate, with nothing asked of the server.
       ctx.onPointer((e) => tooltip.track(e.screen)),
+      () => {
+        ctx.scene.canvas.removeEventListener("mouseenter", enter);
+        ctx.scene.canvas.removeEventListener("mouseleave", leave);
+      },
     ];
 
     return () => {

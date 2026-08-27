@@ -18,6 +18,11 @@ All notable changes to CesiumLink are in this file.
   times the triangles for accuracy no screen resolves — a continent-sized family came to 8.2 M
   triangles and made panning visibly slow. Pass `mesh_deg` to get the old mesh back.
 
+### Fixed
+
+- The hover tooltip goes away when the pointer moves off the globe onto a floating object, the
+  overlay panel or a widget. It used to stand behind the float until the cursor came back.
+
 ## [0.1.2] - 2026-08-24
 
 ### Added
