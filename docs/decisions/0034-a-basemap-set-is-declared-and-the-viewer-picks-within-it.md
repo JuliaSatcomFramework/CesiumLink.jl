@@ -63,8 +63,8 @@ network, the picker and the button in one line.
 the one behaviour change a reader will notice on upgrade, and it is why the release is 0.2.0.
 
 **An absent `imagery` on a body that is not Earth declares nothing.** The default set is Earth's,
-so a session on another ellipsoid keeps the bundled texture it wears today. It does not gain four
-Earth basemaps, and it does not throw on the backing guard, so a call that works today keeps
+so a session on another ellipsoid keeps the bundled texture it wears today. It does not gain the
+Earth default set, and it does not throw on the backing guard, so a call that works today keeps
 working. `is_earth` compares the semi-major axis within one per cent, which refuses the Moon and
 accepts GRS 80.
 
@@ -80,7 +80,9 @@ tiling scheme, a depth and an attribution line.
 | `blue_marble_relief` | GIBS `BlueMarble_ShadedRelief` | 0-8 |
 | `osm` | `tile.openstreetmap.org` | 0-19 |
 
-All four are in the default picker; the first entry of the default *set* is `blue_marble`.
+The default *set* is two of them, `blue_marble` first. The picker offers the set, so those two are
+what a default session shows. `blue_marble_relief` and `osm` are here to be named, not shipped to a
+session that names nothing.
 
 The catalogue is keyed rather than a list to filter. A filter selects by name string, so a source
 renamed in a later release silently matches nothing and the author gets back a basemap they meant to
@@ -132,10 +134,11 @@ a session that did not use the default set, because a default set travels: both 
 tiles a replaying page can reach. Painting an online basemap onto exactly those files would show a
 sharper globe than was recorded, which is what ADR-0024 is against.
 
-**The default content policy widens by two origins.** A session that does not name its own set
-declares four basemaps, so `gibs.earthdata.nasa.gov` and `tile.openstreetmap.org` reach
-`trusted_origins` and from there `img-src` and `connect-src`. Naming a set narrows it again to
-whatever that set holds.
+**The default content policy widens by one origin.** A session that does not name its own set
+declares `blue_marble` over the pyramid inside the viewer, so `gibs.earthdata.nasa.gov` alone
+reaches `trusted_origins` and from there `img-src` and `connect-src`; the pyramid is in the viewer
+and needs no origin. Naming `osm` adds `tile.openstreetmap.org`, and takes on OpenStreetMap's tile
+usage policy with it. Naming a set narrows the policy to whatever that set holds.
 
 **`?imagery=` still names one basemap.** ADR-0019 says what the query string is for — looking at a
 pyramid you have just built, and publishing a globe that is a URL and nothing else — and neither
