@@ -104,7 +104,7 @@ end
         # The standalone player builds its globe from these, so a replay of this session is the
         # session: the same shape, the same basemap, the same sun and the same sky.
         @test header["ellipsoid"] == Dict("a" => 1737400, "b" => 1737400)
-        @test header["imagery"]["url"] == "https://tiles.invalid/{z}/{x}/{y}.png"
+        @test only(header["imagery"])["url"] == "https://tiles.invalid/{z}/{x}/{y}.png"
         @test header["lighting"] == true
         @test header["stars"] == true
         # The furniture is here as well as in the retained command written under it, so the player
@@ -125,9 +125,12 @@ end
             stop_server(server)
         end
         header = JSON.parse(readline(path))
-        # Absent and `false` are two different declarations, so a default session must state neither:
-        # a recorded `imagery` of `false` asks the player for a globe with no base layer at all.
-        @test !any(haskey(header, k) for k in ("ellipsoid", "imagery", "lighting", "stars", "furniture"))
+        # A default session declares the default set, and every entry of it has tiles a replaying
+        # page can reach, so the whole set travels.
+        @test length(header["imagery"]) == 4
+        # Absent and `false` are two different declarations, so a session that declares nothing must
+        # state neither: a recorded `false` asks the player for a globe with no base layer at all.
+        @test !any(haskey(header, k) for k in ("ellipsoid", "lighting", "stars", "furniture"))
     end
 end
 

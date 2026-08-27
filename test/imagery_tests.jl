@@ -17,15 +17,74 @@
           (:mercator, nothing, nothing)
     # The easy case is one string, and it reaches everything that takes an `Imagery`.
     @test convert(Imagery, "u").url == "u"
+
+    # The pyramid inside the viewer is what a backing draws, so backing it with itself would put
+    # one texture on the globe twice.
+    @test_throws "cannot ask" Imagery(; bundled = true, backing = true)
+    # It carries no URL either: the page builds the one it answers on.
+    @test_throws "carries no URL" Imagery("u"; bundled = true)
+    @test_throws "needs a URL" Imagery()
 end
 
 @testitem "the three states of `imagery` are three different declarations" begin
-    # Absent, no base layer, and one source are not the same thing: the first keeps the viewer's
-    # bundled texture and the second draws none at all.
-    @test CesiumLink.resolve_imagery(nothing) == (nothing, nothing)
+    # Absent, no base layer, and a named set are three declarations. An absent one on Earth is the
+    # default set, which the reader picks within; `:none` draws no base layer at all.
+    d, dir = CesiumLink.resolve_imagery(nothing)
+    @test length(d) == 4
+    @test dir === nothing
+    # The default set is of Earth, so a session on another body declares nothing and keeps the
+    # texture the viewer bundles. Earth's coastlines on a Moon globe are a picture that lies.
+    @test CesiumLink.resolve_imagery(nothing, (a = 1737400.0, b = 1737400.0)) == (nothing, nothing)
     @test CesiumLink.resolve_imagery(:none) == (false, nothing)
     # A symbol that is not `:none` is a typo, and would otherwise be declared as a URL.
     @test_throws "`:none`" CesiumLink.resolve_imagery(:None)
+    # An empty set names no basemap, which is what `:none` says in one word.
+    @test_throws "at least one basemap" CesiumLink.resolve_imagery(Imagery[])
+end
+
+@testitem "the basemaps this package knows are ready to declare" begin
+    @test length(collect(CesiumLink.KNOWN_EARTH_BASEMAPS)) == 4
+    # Shipping a name ships its attribution, and `osm` may not be drawn without one.
+    @test CesiumLink.KNOWN_EARTH_BASEMAPS.osm.credit == "© OpenStreetMap contributors"
+    @test all(!isempty, (CesiumLink.KNOWN_EARTH_BASEMAPS.blue_marble.credit,
+                         CesiumLink.KNOWN_EARTH_BASEMAPS.blue_marble_relief.credit))
+    # The pyramid inside the viewer is the one entry with neither a URL nor a credit: it is public
+    # domain, and the page builds the URL it answers on.
+    offline = CesiumLink.KNOWN_EARTH_BASEMAPS.offline_natural_earth
+    @test offline.bundled && isempty(offline.url) && offline.credit === nothing
+
+    # An absent `imagery` declares this set. Entry 1 is what the globe wears at startup.
+    d, _ = CesiumLink.resolve_imagery(nothing)
+    @test [get(e, :name, nothing) for e in d] ==
+          ["Blue Marble", "Blue Marble Relief", "OpenStreetMap", "Natural Earth"]
+    @test last(d) == (; bundled = true, name = "Natural Earth")
+    @test first(d).backing == true
+end
+
+@testitem "a basemap set is refused when the viewer could not draw it" setup=[Pyramid] begin
+    moon = (a = 1737400.0, b = 1737400.0)
+    # A backing draws the pyramid inside the viewer, which is of Earth. Julia knows the ellipsoid
+    # before anything is declared, so the mismatch is impossible rather than forbidden.
+    @test_throws "may not ask for one on this ellipsoid" start_server(;
+        dist_dir = nothing, listen = false, ellipsoid = moon,
+        imagery = CesiumLink.KNOWN_EARTH_BASEMAPS.blue_marble)
+    # A basemap of the body itself asks for no backing, so it is declared.
+    server = start_server(; dist_dir = nothing, listen = false, ellipsoid = moon,
+                          imagery = "https://host/moon/{z}/{x}/{y}.png")
+    try
+        @test length(server.imagery) == 1
+    finally
+        stop_server(server)
+    end
+
+    # One server serves one `imagery` mount, so one set holds at most one directory of tiles.
+    mktempdir() do a
+        mktempdir() do b
+            pyramid(a)
+            pyramid(b)
+            @test_throws "at most one directory" CesiumLink.resolve_imagery([a, b])
+        end
+    end
 end
 
 @testitem "a URL is declared as it stands and never fetched" begin
@@ -34,12 +93,18 @@ end
     # a source that answers nothing is found by the browser, not here.
     d, dir = CesiumLink.resolve_imagery(template)
     @test dir === nothing
-    @test d == (; url = template, layout = "xyz", tiling = "mercator")
+    # One basemap is a set of one, so the wire shape does not change with the size of the set.
+    @test d == [(; url = template, layout = "xyz", tiling = "mercator")]
 
     d, _ = CesiumLink.resolve_imagery(Imagery(template; tiling = :geographic, max_level = 7,
                                               credit = "USGS"))
-    @test d == (; url = template, layout = "xyz", tiling = "geographic", maxLevel = 7,
-                credit = "USGS")
+    @test only(d) == (; url = template, layout = "xyz", tiling = "geographic", maxLevel = 7,
+                      credit = "USGS")
+
+    # A set keeps the order it was given, because entry 1 is what the globe wears at startup.
+    d, _ = CesiumLink.resolve_imagery([CesiumLink.KNOWN_EARTH_BASEMAPS.osm,
+                                       CesiumLink.KNOWN_EARTH_BASEMAPS.offline_natural_earth])
+    @test [e.name for e in d] == ["OpenStreetMap", "Natural Earth"]
 end
 
 @testitem "an XYZ directory is sniffed, probed and mounted relative" setup=[Pyramid] begin
@@ -49,18 +114,18 @@ end
         @test mounted == dir
         # The URL is relative, which is what makes the mount same-origin with the page: an absolute
         # one would need a CORS header from wherever it pointed.
-        @test d == (; url = "assets/imagery/{z}/{x}/{y}.png", layout = "xyz", tiling = "mercator",
-                    maxLevel = 2)
+        @test only(d) == (; url = "assets/imagery/{z}/{x}/{y}.png", layout = "xyz",
+                          tiling = "mercator", maxLevel = 2)
 
         # The probe reads the deepest level on disk; a stated maximum wins over it.
         d, _ = CesiumLink.resolve_imagery(Imagery(dir; max_level = 1, tiling = :geographic))
-        @test d == (; url = "assets/imagery/{z}/{x}/{y}.png", layout = "xyz", tiling = "geographic",
-                    maxLevel = 1)
+        @test only(d) == (; url = "assets/imagery/{z}/{x}/{y}.png", layout = "xyz",
+                          tiling = "geographic", maxLevel = 1)
 
         # A file whose name is not a number is not a level.
         write(joinpath(dir, "readme.txt"), "not a level")
         mkpath(joinpath(dir, "thumbnails"))
-        @test first(CesiumLink.resolve_imagery(dir)).maxLevel == 2
+        @test only(first(CesiumLink.resolve_imagery(dir))).maxLevel == 2
     end
 end
 
@@ -70,7 +135,7 @@ end
     # and not only what it reads: every tile of a level must come out as a URL of its own.
     mktempdir() do dir
         pyramid(dir; depth = 1)
-        url = first(CesiumLink.resolve_imagery(dir)).url
+        url = only(first(CesiumLink.resolve_imagery(dir))).url
         asked(z, x, y) = replace(url, "{z}" => string(z), "{x}" => string(x), "{y}" => string(y))
         @test length(unique(asked(z, x, y) for z in 0:1, x in 0:1, y in 0:1)) == 8
         # And the URL a tile is asked by is the file the mount holds.
@@ -81,7 +146,7 @@ end
     # transparency, and a `.png` template would ask that pyramid for files it does not hold.
     mktempdir() do dir
         pyramid(dir; ext = "jpg")
-        @test first(CesiumLink.resolve_imagery(dir)).url == "assets/imagery/{z}/{x}/{y}.jpg"
+        @test only(first(CesiumLink.resolve_imagery(dir))).url == "assets/imagery/{z}/{x}/{y}.jpg"
     end
 
     # A level directory with no tile under it names nothing to ask for, and saying so beats
@@ -99,13 +164,13 @@ end
         @test mounted == dir
         # `tilemapresource.xml` carries the scheme and the depth, and Cesium reads both out of it,
         # so neither travels on the declaration.
-        @test d == (; url = "assets/imagery/", layout = "tms", credit = "USGS")
+        @test only(d) == (; url = "assets/imagery/", layout = "tms", credit = "USGS")
 
         # Stating one anyway is a misunderstanding worth a line: the file decides, and the stated
         # scheme is dropped rather than declared.
         @test_logs (:warn, r"tilemapresource.xml` decides") begin
             d, _ = CesiumLink.resolve_imagery(Imagery(dir; tiling = :geographic))
-            @test !haskey(d, :tiling)
+            @test !haskey(only(d), :tiling)
         end
     end
 end
@@ -128,8 +193,9 @@ end
 
     @test !haskey(params(), "imagery")
     @test params(; imagery = false)["imagery"] == false
-    @test params(; imagery = (; url = "assets/imagery/", layout = "tms"))["imagery"] ==
-          Dict("url" => "assets/imagery/", "layout" => "tms")
+    # A set travels as a list, whatever its size: the viewer reads entry 1 as what the globe wears.
+    @test params(; imagery = [(; url = "assets/imagery/", layout = "tms")])["imagery"] ==
+          [Dict("url" => "assets/imagery/", "layout" => "tms")]
 end
 
 @testitem "the mount serves a tile and refuses a path that climbs out of it" setup=[Pyramid, FreePort, WsOpen] begin
@@ -163,8 +229,8 @@ end
                 JSON.parse(CesiumLink.unpack(HTTP.WebSockets.receive(ws)).header)
             end
             @test got["params"]["imagery"] ==
-                  Dict("url" => "assets/imagery/{z}/{x}/{y}.png", "layout" => "xyz",
-                       "tiling" => "mercator", "maxLevel" => 2)
+                  [Dict("url" => "assets/imagery/{z}/{x}/{y}.png", "layout" => "xyz",
+                        "tiling" => "mercator", "maxLevel" => 2)]
         finally
             stop_server(server)
         end
@@ -210,8 +276,11 @@ end
                 url = "https://example.invalid/tiles/{z}/{x}/{y}.png"
                 @test served(url)["imagery"] == url
 
-                # No basemap names no tiles, and neither does a globe with no base layer.
-                @test !haskey(served(nothing), "imagery")
+                # A set names the first entry that carries a URL, because that is the one a reader
+                # is sent to. The default set starts with Blue Marble.
+                @test startswith(served(nothing)["imagery"], "https://gibs.earthdata.nasa.gov/")
+
+                # A globe with no base layer names no tiles.
                 @test !haskey(served(:none), "imagery")
             end
         finally

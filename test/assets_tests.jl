@@ -114,6 +114,25 @@ end
         stop_server(server)
     end
 
+    # A set has an origin per entry, and the reader may pick any of them. A webview is given its
+    # policy once, when its panel is created, so every origin has to be in it from the start.
+    server = start_server(; dist_dir = nothing, host = "::1", port = freeport())
+    try
+        @test server.trusted_origins ==
+              ["https://gibs.earthdata.nasa.gov", "https://tile.openstreetmap.org"]
+    finally
+        stop_server(server)
+    end
+
+    # Naming a set narrows the policy again, and naming the pyramid inside the viewer empties it.
+    server = start_server(; dist_dir = nothing, host = "::1", port = freeport(),
+                          imagery = CesiumLink.KNOWN_EARTH_BASEMAPS.offline_natural_earth)
+    try
+        @test isempty(server.trusted_origins)
+    finally
+        stop_server(server)
+    end
+
     mktempdir() do dir
         pyramid(dir)
         server = start_server(; dist_dir = nothing, host = "::1", port = freeport(), imagery = dir,
@@ -143,7 +162,11 @@ end
                     # The extension reads both before it builds the page: a webview is given its
                     # resource roots and its policy when its panel is created.
                     @test entry["assets"] == Dict("glb" => dir)
-                    @test entry["trustedOrigins"] == ["https://cdn.example"]
+                    # What the author listed comes first, and the default basemap set adds its own
+                    # two origins after it.
+                    @test entry["trustedOrigins"] == ["https://cdn.example",
+                                                      "https://gibs.earthdata.nasa.gov",
+                                                      "https://tile.openstreetmap.org"]
                 finally
                     stop_server(server)
                 end
