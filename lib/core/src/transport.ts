@@ -39,11 +39,12 @@ export interface Declaration {
   /** The shape the scene's coordinates are on, in metres. Absent means WGS84. */
   ellipsoid?: { a: number; b: number };
   /**
-   * What the globe is textured with, fixed for the session. Absent and `false` are different
-   * declarations: absent means the bundled Earth texture, `false` means no base layer at all and a
-   * globe of one flat colour. An object names a tile source.
+   * The basemap set, fixed for the session. Absent and `false` are different declarations: absent
+   * means the bundled Earth texture, `false` means no base layer at all and a globe of one flat
+   * colour. An object names one tile source, and a list names the set the reader picks within,
+   * whose entry 0 is what the globe wears at startup.
    */
-  imagery?: false | ImagerySpec;
+  imagery?: false | ImagerySpec | ImagerySpec[];
   /**
    * Every directory the server serves, as mount name to the same-origin base it answers. A payload
    * names an asset by that path, and `ctx.assetUrl` resolves it for this host. Absent means the

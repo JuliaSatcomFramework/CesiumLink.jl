@@ -30,8 +30,8 @@ export interface RecordingHeader {
   recording: number;
   modules: { id: string; path: string; apiVersion: number }[];
   ellipsoid?: { a: number; b: number };
-  /** Recorded only when the tiles travel: an absolute URL, or `false` for no base layer. */
-  imagery?: false | ImagerySpec;
+  /** Recorded only when the tiles travel: absolute URLs, or `false` for no base layer. */
+  imagery?: false | ImagerySpec | ImagerySpec[];
   lighting?: boolean;
   stars?: boolean;
   /**
@@ -66,7 +66,7 @@ export interface RecordingOptions {
    * server mounted is named again: those tiles did not travel with the file, so the header states
    * no imagery and only the page knows where they were copied to (ADR-0024).
    */
-  imagery?: false | ImagerySpec;
+  imagery?: false | ImagerySpec | ImagerySpec[];
   onWarn?(message: string): void;
 }
 

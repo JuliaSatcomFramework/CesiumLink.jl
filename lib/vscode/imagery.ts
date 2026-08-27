@@ -16,13 +16,24 @@ import type { ImagerySpec } from "../core/src/index.ts";
 const MOUNT_PREFIX = /^\/?(?:assets\/)?imagery\/?/;
 
 /**
- * The declared basemap, with a relative URL resolved against `base`.
+ * The declared basemap set, with every relative URL resolved against `base`. One object is a set of
+ * one, so the answer is always a list.
  *
  * `base` ends with a slash and stands for the server's own `assets/imagery/` mount. An empty `base`
  * is a server that declared a directory this host was not told about — the extension reads the
  * directory from the discovery file, and a scene that writes none leaves the URL as it stands.
  */
-export function rebaseImagery(spec: ImagerySpec, base: string): ImagerySpec {
-  if (base === "" || /^[a-z][a-z0-9+.-]*:/i.test(spec.url)) return spec;
+export function rebaseImagery(
+  imagery: ImagerySpec | ImagerySpec[],
+  base: string,
+): ImagerySpec[] {
+  const set = Array.isArray(imagery) ? imagery : [imagery];
+  return set.map((spec) => rebaseOne(spec, base));
+}
+
+// The bundled entry carries no URL: the page builds the one it answers on from `CESIUM_BASE_URL`,
+// so there is nothing here to rebase.
+function rebaseOne(spec: ImagerySpec, base: string): ImagerySpec {
+  if (spec.bundled || base === "" || /^[a-z][a-z0-9+.-]*:/i.test(spec.url)) return spec;
   return { ...spec, url: base + spec.url.replace(MOUNT_PREFIX, "") };
 }
