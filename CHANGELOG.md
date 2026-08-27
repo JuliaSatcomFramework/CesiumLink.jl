@@ -2,6 +2,13 @@
 
 All notable changes to CesiumLink are in this file.
 
+## [Unreleased]
+
+### Fixed
+
+- The hover tooltip goes away when the pointer moves off the globe onto a floating object, the
+  overlay panel or a widget. It used to stand behind the float until the cursor came back.
+
 ## [0.1.2] - 2026-08-24
 
 ### Added

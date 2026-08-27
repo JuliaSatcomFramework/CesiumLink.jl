@@ -172,6 +172,12 @@ function fakeScene() {
 /** A viewer the module can be set up against: records what it contributed and what it sent. */
 function fakeViewer(scene = fakeScene()) {
   const container = new FakeEl("div");
+  // The canvas, with only the listener registry the module uses to hear the pointer leave it.
+  const onCanvas = new Map<string, () => void>();
+  const canvas = {
+    addEventListener: (type: string, cb: () => void) => onCanvas.set(type, cb),
+    removeEventListener: (type: string) => onCanvas.delete(type),
+  };
   // The overlay's own DOM, so a contribution can be replaced in place the way the Core's region
   // host allows: one element per mounted row, in mount order, each remembering its region.
   const host = new FakeEl("#overlay");
@@ -188,7 +194,7 @@ function fakeViewer(scene = fakeScene()) {
     frame: null as { index: number; alpha: number } | null,
     modules: scene.modules,
     Cesium: scene.Cesium,
-    scene: {},
+    scene: { canvas },
     overlay: {
       addControl(region: string, el: FakeEl) {
         regionOf.set(el, region);
@@ -255,6 +261,9 @@ function fakeViewer(scene = fakeScene()) {
     tooltip: (payload: unknown) => commands.get("tooltip")!(payload, null),
     crossInto: (index: number) => keyframe.forEach((cb) => cb(index)),
     moveTo: (x: number, y: number) => pointer.forEach((cb) => cb({ screen: { x, y } })),
+    /** The pointer crossing off the canvas, which is what moving onto a float raises. */
+    leaveCanvas: () => onCanvas.get("mouseleave")?.(),
+    enterCanvas: () => onCanvas.get("mouseenter")?.(),
     /** The tooltip box, which the module appends to the container itself. */
     box: () => container.children.find((c) => c.attributes["data-ui"] === "tooltip") ?? null,
   };
@@ -524,6 +533,27 @@ test("each tooltip fragment is isolated, and no content leaves an empty box behi
   v.tooltip({ html: null });
   assert.equal(box.style.display, "none");
   assert.equal(box.children.length, 0);
+});
+
+test("the tooltip goes when the pointer leaves the canvas", () => {
+  const v = fakeViewer();
+  v.tooltip({ html: ["<b>hover</b>"] });
+  assert.equal(v.box()!.style.display, "block");
+
+  // A float over the globe raises no hover, so nothing answers with a clear: the box hides on the
+  // crossing itself or it stands behind the float.
+  v.leaveCanvas();
+  assert.equal(v.box()!.style.display, "none");
+
+  // The hover raised just before the crossing is answered after it, carrying the coordinate the
+  // cursor left the globe by. It must not put the box back up.
+  v.tooltip({ html: ["<b>in flight</b>"] });
+  assert.equal(v.box()!.style.display, "none");
+
+  // Back over the globe, content paints again.
+  v.enterCanvas();
+  v.tooltip({ html: ["<b>hover</b>"] });
+  assert.equal(v.box()!.style.display, "block");
 });
 
 test("the tooltip is one box and it follows the cursor", () => {
