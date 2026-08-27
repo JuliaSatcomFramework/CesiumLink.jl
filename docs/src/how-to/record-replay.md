@@ -51,15 +51,20 @@ default. The player builds its globe and its furniture from them before the firs
 `furniture` is in the file twice: here, and as the retained `core/furniture` command under the
 header. The retained command stays the one source of the set.
 
-The header carries `imagery` only when the tiles travel with the file. Two values do:
+The header carries the basemap set, less the entries whose tiles do not travel with the file.
+These do travel:
 
 - an absolute URL, which is reachable from any machine;
+- the bundled Earth texture, which is inside every viewer;
 - `false`, a globe with no base layer, which names no tiles.
 
 A basemap this server mounts is a relative URL under `assets/imagery/…`. It answers nothing
-once the server stops, so [`record!`](@ref) drops it from the header and warns. Copy the tiles
-beside the recording, then name them with `?imagery=`, which takes a URL relative to the player
-page:
+once the server stops, so [`record!`](@ref) drops that entry from the set and warns. Dropping the
+first entry promotes the next one, because the first entry is what the globe wears at startup. Dropping
+every entry leaves the header with no `imagery` field, and the player keeps its bundled texture.
+
+Copy the mounted tiles beside the recording, then name them with `?imagery=`, which takes a URL
+relative to the player page:
 
 ```
 player.html?rec=session.jsonl&assets=../assets/&imagery=../assets/imagery/moon/

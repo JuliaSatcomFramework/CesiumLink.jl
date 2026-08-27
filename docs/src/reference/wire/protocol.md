@@ -1,4 +1,4 @@
-# CesiumLink wire protocol — version 1
+# CesiumLink wire protocol — version 2
 
 Normative contract between the viewer (`lib/`) and a driving server (the Julia package here, or an
 implementation of your own). A server must obey this document byte-for-byte.
@@ -52,6 +52,10 @@ Unknown methods are ignored.
 
 The viewer *announces* on `ready`; the server *decides*. **On a version it does not support the
 server closes the socket with a reason.** The number bumps only on breaking changes.
+
+Version 2 widened `imagery` from one object to an object or a list of them. A version 1 viewer reads
+a list as one source with no `url` and draws a wrong globe with no message, so the handshake refuses
+the pair instead.
 
 A viewer built against a different framing drops the frame it cannot read and reports nothing, so
 the handshake is the only place to name a disagreement.
@@ -126,8 +130,12 @@ The session declaration. Sent once per connection, before anything else, and ret
       "region": "top-right"
     },
     "assets": { "models": "assets/models/", "imagery": "assets/imagery/" },
-    "imagery": { "url": "assets/imagery/{z}/{x}/{y}.png", "layout": "xyz",
-                 "tiling": "mercator", "maxLevel": 5 },
+    "imagery": [
+      { "url": "https://gibs.earthdata.nasa.gov/…/{z}/{y}/{x}.jpeg", "layout": "xyz",
+        "tiling": "mercator", "maxLevel": 8, "name": "Blue Marble",
+        "key": "blue_marble", "credit": "NASA EOSDIS GIBS", "backing": true },
+      { "bundled": true, "name": "Natural Earth", "key": "offline_natural_earth" }
+    ],
     "lighting": true,
     "stars": true
   }}
@@ -147,13 +155,29 @@ The session declaration. Sent once per connection, before anything else, and ret
   points at a file by that path, `assets/models/sat.glb`, and a module resolves it through
   `ctx.assetUrl`. **Optional; absent means the server serves no directory of its own.** A browser
   host needs the map for nothing; a host on another origin builds its own URL per mount out of it.
-- `imagery` is what the globe is textured with: one source as `url`, `layout` (`"xyz"` or `"tms"`),
-  `tiling`, and optionally `maxLevel`, `credit` and `key`. `key` names the catalogue basemap the
-  entry is, such as `"blue_marble"`; the viewer draws its picker icon from that and never from the
-  label. A basemap an author declared themselves carries no `key`. It has **three** states. Absent means the viewer
-  keeps its bundled Earth texture. `false` means no base layer at all. An object means that tile
-  source. A directory of tiles this server serves is the reserved `imagery` mount, so its `url` is a
-  path into the `assets` map above (ADR-0021).
+- `imagery` is what the globe is textured with. It has **three** states. Absent means the viewer
+  keeps its bundled Earth texture. `false` means no base layer at all. An object, or a list of them,
+  means those tile sources: the **basemap set** the reader picks inside (ADR-0034). **Entry 0 is
+  what the globe wears at startup.** A one-entry list and a bare object mean the same thing, and the
+  viewer draws no picker for either. The choice never travels back up: no event and no field reports
+  which entry is on screen.
+- An entry of `imagery` names one source as `url`, `layout` (`"xyz"` or `"tms"`) and `tiling`, and
+  optionally `maxLevel`, `name`, `credit`, `key` and `backing`. A `bundled` entry names none of the
+  first three.
+  - `name` is the label the picker shows. `credit` is the attribution drawn over the globe while
+    this entry is the one on screen; it is HTML, and the viewer sanitizes it before it draws it.
+  - `key` names the catalogue basemap the entry is, such as `"blue_marble"`; the viewer draws its
+    picker icon from that and never from the label. A basemap an author declared themselves carries
+    no `key`.
+  - `backing` draws the viewer's own bundled Earth texture under this entry, so a source that stops
+    answering leaves a globe rather than a hole. It is a property of one entry, and never an entry
+    of its own: the reader cannot pick it, and it draws no credit.
+  - `bundled` marks the entry that **is** the bundled Earth texture. Such an entry carries no `url`:
+    the one it answers on is built from the viewer's own base URL, which only the page knows. It is
+    the one entry that needs neither a host nor a mount, so it travels into any recording.
+  - A directory of tiles this server serves is the reserved `imagery` mount, so its `url` is a path
+    into the `assets` map above (ADR-0021). One server serves one such mount, so at most one entry
+    is a path.
 - `lighting` is a boolean. It lights the globe from the sun at the clock's time, so a terminator
   runs across it. **Optional; absent leaves the globe evenly lit.**
 - `stars` is a boolean. It draws the sky around the globe: the star field, the sun and the moon.
@@ -552,7 +576,7 @@ This command is never retained and never recorded: it describes one connection a
 ## ↑ `ready`
 
 ```json
-{ "method": "ready", "params": { "protocol": 1 } }
+{ "method": "ready", "params": { "protocol": 2 } }
 ```
 
 The viewer sends this once the socket opens. A version mismatch closes the socket with a reason

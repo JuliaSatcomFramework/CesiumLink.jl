@@ -48,13 +48,17 @@ viewer_dist
 
 ## The basemap
 
-`imagery` says what the globe is textured with. A directory of tiles becomes the reserved assets
-mount `imagery`, which answers on `assets/imagery/` and reaches the page same-origin. Anything else
-is declared as the URL it is.
+`imagery` says what the globe is textured with: one basemap, or a **basemap set** the reader picks
+inside. A directory of tiles becomes the reserved assets mount `imagery`, which answers on
+`assets/imagery/` and reaches the page same-origin. Anything else is declared as the URL it is.
 
 ```@docs
 Imagery
+KNOWN_EARTH_BASEMAPS
 ```
+
+[Choose what the globe is textured with](../how-to/basemap.md) is the guide, and it covers the
+sources this package ships no name for.
 
 ## Assets mounts
 

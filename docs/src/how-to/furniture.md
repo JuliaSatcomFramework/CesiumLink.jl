@@ -44,6 +44,7 @@ that travels whole into one region.
 | `fullscreen` | on | The fullscreen toggle |
 | `home` | on | Fly the camera back to the default view |
 | `projection` | **off** | The perspective / orthographic picker |
+| `basemap` | on | The basemap picker. It hides itself while the session declares fewer than two basemaps — see [Choose what the globe is textured with](basemap.md) |
 | `nav_help` | **off** | The navigation instructions |
 | `inspector` | **off** | The Cesium inspector panel |
 | `canvas_capture` | **off** | The button that copies a **canvas capture** to the clipboard, or downloads it. A right click opens its popup |

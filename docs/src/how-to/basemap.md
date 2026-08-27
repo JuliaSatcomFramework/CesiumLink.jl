@@ -1,10 +1,73 @@
 # Choose what the globe is textured with
 
-The globe wears the viewer's bundled Earth texture unless you say otherwise. `imagery` takes a URL,
-a directory of tiles on disk, an [`Imagery`](@ref) for the rest, or `:none`. The server declares it
-once, and it holds for the session.
+The globe wears a **basemap**. The server declares a **basemap set** — one basemap, or several — and
+the reader picks inside the set. `imagery` says what the set holds, once, at `start_server`.
 
-## 1. Point at a basemap on the web
+From 0.2.0 a session on Earth that says nothing declares two basemaps: NASA GIBS Blue Marble over the
+pyramid inside the viewer. So a default session asks `gibs.earthdata.nasa.gov` for tiles. This is the
+one change a reader meets on upgrade, and it is why the release is 0.2.0. A session on another body
+still wears the bundled texture and declares nothing.
+
+## Take the network out of it
+
+Name one basemap that ships inside the viewer:
+
+```julia
+start_server(; imagery = KNOWN_EARTH_BASEMAPS.offline_natural_earth)
+```
+
+That one line removes the network, the picker and its button. The pyramid is in the viewer bundle, so
+the page fetches no tile from anywhere. A set of one has nothing to pick, so the picker hides itself.
+
+## The basemaps this package knows
+
+[`KNOWN_EARTH_BASEMAPS`](@ref) holds ready-made [`Imagery`](@ref) values. Each one carries the
+attribution its source asks for, so naming one is also crediting it.
+
+| Key | What the globe wears | Deepest level | Credit drawn |
+|:--|:--|:--|:--|
+| `offline_natural_earth` | the pyramid inside the viewer, which reaches no network | 2 | none; the texture is public domain |
+| `blue_marble` | NASA GIBS Blue Marble, with sea-floor colour | 8 | `NASA EOSDIS GIBS` |
+| `blue_marble_relief` | NASA GIBS Blue Marble, land relief only | 8 | `NASA EOSDIS GIBS` |
+
+Every one of them is of Earth. None belongs in a session on another body.
+
+Name the ones you want, in the order you want them:
+
+```julia
+# the default set, stated by hand
+start_server(; imagery = [KNOWN_EARTH_BASEMAPS.blue_marble,
+                          KNOWN_EARTH_BASEMAPS.offline_natural_earth])
+
+# all three
+start_server(; imagery = collect(KNOWN_EARTH_BASEMAPS))
+```
+
+Pick by field, as above. Do not filter the catalogue by its name strings: a source renamed in a later
+release matches nothing, and the filter hands you back a basemap you meant to drop.
+
+## What a set is, and what a backing is
+
+**Entry 1 is what the globe wears at startup.** The rest are what the reader may switch to. The
+picker is furniture: it is on by default, and it hides itself while the set holds fewer than two
+basemaps. [Choose the on-screen furniture](furniture.md) turns it off by hand.
+
+**A basemap may name a basemap backing.** `backing = true` draws the bundled pyramid under that
+basemap. A source that stops answering then leaves a globe rather than a hole, and the globe repairs
+itself when the source answers again. Both known online basemaps ask for one.
+
+A basemap backing is a property of one basemap. It is not an entry of the set: the reader cannot pick
+it, it carries no transparency, and its place below is fixed. It is always the bundled pyramid, which
+is of Earth, so `start_server` throws when a session on another body asks for one.
+
+The credit line names the basemap the reader picked. The viewer rewrites it on every switch, and it
+never names the backing. The bundled texture is public domain and asks for nothing.
+
+Nothing travels back up the wire. Which basemap is on screen is the viewer's own business, as the
+camera is. A recording therefore carries the declared set, and a replay opens on the same first entry
+with the same set to pick from. See ADR-0034 for the whole decision and what it declines.
+
+## Point at a basemap on the web
 
 Give the URL template of a tile pyramid. `{z}`, `{x}` and `{y}` are the level, the column and the
 row:
@@ -26,7 +89,7 @@ start_server(; imagery = Imagery(url; tiling = :geographic))
 A basemap in the wrong projection still draws. It is stretched towards the poles and the coordinates
 you send land on the wrong part of it, so check the shape of a coastline before you trust a pin.
 
-## 2. Tile your own raster and point at it
+## Tile your own raster and point at it
 
 Cut the raster into a pyramid with `gdal2tiles.py`:
 
@@ -42,7 +105,8 @@ start_server(; imagery = "/data/moon_tiles")
 ```
 
 The server mounts it under `assets/imagery/` and declares that relative URL, so the page fetches the
-tiles from its own origin and no CORS header is needed.
+tiles from its own origin and no CORS header is needed. One server serves one such mount, so a set
+holds at most one directory.
 
 State nothing else. The server reads the directory once, at `start_server`:
 
@@ -56,7 +120,7 @@ State nothing else. The server reads the directory once, at `start_server`:
 A directory that holds neither a `tilemapresource.xml` nor a numeric level directory throws, and the
 message names both layouts.
 
-## 3. Draw no basemap at all
+## Draw no basemap at all
 
 ```julia
 start_server(; imagery = :none)
@@ -65,7 +129,7 @@ start_server(; imagery = :none)
 The globe is one flat colour and there is no base layer under it. Use it for a body you have no
 basemap for, and for a data-only globe where coastlines would read as meaning.
 
-## 4. Put satellites around the Moon
+## Put satellites around the Moon
 
 Declare the shape and the surface together:
 
@@ -101,48 +165,112 @@ and `?credit=`. Drag to turn it and scroll to zoom in. Deeper tiles arrive as yo
 </iframe>
 ```
 
-The globe's own credit is plain text, so the link belongs here: the Moon basemap is
-[OpenPlanetary](https://www.openplanetary.org/), from LOLA/USGS data.
+`?imagery=` names one basemap and never a set. A URL may hold a comma, so a list in that parameter
+would be guesswork. A server that declares a basemap wins, so these parameters build the globe only
+where no declaration does. `?imagery=` also reads the layout off the URL: a `{z}` in it means an XYZ
+template, and anything else means a TMS pyramid.
 
-`?imagery=` reads the layout off the URL: a `{z}` in it means an XYZ template, and anything else
-means a TMS pyramid. A server that declares a basemap wins, so these parameters build the globe only
-where no declaration does.
+## Sources you may add yourself
 
-## 5. Light the globe and put a sky behind it
+This package knows three basemaps. Any other tile source you may legally use is one `Imagery` away.
+Read that source's terms yourself: the viewer draws the credit you give it, and it knows nothing else
+about your tiles.
 
-Two more keywords change what the globe looks like. Neither touches the basemap:
+### A key goes in the URL
+
+A source that wants an API key needs no feature of this package. Put the key in the query string of
+the template:
 
 ```julia
-start_server(; lighting = true, stars = true)
+key = ENV["STADIA_API_KEY"]
+
+start_server(; imagery = Imagery("https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}.png?api_key=$key";
+                                 name = "Alidade Smooth", max_level = 20, backing = true,
+                                 credit = "&copy; Stadia Maps, OpenMapTiles and OpenStreetMap contributors"))
 ```
 
-`lighting` lights the globe from the sun at the clock's time, so a terminator runs across it and the
-night side goes dark. `stars` draws the star field, the sun and the moon around it, at that same
-time. Both are off by default. The [Satellites](../examples/satellites.md) example turns both on.
+The server declares that URL untouched. It reads the origin off it, `https://tiles.stadiamaps.com`,
+and adds that alone to `trusted_origins`, so the content policy of a VSCode panel opens for the host
+and never for the query string.
 
-Four conditions to know:
+!!! warning "A recording carries the key"
+    A recording carries the declared set, and the set carries the whole URL. So a recording made with
+    a private key holds that key in plain text, in its first line. Do not share such a recording. Use
+    a keyless basemap for anything you publish, or strip the header first.
 
-- **Leave `lighting` off for a scene whose colours carry its data.** A shaded globe dims a value by
-  where it sits rather than by what it says.
-- **The sun stands where the clock says.** Give your windows a real `start_time`, or the viewer picks
-  a synthetic epoch and the terminator lands somewhere arbitrary — see [`push_window`](@ref).
-- **A star field needs Earth.** The field is Cesium's own, and Cesium draws it on a WGS84 globe only.
-  A session on another body gets black whatever `stars` says.
-- **Lighting needs Earth as well.** Cesium computes the sun's direction from Earth's position and
-  expresses it in Earth's rotating frame, whatever ellipsoid the session declares. On another body
-  the terminator is Earth's, in both where it falls and how fast it sweeps. Leave `lighting` off
-  there.
+### A keyed provider is what works inside the VSCode panel
 
-## Two things that bite
+Reach for a keyed street map — Stadia, MapTiler or Carto — when a scene in a VSCode tab needs one.
+Keyless street maps refuse the panel, for the reason the next section gives.
+
+**Do not restrict the key to a list of allowed domains.** The page inside the panel sends no
+`Referer` header at all, so a domain restriction has nothing to match and the provider refuses every
+tile. Restrict the key some other way, or keep it to a machine you trust.
+
+Test the provider in the panel before you rely on it. A provider may check the `Origin` header
+instead: Stadia's tile API answers `401` to a request whose `Origin` is `vscode-webview://`, which is
+the only origin the desktop panel has.
+
+### `tile.openstreetmap.org` cannot work in the VSCode desktop panel
+
+The OpenStreetMap standard map works in the browser host, on vscode.dev and in Codespaces. It cannot
+work in the VSCode desktop panel.
+
+Their tile usage policy asks a web page for a `Referer` header, and any other caller for a
+`User-Agent` that names the application. A page in the panel can set neither. Chromium lets only
+`http` and `https` origins produce a `Referer`, and the panel's origin is `vscode-webview://`; a page
+cannot set a `User-Agent` at all.
+
+The refusal is the trap. It arrives as a valid HTTP 200 PNG that reads "Access denied". Nothing
+fails, so the basemap backing never triggers, and the reader simply looks at a globe tiled with those
+words.
+
+Read [the tile usage policy](https://operations.osmfoundation.org/policies/tiles/) before you declare
+this source. It is a service run on donations, and it is not for heavy use.
+
+```julia
+start_server(; imagery = Imagery("https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+                                 name = "OpenStreetMap", max_level = 19, backing = true,
+                                 credit = """&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors"""))
+```
+
+### Esri needs your own token
+
+Esri's world imagery is reachable, but the token is yours to get. Cesium ships a default ArcGIS token
+whose own source marks it as for evaluation only, so it is not a token to build on. Sign up with Esri
+and declare the URL their terms give you.
+
+### Sentinel-2 cloudless is documented, not shipped
+
+EOX serves a cloudless Sentinel-2 mosaic of the Earth, and it looks very good. Every year still
+served is CC BY-NC-SA. "Not commercially" is a restriction on your use, and no string the viewer draws can
+enforce it. So this package ships no name for it: a name would put a licence breach one keystroke
+from somebody who never opens a licence file.
+
+Declare it yourself if your own use fits that licence, and credit it as EOX asks.
+
+## The credit is yours, and it is HTML
+
+The viewer draws the `credit` string over the bottom right of the globe. It knows nothing about your
+tiles, where they came from, or what their licence asks of you. Nothing is drawn if you state
+nothing.
+
+The string is HTML, so an attribution that must carry a link can:
+
+```julia
+credit = """&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors"""
+```
+
+The viewer sanitizes the string before it draws it, so a script tag in it never runs. The credit
+names the basemap on screen: it appears while that basemap is the one the reader picked, and the
+viewer rewrites the line on every switch.
+
+## One thing that bites
 
 **A template with no `max_level` keeps asking past the end of the pyramid.** The server probes the
 depth of a directory, and it cannot probe a remote host. So zoom in far enough and the browser
 requests levels that are not there: one failed request per tile, and the globe stops sharpening
-without saying why. Give `max_level` for any URL-backed basemap.
-
-**The credit is yours.** The viewer draws the `credit` string over the bottom right of the globe, as
-text and nothing else. It knows nothing about your tiles, where they came from, or what their
-licence asks of you. Nothing is drawn if you state nothing.
+without saying why. Give `max_level` for any basemap named by a URL.
 
 ## When a basemap does not build
 
@@ -154,9 +282,14 @@ The fallback catches a source that fails to **build**. A TMS pyramid is fetched 
 dead one falls back. A `{z}/{x}/{y}` template builds without asking for anything, so a dead host
 behind it gives blank tiles and one console error per tile.
 
+A basemap backing covers the second case, which the fallback cannot: the tiles fail one at a time,
+Cesium finds no ready tile above them, and it draws the pyramid underneath instead.
+
 ## Next
 
-- [The server](../reference/server.md) — `start_server`, `Imagery`, and every keyword.
+- [The server](../reference/server.md) — `start_server`, `Imagery`, `KNOWN_EARTH_BASEMAPS`, and every
+  keyword.
+- [Choose the on-screen furniture](furniture.md) — the picker is one item of the set.
 - [Work in map coordinates](coordinates.md) — degrees in, ECEF metres out, on the declared shape.
-- [Record and replay a session](record-replay.md) — a recording carries neither the shape nor the
-  basemap, so a Moon replay states both again.
+- [Record and replay a session](record-replay.md) — what a recording carries of the basemap set, and
+  what it drops.
