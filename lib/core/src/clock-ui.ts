@@ -24,7 +24,7 @@ import {
   type FurnitureDeclaration, type FurnitureId, type StopRow,
 } from "./furniture";
 import type { Overlay, OverlayRegion } from "./overlay";
-import { basemapProviders, type ImagerySpec } from "./scene";
+import { basemapProviders, type ImagerySpec, setCredit } from "./scene";
 
 /** The keyframe the readout names: the instant its values were computed for, and the move onto it. */
 interface KeyframeReadout {
@@ -146,8 +146,17 @@ const UNKNOWN_BASEMAP = { icon: BASEMAP_ICONS.offline_natural_earth, category: "
  *
  * A declaration that turns this item off and on again rebuilds the picker on entry 0. The pick is
  * the reader's and nothing on the wire states it, so there is nothing to restore it from.
+ *
+ * `container` is the viewer's own element, which the credit line hangs in. The line is rewritten
+ * inside the creation function rather than from a subscription, because that function is what the
+ * view model runs for every switch, including the one this constructor makes.
  */
-function basemapPicker(el: HTMLElement, scene: Scene, basemaps: Basemaps): { destroy(): void } {
+function basemapPicker(
+  el: HTMLElement,
+  scene: Scene,
+  basemaps: Basemaps,
+  container: HTMLElement,
+): { destroy(): void } {
   const models = basemaps.specs.map((spec, i) => {
     const name = spec.name ?? `Basemap ${i + 1}`;
     const look = (spec.key === undefined ? undefined : KNOWN_BASEMAPS[spec.key]) ?? UNKNOWN_BASEMAP;
@@ -160,9 +169,12 @@ function basemapPicker(el: HTMLElement, scene: Scene, basemaps: Basemaps): { des
       // it asks `Array.isArray` of what the function gives back, and builds each element through
       // `ImageryLayer.fromProviderAsync`, which takes a promise. So a list of promises is what the
       // view model handles, and a promise of a list is the one shape it mistakes for one provider.
-      creationFunction: (() =>
-        basemapProviders(spec, basemaps.ellipsoid, basemaps.baseUrl)) as unknown as
-          ProviderViewModel.CreationFunction,
+      creationFunction: (() => {
+        // The credit follows the pick: it names the basemap the reader chose and never the backing
+        // under it, and an entry that carries none takes the line down (ADR-0034).
+        setCredit(container, spec.credit);
+        return basemapProviders(spec, basemaps.ellipsoid, basemaps.baseUrl);
+      }) as unknown as ProviderViewModel.CreationFunction,
     });
   });
   // Taken off, never destroyed: the globe's surface still holds the layers it is loading tiles for,
@@ -272,7 +284,7 @@ export function buildFurniture(
     home: (el) => new HomeButton(el, scene),
     sceneMode: (el) => new SceneModePicker(el, scene),
     projection: (el) => new ProjectionPicker(el, scene),
-    basemap: (el) => basemapPicker(el, scene, basemaps!),
+    basemap: (el) => basemapPicker(el, scene, basemaps!, container),
     navHelp: (el) => new NavigationHelpButton({ container: el }),
     fullscreen: (el) =>
       expand ? expandButton(el, expand) : new FullscreenButton(el, container),

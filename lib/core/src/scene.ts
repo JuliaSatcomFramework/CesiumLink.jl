@@ -289,7 +289,7 @@ export async function createScene(
   // under-credited. A fallback draws that texture in place of the source, which the declared credit
   // does not cover, so there the line stays off.
   const startsOn = basemapSet(opts.imagery)[0];
-  if (declared && startsOn?.credit) addCredit(container, startsOn.credit);
+  setCredit(container, declared ? startsOn?.credit : undefined);
   // `clock.canAnimate` belongs to the playback in `windows.ts`, which clears it to hold the clock over
   // frames the buffer does not reach. CesiumWidget otherwise rewrites that flag on every tick from
   // whether its DataSourceDisplay is up to date, which would erase the hold. The `models` module
@@ -302,21 +302,39 @@ export async function createScene(
   return widget;
 }
 
+/** The mark on the one line this module owns, so a later call finds it instead of adding a second. */
+const CREDIT_MARK = "data-cesiumlink-credit";
+
 /**
- * The attribution line for a declared basemap: bottom right, and transparent to the pointer so it
- * never takes a click meant for the globe. Cesium's own credit container stays hidden, because
- * showing it brings the Cesium branding credit back with it.
+ * Draw the attribution line for the basemap the globe wears now, or take it down when that basemap
+ * asks for none. Bottom right, and transparent to the pointer so it never takes a click meant for
+ * the globe.
+ *
+ * This is a setter and not an append, because the reader picks the basemap and the picker calls it
+ * on every switch: one line at a time, naming the basemap that was picked and never the backing
+ * under it (ADR-0034).
+ *
+ * Cesium's own credit container stays hidden, because showing it brings the Cesium branding credit
+ * back with it.
  */
-function addCredit(container: HTMLElement, credit: string): void {
-  const el = document.createElement("div");
+export function setCredit(container: HTMLElement, credit?: string): void {
+  let el = container.querySelector<HTMLElement>(`:scope > [${CREDIT_MARK}]`);
+  if (!credit) {
+    el?.remove();
+    return;
+  }
+  if (el === null) {
+    el = document.createElement("div");
+    el.setAttribute(CREDIT_MARK, "");
+    // 34px up, which is the band the Core's clock readout and ruler hold along the bottom edge — the
+    // same inset the overlay's own bottom-right region starts at.
+    el.style.cssText =
+      "position:absolute;right:8px;bottom:34px;z-index:5;pointer-events:none;" +
+      "font:11px/1.4 sans-serif;color:#fff;text-shadow:0 0 3px #000";
+    container.appendChild(el);
+  }
   // `textContent`, never `innerHTML`: the string comes from whoever started the server.
   el.textContent = credit;
-  // 34px up, which is the band the Core's clock readout and ruler hold along the bottom edge — the
-  // same inset the overlay's own bottom-right region starts at.
-  el.style.cssText =
-    "position:absolute;right:8px;bottom:34px;z-index:5;pointer-events:none;" +
-    "font:11px/1.4 sans-serif;color:#fff;text-shadow:0 0 3px #000";
-  container.appendChild(el);
 }
 
 function warnIfSoftwareRenderer(widget: CesiumWidget): void {
