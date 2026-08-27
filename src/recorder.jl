@@ -66,9 +66,9 @@ function recorded_scene(server)
     server.ellipsoid === nothing || (p = (; p..., ellipsoid = server.ellipsoid))
     im = recorded_imagery(server.imagery)
     im === nothing && server.imagery !== nothing &&
-        @warn "this basemap is a directory this server mounts, so it does not travel with the \
-            recording — the player draws its bundled Earth texture unless it is given \
-            `?imagery=` for wherever the tiles are copied to" url = server.imagery.url
+        @warn "every basemap this session declared is a directory this server mounts, so none of \
+            them travels with the recording — the player draws its bundled Earth texture unless \
+            it is given `?imagery=` for wherever the tiles are copied to"
     im === nothing || (p = (; p..., imagery = im))
     server.lighting && (p = (; p..., lighting = true))
     server.stars && (p = (; p..., stars = true))
