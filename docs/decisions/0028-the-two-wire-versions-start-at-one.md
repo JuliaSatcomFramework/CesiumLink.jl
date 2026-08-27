@@ -17,6 +17,28 @@ Earlier records in this set describe each number moving to 2. Those revisions ar
 contract, and the contract is what they describe; the integer that announces it starts where a first
 release starts.
 
+## Amended by ADR-0034: the premise expired
+
+The reason above was "nothing is published". That is no longer true. The package is released, and
+the editor extension is released on its own line — the two version numbers drift.
+
+`PROTOCOL_VERSION` moves to 2 with ADR-0034. It has a job after all, and the job is narrow. The
+extension does not carry a viewer: it reads `dist` out of the discovery file and loads the bundle
+from that tree, so a server and a viewer normally ship as one package version and cannot disagree.
+One path breaks that. The `cesiumLink.distDir` setting pins a hand-chosen viewer tree against a
+manually entered server. That pair is what the handshake closes.
+
+`MODULE_API_VERSION` stays 1. Nothing in ADR-0034 touches the module API.
+
+`RECORDING_VERSION` stays 2, for the reason stated below. ADR-0034 widens the header field `imagery`
+from an object to an object-or-list, and a reader tells the two shapes apart with no number at all.
+
+**The contract that can really drift has no number.** The extension reads the discovery file, and
+the two are versioned apart. Every key the extension reads is therefore additive-only, and a server
+must keep filling the keys an older extension knows. `trustedOrigins` is the one that matters for
+ADR-0034: the server writes every declared basemap origin into it, so an extension that reads only a
+single `imagery` object still builds a policy that lets the tiles through.
+
 ## Consequences
 
 Two documents state a version in their title: the wire protocol reference and the module API

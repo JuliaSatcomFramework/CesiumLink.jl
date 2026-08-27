@@ -26,6 +26,13 @@ The declaration holds three states, and they differ:
 | `false` | nothing: no base layer, one flat colour |
 | an object | the source it names |
 
+ADR-0034 changes two of the three rows. The third widens: `imagery` becomes a list, entry 0 is what
+the globe wears at startup, and a person may pick another entry of that same list. `absent` stops
+meaning the bundled texture and comes to mean a default *set* — an online basemap over the bundled
+one — which is the one behaviour change a reader notices on upgrade, and why that release is 0.2.0.
+`false` is untouched. The rule below survives all of it: a server still names every basemap a
+session can wear.
+
 **A page may name a basemap in its own address, and a declaration beats it.** `index.html` and
 `player.html` read `?imagery=`, `?tiling=`, `?maxlevel=`, `?credit=` and `?ellipsoid=`. Those parameters apply
 only where no server declares a basemap, so they extend the reach of the decision rather than
@@ -53,10 +60,18 @@ happens when the chosen imagery stops matching the declared ellipsoid. The rule 
 every answer to it is either "refuse the switch", which is the decision above with more machinery,
 or "draw the disagreement", which is the failure the feature would exist to prevent.
 
+ADR-0034 takes the first branch and pays nothing for it. A picker over a *declared set* refuses
+nothing, because the server never puts a basemap for another body into the set: the mismatch stops
+being a rule and becomes unreachable. The refusal above stands for a picker over anything else.
+
 **A stack of layers rather than one.** A module already drapes its own raster through
 `scene.imageryLayers`, which is how `heatmap` works, and that stays a module's job. A declared stack
 needs layer identity, ordering and blending on the wire, plus a rule for how a declared layer and a
 module's layer interact. One base layer needs none of it.
+
+ADR-0034 draws a second layer and still needs none of it. A basemap backing carries no alpha, no
+author-chosen order and no identity — it is a property of one basemap rather than a second basemap
+on the wire — so nothing here is reopened.
 
 **The basemap in the recording header.** The recording does not carry the ellipsoid either. Both
 stay caller options, so a Moon replay is `start_server(; ellipsoid, imagery)` followed by
@@ -85,3 +100,7 @@ their own query string; the VSCode host has no address bar and takes the declara
 
 A credit is one optional string on the declaration, drawn by the Core as text. Whoever starts the
 server owns whether it is legally correct.
+
+Under ADR-0034 the credit is one optional string per *entry*, and the Core rewrites the line
+whenever the pick changes. The sentence above is otherwise unchanged: whoever starts the server owns
+whether it is legally correct, which is why the basemaps this package names carry their own.

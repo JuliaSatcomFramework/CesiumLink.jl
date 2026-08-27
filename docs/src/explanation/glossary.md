@@ -98,11 +98,28 @@ coordinate upward, and a Julia listener reads the value back out of the grid it 
 So the module exercises coordinate-sample picking rather than entity-ownership picking.
 
 **Basemap**:
-The imagery the globe itself is textured with: one layer, declared once per session
-by the server, fixed for that session. A module's draped raster is a different thing:
-an overlay the module puts up and takes down, as the heatmap module does.
-_Avoid_: base layer (Cesium's own term, for a thing a picker switches, which this is
-not), texture, skin.
+What the globe itself is textured with. The server declares one or more, and the reader
+picks which one is on screen. A module's draped raster is a different thing: an overlay
+the module puts up and takes down, as the heatmap module does.
+_Avoid_: base layer (Cesium's own term for the same thing), texture, skin.
+
+**Basemap set**:
+Every basemap one session can wear, declared by the server as an ordered list. Entry 0
+is on the globe at startup. Each entry names one body, and every entry names the same
+body, so a reader who picks another one never sees a globe that disagrees with the
+coordinates drawn on it. A set of one draws no picker.
+_Avoid_: layer stack, basemap list.
+
+**Basemap backing**:
+A second basemap drawn under a declared one, so that a source which stops answering
+leaves a globe rather than a hole. It is a property of one basemap, not an entry of the
+**basemap set**: it carries no transparency, the reader cannot pick it, and its place
+below is fixed. It is always the offline pyramid inside the viewer, so a session on
+another body may not ask for one. Its credit never appears — the credit line names the
+basemap the reader picked.
+_Avoid_: backing on its own (the word is used elsewhere in the codebase for other
+things), fallback layer (the **fallback** is what a basemap that will not build gives
+you, which is a different mechanism), underlay, stack.
 
 **Context object**:
 The single options-bag argument the Core passes into a module's `setup`

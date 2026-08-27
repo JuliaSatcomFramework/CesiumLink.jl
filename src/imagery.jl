@@ -6,7 +6,7 @@
     Imagery(url; tiling=:mercator, max_level=nothing, credit=nothing)
 
 What the globe is textured with, in place of the viewer's bundled Earth texture. `url` names one of
-two backings, and the string itself decides which:
+two kinds, and the string itself decides which:
 
 | `url` | what the server does |
 |---|---|
