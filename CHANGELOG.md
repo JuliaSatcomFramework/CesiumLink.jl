@@ -6,6 +6,11 @@ All notable changes to CesiumLink are in this file.
 
 ### Added
 
+- `capture_canvas(server, path; scale, timeout)` writes one PNG of the viewer's canvas to a file. The
+  `canvasCapture` furniture item copies the same picture to the clipboard on a left click, and its
+  popup names a file and a scale. The furniture, the overlay and the floats are HTML above the
+  canvas, so no capture holds them. `scale` multiplies the drawing buffer, and a viewer that cannot
+  draw the picture answers with the reason. See ADR-0033.
 - `Areas` takes `mesh_deg`, the degrees of arc between the vertices the browser lays inside a draped
   footprint, for the whole family. It rides the geometry window beside `drape`, and changing it
   re-tessellates. Reach for it where a footprint's sag would show: on a globe carrying real terrain,
@@ -17,9 +22,13 @@ All notable changes to CesiumLink are in this file.
   threshold that decides *whether* a footprint drapes, which is a different question, and it cost 28
   times the triangles for accuracy no screen resolves — a continent-sized family came to 8.2 M
   triangles and made panning visibly slow. Pass `mesh_deg` to get the old mesh back.
+- The package allows SlateExtensionsBase 0.10 beside 0.9.1.
 
 ### Fixed
 
+- An `Areas` region 180 degrees or wider in longitude, or 180 degrees or taller in latitude, stopped
+  the whole scene with "normalized result is not a number". A ring holding two vertices in the same
+  place threw the same error, and Julia now rejects that ring when the family is built.
 - The hover tooltip goes away when the pointer moves off the globe onto a floating object, the
   overlay panel or a widget. It used to stand behind the float until the cursor came back.
 
