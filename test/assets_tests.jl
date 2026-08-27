@@ -117,7 +117,7 @@ end
     # A set has an origin per entry, and the reader may pick any of them. A webview is given its
     # policy once, when its panel is created, so every origin has to be in it from the start. The
     # default set is Blue Marble over the pyramid inside the viewer, and that pyramid needs no
-    # origin, so a session that named nothing reaches one host and not OpenStreetMap's.
+    # origin, so a session that named nothing reaches one host and no other.
     server = start_server(; dist_dir = nothing, host = "::1", port = freeport())
     try
         @test server.trusted_origins == ["https://gibs.earthdata.nasa.gov"]

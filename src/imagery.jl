@@ -103,7 +103,6 @@ of Earth, so none belongs in a session on another body.
 | `offline_natural_earth` | the pyramid inside the viewer; reaches no network | 2 |
 | `blue_marble` | NASA GIBS Blue Marble, with sea-floor colour | 8 |
 | `blue_marble_relief` | NASA GIBS Blue Marble, land relief only | 8 |
-| `osm` | the OpenStreetMap standard map | 19 |
 
 Pick the ones you want by name. This is a `NamedTuple` rather than a list to filter, because a
 filter selects by name string: rename a basemap in a later release and the filter matches nothing,
@@ -115,7 +114,7 @@ start_server(; imagery = KNOWN_EARTH_BASEMAPS.offline_natural_earth)   # no netw
 start_server(; imagery = collect(KNOWN_EARTH_BASEMAPS))                # every one of them
 ```
 
-Each value carries the attribution its source asks for, and `osm` may not be drawn without one.
+Each value carries the attribution its source asks for.
 """
 const KNOWN_EARTH_BASEMAPS = (;
     offline_natural_earth = Imagery(; name = "Natural Earth", bundled = true),
@@ -129,9 +128,6 @@ const KNOWN_EARTH_BASEMAPS = (;
          default/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpeg";
         name = "Blue Marble Relief", max_level = 8, backing = true,
         credit = "NASA EOSDIS GIBS"),
-    osm = Imagery("https://tile.openstreetmap.org/{z}/{x}/{y}.png";
-                  name = "OpenStreetMap", max_level = 19, backing = true,
-                  credit = "\u00a9 OpenStreetMap contributors"),
 )
 
 # What a session declares when the caller names nothing: a sharp globe that repairs itself offline
@@ -139,9 +135,8 @@ const KNOWN_EARTH_BASEMAPS = (;
 # choose the calm flat map deliberately rather than only by losing the network.
 #
 # Two entries and no more. The set is also what the picker offers, and what widens the content
-# policy: every entry's origin reaches `img-src` and `connect-src`. `osm` is in the catalogue for an
-# author to name, and naming it takes on OpenStreetMap's tile usage policy — which is not something
-# a session that named no basemap at all has agreed to.
+# policy: every entry's origin reaches `img-src` and `connect-src`. A session that named no basemap
+# has agreed to no host beyond the one its default set names.
 const DEFAULT_EARTH_BASEMAPS = [KNOWN_EARTH_BASEMAPS.blue_marble,
                                 KNOWN_EARTH_BASEMAPS.offline_natural_earth]
 

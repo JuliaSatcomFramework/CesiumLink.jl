@@ -30,7 +30,7 @@ export interface ImagerySpec {
   /** The label the picker draws for this basemap. A set of one draws no picker and needs no name. */
   name?: string;
   /**
-   * Which catalogue basemap this is, as the server's own key: `"blue_marble"`, `"osm"`. The picker
+   * Which catalogue basemap this is, as the server's own key: `"blue_marble"`, `"blue_marble_relief"`. The picker
    * draws its icon and its drop-down category from this, so renaming a label changes nothing. A
    * basemap an author declared themselves carries none, and the picker falls back.
    */

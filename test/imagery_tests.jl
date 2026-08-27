@@ -43,9 +43,8 @@ end
 end
 
 @testitem "the basemaps this package knows are ready to declare" begin
-    @test length(collect(KNOWN_EARTH_BASEMAPS)) == 4
-    # Shipping a name ships its attribution, and `osm` may not be drawn without one.
-    @test KNOWN_EARTH_BASEMAPS.osm.credit == "© OpenStreetMap contributors"
+    @test length(collect(KNOWN_EARTH_BASEMAPS)) == 3
+    # Shipping a name ships its attribution, so a source that asks for one carries it.
     @test all(!isempty, (KNOWN_EARTH_BASEMAPS.blue_marble.credit,
                          KNOWN_EARTH_BASEMAPS.blue_marble_relief.credit))
     # The pyramid inside the viewer is the one entry with neither a URL nor a credit: it is public
@@ -53,9 +52,9 @@ end
     offline = KNOWN_EARTH_BASEMAPS.offline_natural_earth
     @test offline.bundled && isempty(offline.url) && offline.credit === nothing
 
-    # The catalogue holds four, and an absent `imagery` declares two of them: entry 1 is what the
+    # The catalogue holds three, and an absent `imagery` declares two of them: entry 1 is what the
     # globe wears at startup, and the pyramid inside the viewer is there to be picked deliberately.
-    # The other two are named by an author who wants them, not shipped to one who named nothing.
+    # The third is named by an author who wants it, not shipped to one who named nothing.
     d, _ = CesiumLink.resolve_imagery(nothing)
     @test [get(e, :name, nothing) for e in d] == ["Blue Marble", "Natural Earth"]
     @test last(d) == (; bundled = true, key = "offline_natural_earth", name = "Natural Earth")
@@ -107,9 +106,9 @@ end
                       credit = "USGS")
 
     # A set keeps the order it was given, because entry 1 is what the globe wears at startup.
-    d, _ = CesiumLink.resolve_imagery([KNOWN_EARTH_BASEMAPS.osm,
+    d, _ = CesiumLink.resolve_imagery([KNOWN_EARTH_BASEMAPS.blue_marble_relief,
                                        KNOWN_EARTH_BASEMAPS.offline_natural_earth])
-    @test [e.name for e in d] == ["OpenStreetMap", "Natural Earth"]
+    @test [e.name for e in d] == ["Blue Marble Relief", "Natural Earth"]
 end
 
 @testitem "an XYZ directory is sniffed, probed and mounted relative" setup=[Pyramid] begin

@@ -78,20 +78,19 @@ tiling scheme, a depth and an attribution line.
 | `offline_natural_earth` | the pyramid inside the viewer | 0-2 |
 | `blue_marble` | GIBS `BlueMarble_ShadedRelief_Bathymetry` | 0-8 |
 | `blue_marble_relief` | GIBS `BlueMarble_ShadedRelief` | 0-8 |
-| `osm` | `tile.openstreetmap.org` | 0-19 |
 
 The default *set* is two of them, `blue_marble` first. The picker offers the set, so those two are
-what a default session shows. `blue_marble_relief` and `osm` are here to be named, not shipped to a
-session that names nothing.
+what a default session shows. `blue_marble_relief` is here to be named, not shipped to a session
+that names nothing.
 
 The catalogue is keyed rather than a list to filter. A filter selects by name string, so a source
 renamed in a later release silently matches nothing and the author gets back a basemap they meant to
 drop. Picking by field cannot fail that way, and `collect` still gives the whole set in one word.
 
-**Shipping a name ships its attribution.** This is the reason `osm` is in the catalogue rather than
-in a documentation page. The licence risk that OpenStreetMap actually carries is a missing credit,
-not the request; a name that carries the correct credit string makes compliance the lazy path, where
-a documented URL makes every author retype an attribution and some will not.
+**Shipping a name ships its attribution.** A catalogue entry carries the credit string its source
+asks for, which is what puts a name in the catalogue rather than in a documentation page. The name
+makes compliance the lazy path, where a documented URL makes every author retype an attribution and
+some will not.
 
 **A licence that restricts the use, rather than asking for a credit, stays out.** Sentinel-2
 cloudless is the case: every year still served is CC BY-NC-SA, and no string the viewer renders can
@@ -113,6 +112,14 @@ which is the case the feature exists to serve.
 Marble to level 7 about 600 MB. Both were measured and both were declined: the artifact is bytes we
 host and version forever, and it stops at the level its source raster stops at. GIBS answers level 8
 from NASA's own infrastructure with no key, and the basemap backing makes the offline case work anyway.
+
+**The OpenStreetMap standard map.** OpenStreetMap's tile CDN answers a request that carries no
+`Referer` with an "Access denied" picture. A VSCode webview can never send a `Referer`, because
+Chromium only allows `http` and `https` origins to produce one and the webview's origin is
+`vscode-webview://`. The blocked answer is a valid HTTP 200 PNG, so the basemap backing never
+triggers and the reader simply sees "Access denied" tiles. CesiumLink cannot satisfy that policy
+from a page, because the policy asks for an identifying `User-Agent` and only a server can send
+one. It joins Sentinel-2 cloudless: documented, not shipped.
 
 **An online Natural Earth.** There is none worth having. The source raster is 21600x10800, so
 Natural Earth II stops at level 5 whoever serves it, and the only keyless hosts are personal
@@ -137,8 +144,7 @@ sharper globe than was recorded, which is what ADR-0024 is against.
 **The default content policy widens by one origin.** A session that does not name its own set
 declares `blue_marble` over the pyramid inside the viewer, so `gibs.earthdata.nasa.gov` alone
 reaches `trusted_origins` and from there `img-src` and `connect-src`; the pyramid is in the viewer
-and needs no origin. Naming `osm` adds `tile.openstreetmap.org`, and takes on OpenStreetMap's tile
-usage policy with it. Naming a set narrows the policy to whatever that set holds.
+and needs no origin. Naming a set narrows the policy to whatever that set holds.
 
 **`?imagery=` still names one basemap.** ADR-0019 says what the query string is for — looking at a
 pyramid you have just built, and publishing a globe that is a URL and nothing else — and neither
