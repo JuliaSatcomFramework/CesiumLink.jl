@@ -2,6 +2,18 @@
 
 All notable changes to CesiumLink are in this file.
 
+## [Unreleased]
+
+### Changed
+
+- The viewer builds against `@cesium/engine` `^26.2.0`. The exact `26.1.0` pin made npm install a
+  second engine below `@cesium/widgets`, and the bundle carried both. See #38.
+
+### Fixed
+
+- The release artifact no longer carries the Cesium worker files that nothing loads. `lib/dist` is
+  smaller than it was before the bump. See #38.
+
 ## [0.1.3] - 2026-08-27
 
 ### Added
