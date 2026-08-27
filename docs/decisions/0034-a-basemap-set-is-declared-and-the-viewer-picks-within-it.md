@@ -62,6 +62,12 @@ network, the picker and the button in one line.
 **An absent `imagery` is the default set**, `blue_marble` backed by `offline_natural_earth`. This is
 the one behaviour change a reader will notice on upgrade, and it is why the release is 0.2.0.
 
+**An absent `imagery` on a body that is not Earth declares nothing.** The default set is Earth's,
+so a session on another ellipsoid keeps the bundled texture it wears today. It does not gain four
+Earth basemaps, and it does not throw on the backing guard, so a call that works today keeps
+working. `is_earth` compares the semi-major axis within one per cent, which refuses the Moon and
+accepts GRS 80.
+
 ## What ships as a known basemap
 
 `KNOWN_EARTH_BASEMAPS` holds ready-made values so that an author writes a name rather than a URL, a
