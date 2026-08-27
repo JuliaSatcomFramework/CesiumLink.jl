@@ -30,7 +30,7 @@ export const NO_BYTES = new Uint8Array(0);
  * closes the socket with a reason: every frame is binary, so a viewer built against a different
  * framing parses none of them and reports nothing at all (the wire protocol reference).
  */
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 
 /** What the server declares once per connection, in its `modules` message. */
 export interface Declaration {

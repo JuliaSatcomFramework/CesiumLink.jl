@@ -3,10 +3,10 @@
 # touches the server's lock — it is read once, at `start_server`.
 
 """
-    Imagery(url; tiling=:mercator, max_level=nothing, credit=nothing)
+    Imagery(url; name=nothing, tiling=:mercator, max_level=nothing, credit=nothing, backing=false)
 
-What the globe is textured with, in place of the viewer's bundled Earth texture. `url` names one of
-two kinds, and the string itself decides which:
+One basemap. A session declares a **basemap set** — one of these, or several — and the reader picks
+which of them the globe wears. `url` names one of two kinds, and the string itself decides which:
 
 | `url` | what the server does |
 |---|---|
@@ -21,6 +21,8 @@ The layout decides what the directory declares. A TMS pyramid declares the mount
 Cesium reads the template out of `tilemapresource.xml`. An XYZ pyramid declares the template itself,
 `assets/imagery/{z}/{x}/{y}.png`, with the extension read from a tile on disk.
 
+`name` is the label in the picker. A set of one draws no picker, so a lone basemap needs none.
+
 `tiling` is the projection an XYZ pyramid is cut in. `:mercator` is the default, because that is
 what `{z}/{x}/{y}` means on the web and what the ready-made Moon and Mars basemaps use;
 `:geographic` states the other one. A TMS directory carries its scheme in `tilemapresource.xml`, so
@@ -30,8 +32,15 @@ what `{z}/{x}/{y}` means on the web and what the ready-made Moon and Mars basema
 give it for a URL alone — a remote host cannot be probed, and an unset maximum asks a deep zoom for
 tiles that are not there.
 
-`credit` is one line of attribution, drawn over the globe at the bottom right. The string is yours
-to make legally correct; the viewer only gives it somewhere to appear.
+`credit` is one line of attribution, drawn over the globe at the bottom right. It names this basemap
+and appears only while this basemap is the one on screen. The string is yours to make legally
+correct; the viewer only gives it somewhere to appear.
+
+`backing` draws the viewer's own offline pyramid underneath this one, so a source that stops
+answering leaves a globe rather than a hole. The pyramid is of Earth, so `start_server` throws when
+a session on another body asks for one.
+
+Ready-made values are in [`KNOWN_EARTH_BASEMAPS`](@ref).
 
 ```julia
 start_server(; imagery = "/data/moon_tiles")
@@ -41,28 +50,97 @@ start_server(; imagery = Imagery(url; tiling = :geographic, max_level = 7, credi
 """
 struct Imagery
     url::String
+    name::Union{String,Nothing}
     tiling::Symbol
     max_level::Union{Int,Nothing}
     credit::Union{String,Nothing}
+    backing::Bool
+    # The pyramid inside the viewer. It carries no URL: the one it answers on is built from
+    # `CESIUM_BASE_URL`, which only the page knows, so the wire carries a marker and the viewer
+    # resolves it.
+    bundled::Bool
     # An INNER constructor so validation runs for every call form: an unreadable tiling scheme would
     # otherwise be declared to the viewer and build a provider that draws nothing.
-    function Imagery(url, tiling, max_level, credit)
+    function Imagery(url, name, tiling, max_level, credit, backing, bundled)
         t = Symbol(tiling)
         t in (:mercator, :geographic) ||
             throw(ArgumentError("`tiling` is `:mercator` or `:geographic` (got $(repr(tiling)))"))
         max_level === nothing || max_level > 0 ||
             throw(ArgumentError("`max_level` is the deepest level of the pyramid, so it is a " *
                                 "positive integer (got $(repr(max_level)))"))
-        return new(String(url), t, max_level === nothing ? nothing : Int(max_level),
-                   credit === nothing ? nothing : String(credit))
+        u = String(url)
+        bundled && !isempty(u) &&
+            throw(ArgumentError("the bundled basemap carries no URL — the page builds the one it " *
+                                "answers on (got $(repr(u)))"))
+        bundled || !isempty(u) ||
+            throw(ArgumentError("a basemap needs a URL or a directory, and this one is empty"))
+        # The bundled pyramid IS what a backing draws, so backing it with itself would put the same
+        # texture on the globe twice.
+        bundled && backing &&
+            throw(ArgumentError("the bundled basemap is what a backing draws, so it cannot ask " *
+                                "for one"))
+        return new(u, name === nothing ? nothing : String(name), t,
+                   max_level === nothing ? nothing : Int(max_level),
+                   credit === nothing ? nothing : String(credit), Bool(backing), Bool(bundled))
     end
 end
 
-Imagery(url; tiling = :mercator, max_level = nothing, credit = nothing) =
-    Imagery(url, tiling, max_level, credit)
+Imagery(url = ""; name = nothing, tiling = :mercator, max_level = nothing, credit = nothing,
+        backing = false, bundled = false) =
+    Imagery(url, name, tiling, max_level, credit, backing, bundled)
 
 # The easy case is one string, and it reaches every method that takes an `Imagery`.
 Base.convert(::Type{Imagery}, url::AbstractString) = Imagery(url)
+
+"""
+    KNOWN_EARTH_BASEMAPS
+
+The basemaps this package knows about, as ready-made [`Imagery`](@ref) values. Every one of them is
+of Earth, so none belongs in a session on another body.
+
+| Key | What the globe wears | Deepest level |
+|---|---|---|
+| `offline_natural_earth` | the pyramid inside the viewer; reaches no network | 2 |
+| `blue_marble` | NASA GIBS Blue Marble, with sea-floor colour | 8 |
+| `blue_marble_relief` | NASA GIBS Blue Marble, land relief only | 8 |
+| `osm` | the OpenStreetMap standard map | 19 |
+
+Pick the ones you want by name. This is a `NamedTuple` rather than a list to filter, because a
+filter selects by name string: rename a basemap in a later release and the filter matches nothing,
+which hands back a basemap the caller meant to drop.
+
+```julia
+start_server()                                                    # the default set
+start_server(; imagery = KNOWN_EARTH_BASEMAPS.offline_natural_earth)   # no network, no picker
+start_server(; imagery = collect(KNOWN_EARTH_BASEMAPS))                # every one of them
+```
+
+Each value carries the attribution its source asks for, and `osm` may not be drawn without one.
+"""
+const KNOWN_EARTH_BASEMAPS = (;
+    offline_natural_earth = Imagery(; name = "Natural Earth", bundled = true),
+    blue_marble = Imagery(
+        "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_ShadedRelief_Bathymetry/\
+         default/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpeg";
+        name = "Blue Marble", max_level = 8, backing = true,
+        credit = "NASA EOSDIS GIBS"),
+    blue_marble_relief = Imagery(
+        "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_ShadedRelief/\
+         default/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpeg";
+        name = "Blue Marble Relief", max_level = 8, backing = true,
+        credit = "NASA EOSDIS GIBS"),
+    osm = Imagery("https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+                  name = "OpenStreetMap", max_level = 19, backing = true,
+                  credit = "\u00a9 OpenStreetMap contributors"),
+)
+
+# What a session declares when the caller names nothing: a sharp globe that repairs itself offline.
+# The offline pyramid is in the set as well as under the first entry, so a reader can choose the
+# calm flat map deliberately rather than only by losing the network.
+const DEFAULT_EARTH_BASEMAPS = [KNOWN_EARTH_BASEMAPS.blue_marble,
+                                KNOWN_EARTH_BASEMAPS.blue_marble_relief,
+                                KNOWN_EARTH_BASEMAPS.osm,
+                                KNOWN_EARTH_BASEMAPS.offline_natural_earth]
 
 # The levels of a tile pyramid: every subdirectory whose name is an integer.
 level_dirs(dir) = [lvl for lvl in (tryparse(Int, e) for e in readdir(dir)
@@ -130,7 +208,21 @@ end
 function url_declaration(im::Imagery)
     d = (; im.url, layout = "xyz", tiling = String(im.tiling))
     im.max_level === nothing || (d = (; d..., maxLevel = im.max_level))
+    return with_common(d, im)
+end
+
+# The declaration for the pyramid inside the viewer. It carries no URL and no layout: the page
+# builds both from `CESIUM_BASE_URL`, which is the one thing about this basemap the server cannot
+# know. It is also the basemap a `backing` draws, so a set may hold it twice over — once as an
+# entry a reader can pick, and once under an entry that asked to be backed.
+bundled_declaration(im::Imagery) = with_common((; bundled = true), im)
+
+# The fields every kind of basemap carries. `name` labels the entry in the picker, and a set of one
+# draws no picker, so a lone basemap without one declares nothing here.
+function with_common(d, im::Imagery)
+    im.name === nothing || (d = (; d..., im.name))
     im.credit === nothing || (d = (; d..., credit = im.credit))
+    im.backing && (d = (; d..., backing = true))
     return d
 end
 
@@ -164,29 +256,84 @@ function dir_declaration(im::Imagery)
         d = (; d..., tiling = String(im.tiling),
              maxLevel = im.max_level === nothing ? maximum(levels) : im.max_level)
     end
-    im.credit === nothing || (d = (; d..., credit = im.credit))
-    return (d, dir)
+    return (with_common(d, im), dir)
 end
 
-# What `start_server` was given for `imagery`, as the wire declaration and the directory to mount:
-# `nothing` declares no field at all and leaves the viewer on its bundled texture, `false` asks for
-# a globe with no base layer, and anything else names one source.
-function resolve_imagery(imagery)
-    imagery === nothing && return (nothing, nothing)
+# Whether a session stands on Earth. A backing draws the pyramid inside the viewer, which is of
+# Earth, and so is every basemap in the default set. Every real Earth datum agrees with WGS 84 to
+# far better than a percent of the semi-major axis, and every other body differs by much more, so
+# this refuses the Moon without refusing GRS 80.
+is_earth(ellipsoid) = ellipsoid === nothing ||
+                      isapprox(Float64(ellipsoid.a), Ellipsoids.WGS84.a; rtol = 0.01)
+
+# One `imagery` argument as a list of `Imagery`. A string is a basemap and not a collection of
+# characters, so it is matched before anything is iterated.
+basemap_set(imagery::Union{AbstractString,Imagery}) = [convert(Imagery, imagery)]
+basemap_set(imagery) = Imagery[convert(Imagery, e) for e in imagery]
+
+# What `start_server` was given for `imagery`, as the wire declaration and the directory to mount.
+# The declaration is a *list*: a session declares every basemap it can wear, and the reader picks
+# between them (ADR-0034). `nothing` declares the default set, `false` asks for a globe with no base
+# layer, and anything else names the set itself.
+function resolve_imagery(imagery, ellipsoid = nothing)
+    imagery === nothing && return default_declaration(ellipsoid)
     imagery === :none && return (false, nothing)
     imagery isa Symbol &&
-        throw(ArgumentError("`imagery` takes a directory, a URL template, an `Imagery`, or " *
-                            "`:none` for a globe with no base layer (got $(repr(imagery)))"))
-    im = convert(Imagery, imagery)
-    isdir(im.url) || return (url_declaration(im), nothing)
-    return dir_declaration(im)
+        throw(ArgumentError("`imagery` takes a basemap, a list of them, or `:none` for a globe " *
+                            "with no base layer (got $(repr(imagery)))"))
+    set = basemap_set(imagery)
+    isempty(set) &&
+        throw(ArgumentError("a basemap set holds at least one basemap. Pass `:none` for a globe " *
+                            "with no base layer."))
+    earth = is_earth(ellipsoid)
+    declarations, dir = NamedTuple[], nothing
+    for im in set
+        if im.backing && !earth
+            throw(ArgumentError("a backing draws the pyramid inside the viewer, which is of " *
+                                "Earth, so the basemap $(repr(something(im.name, im.url))) may " *
+                                "not ask for one on this ellipsoid. Drop `backing`, or name a " *
+                                "basemap of this body."))
+        end
+        if im.bundled
+            push!(declarations, bundled_declaration(im))
+        elseif isdir(im.url)
+            # One server serves one `imagery` mount, so one set holds at most one directory.
+            dir === nothing ||
+                throw(ArgumentError("a basemap set holds at most one directory of tiles, because " *
+                                    "one server serves one `$IMAGERY_MOUNT` mount. Serve the " *
+                                    "others from a URL."))
+            d, dir = dir_declaration(im)
+            push!(declarations, d)
+        else
+            push!(declarations, url_declaration(im))
+        end
+    end
+    return (declarations, dir)
+end
+
+# What a session that names no basemap declares. On Earth that is the default set, which is the one
+# behaviour a reader notices on upgrade. On another body it is nothing at all, so the viewer keeps
+# the bundled texture it has always kept: the default set is of Earth, and Earth's coastlines under
+# a Moon scene are the picture ADR-0020 warns about.
+function default_declaration(ellipsoid)
+    is_earth(ellipsoid) || return (nothing, nothing)
+    return (NamedTuple[e.bundled ? bundled_declaration(e) : url_declaration(e)
+                       for e in DEFAULT_EARTH_BASEMAPS], nothing)
 end
 
 # Where the basemap tiles are, for the discovery file: the mounted directory, or the declared URL.
 # `nothing` for a scene that declares no basemap, and for one that declares `false` — a globe with
 # no base layer needs no tiles from anywhere.
-imagery_source(server) = get(server.asset_dirs, IMAGERY_MOUNT,
-                             server.imagery isa NamedTuple ? server.imagery.url : nothing)
+function imagery_source(server)
+    haskey(server.asset_dirs, IMAGERY_MOUNT) && return server.asset_dirs[IMAGERY_MOUNT]
+    server.imagery isa AbstractVector || return nothing
+    # The first entry the reader can be sent to, which is the first that names a URL. The bundled
+    # pyramid names none, and it is in the viewer wherever the viewer is.
+    for d in server.imagery
+        haskey(d, :url) && return d.url
+    end
+    return nothing
+end
 
 # What each mount answers on the wire: the same-origin base, not the directory behind it. A host
 # whose page sits on another origin builds its own URL per mount out of this.

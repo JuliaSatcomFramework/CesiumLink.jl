@@ -81,13 +81,22 @@ function recorded_scene(server)
     return p
 end
 
-# A basemap travels only when its tiles do: an absolute URL is reachable from anywhere, and `false`
-# — a globe with no base layer — names no tiles at all. Anything else is the relative URL of a mount,
-# which answers 404 off this server; an XYZ template that fails draws a bare globe and one console
-# error per tile, with no fallback, so recording it is worse than recording nothing.
-recorded_imagery(imagery) =
-    imagery === false || (imagery isa NamedTuple && url_origin(imagery.url) !== nothing) ?
-        imagery : nothing
+# A basemap travels only when its tiles do, and a set is filtered one entry at a time (ADR-0024,
+# ADR-0034). An absolute URL is reachable from anywhere. The bundled pyramid is in every viewer, so
+# it travels wherever the file goes. Anything else is the relative URL of a mount, which answers 404
+# off this server, so recording it is worse than recording nothing.
+#
+# Dropping the first entry promotes the next survivor, because entry 0 is what the globe wears at
+# startup. Dropping every entry records no basemap at all, and the player keeps its bundled texture.
+function recorded_imagery(imagery)
+    imagery === false && return false
+    imagery isa AbstractVector || return nothing
+    kept = filter(d -> get(d, :bundled, false) || url_origin(get(d, :url, "")) !== nothing, imagery)
+    length(kept) == length(imagery) ||
+        @warn "a basemap served from this server cannot be reached once the server stops, so it \
+            is left out of the recording" left_out = length(imagery) - length(kept)
+    return isempty(kept) ? nothing : kept
+end
 
 """
     stop_recording!(server::Server) -> Server

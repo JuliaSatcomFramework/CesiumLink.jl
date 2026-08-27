@@ -455,15 +455,19 @@ function start_server(; dist_dir = viewer_dist(), host = "127.0.0.1", port = 0,
                       lighting = false, stars = false, open = :auto, listen = !in_notebook())
     open === :auto || open === true || open === false ||
         throw(ArgumentError("`open` takes `:auto`, `true` or `false`, and got $(repr(open))"))
-    declared_imagery, imagery_dir = resolve_imagery(imagery)
+    declared_imagery, imagery_dir = resolve_imagery(imagery, ellipsoid)
     asset_dirs = resolve_assets(assets)
     imagery_dir === nothing || (asset_dirs[IMAGERY_MOUNT] = imagery_dir)
     origins = collect(String, trusted_origins)
     # A basemap named as a URL is an origin the page must reach, so the session declares it rather
-    # than making the author list it twice.
-    if declared_imagery isa NamedTuple
-        o = url_origin(declared_imagery.url)
-        o === nothing || o in origins || push!(origins, o)
+    # than making the author list it twice. Every entry of the set, because the reader may pick any
+    # of them and a webview is given its policy once, when its panel is created.
+    if declared_imagery isa AbstractVector
+        for d in declared_imagery
+            haskey(d, :url) || continue
+            o = url_origin(d.url)
+            o === nothing || o in origins || push!(origins, o)
+        end
     end
     server = Server(nothing, Set{Client}(), ReentrantLock(), ModuleEntry[],
                     Pair{Tuple{String,String},Frame}[], EventListener[], nothing,

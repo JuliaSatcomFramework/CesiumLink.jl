@@ -4,7 +4,7 @@
 # The wire contract this package speaks. Time-varying scene data travels as the Core-level `window`
 # message. A viewer announcing a different version is refused: every frame is binary, and a viewer
 # that expects JSON receives one, fails to parse it and reports nothing at all.
-const PROTOCOL_VERSION = 1
+const PROTOCOL_VERSION = 2
 
 # The module contract the viewer's Core implements. A declared module whose `api_version` differs is
 # skipped by the Core before its code is imported, so a stale bundle never half-runs.
