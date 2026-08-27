@@ -126,7 +126,7 @@ end
 
     # Naming a set narrows the policy again, and naming the pyramid inside the viewer empties it.
     server = start_server(; dist_dir = nothing, host = "::1", port = freeport(),
-                          imagery = CesiumLink.KNOWN_EARTH_BASEMAPS.offline_natural_earth)
+                          imagery = KNOWN_EARTH_BASEMAPS.offline_natural_earth)
     try
         @test isempty(server.trusted_origins)
     finally

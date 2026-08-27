@@ -43,14 +43,14 @@ end
 end
 
 @testitem "the basemaps this package knows are ready to declare" begin
-    @test length(collect(CesiumLink.KNOWN_EARTH_BASEMAPS)) == 4
+    @test length(collect(KNOWN_EARTH_BASEMAPS)) == 4
     # Shipping a name ships its attribution, and `osm` may not be drawn without one.
-    @test CesiumLink.KNOWN_EARTH_BASEMAPS.osm.credit == "© OpenStreetMap contributors"
-    @test all(!isempty, (CesiumLink.KNOWN_EARTH_BASEMAPS.blue_marble.credit,
-                         CesiumLink.KNOWN_EARTH_BASEMAPS.blue_marble_relief.credit))
+    @test KNOWN_EARTH_BASEMAPS.osm.credit == "© OpenStreetMap contributors"
+    @test all(!isempty, (KNOWN_EARTH_BASEMAPS.blue_marble.credit,
+                         KNOWN_EARTH_BASEMAPS.blue_marble_relief.credit))
     # The pyramid inside the viewer is the one entry with neither a URL nor a credit: it is public
     # domain, and the page builds the URL it answers on.
-    offline = CesiumLink.KNOWN_EARTH_BASEMAPS.offline_natural_earth
+    offline = KNOWN_EARTH_BASEMAPS.offline_natural_earth
     @test offline.bundled && isempty(offline.url) && offline.credit === nothing
 
     # An absent `imagery` declares this set. Entry 1 is what the globe wears at startup.
@@ -67,7 +67,7 @@ end
     # before anything is declared, so the mismatch is impossible rather than forbidden.
     @test_throws "may not ask for one on this ellipsoid" start_server(;
         dist_dir = nothing, listen = false, ellipsoid = moon,
-        imagery = CesiumLink.KNOWN_EARTH_BASEMAPS.blue_marble)
+        imagery = KNOWN_EARTH_BASEMAPS.blue_marble)
     # A basemap of the body itself asks for no backing, so it is declared.
     server = start_server(; dist_dir = nothing, listen = false, ellipsoid = moon,
                           imagery = "https://host/moon/{z}/{x}/{y}.png")
@@ -102,8 +102,8 @@ end
                       credit = "USGS")
 
     # A set keeps the order it was given, because entry 1 is what the globe wears at startup.
-    d, _ = CesiumLink.resolve_imagery([CesiumLink.KNOWN_EARTH_BASEMAPS.osm,
-                                       CesiumLink.KNOWN_EARTH_BASEMAPS.offline_natural_earth])
+    d, _ = CesiumLink.resolve_imagery([KNOWN_EARTH_BASEMAPS.osm,
+                                       KNOWN_EARTH_BASEMAPS.offline_natural_earth])
     @test [e.name for e in d] == ["OpenStreetMap", "Natural Earth"]
 end
 
