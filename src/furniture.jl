@@ -43,8 +43,8 @@ overlay_style(style) =
 """
     declare_furniture(server::Server; timeline=true, animation=true, keyframe=true,
                       camera_follow=true, scene_mode=true, fullscreen=true, home=true,
-                      projection=false, nav_help=false, inspector=false, canvas_capture=false,
-                      region=:top_right, style=nothing) -> Int
+                      projection=false, basemap=true, nav_help=false, inspector=false,
+                      canvas_capture=false, region=:top_right, style=nothing) -> Int
 
 Declare which of the Core's own on-screen items are shown, as the **whole** set. Returns the number
 of clients it was queued for.
@@ -57,7 +57,7 @@ is on screen at the first paint and no item the session hides appears at all.
 
 The first four items are the **band** along the bottom edge: the timeline ruler, the animation
 clock, the readout naming the keyframe the scene's values come from, and the indicator that says who
-holds the camera. The other seven are one **group** of buttons that travels whole into `region`, one
+holds the camera. The other eight are one **group** of buttons that travels whole into `region`, one
 of `$(OVERLAY_REGIONS)`. `style` is CSS merged over the group's own rule, with `_` lowered to `-` as
 everywhere else.
 
@@ -65,6 +65,11 @@ everywhere else.
 clipboard, and a right click opens the popup that downloads one. It is off by default, so no scene
 grows a button it did not ask for. The button and [`capture_canvas`](@ref) are independent doors on
 the same picture, and a session that leaves this button off still captures from Julia.
+
+`basemap` is the picker the reader chooses a basemap with. It is on by default and hides itself
+while the session declares fewer than two, so naming one basemap is already the whole opt-out and
+this keyword is for a session that declares a set and wants no picker over it. See
+[`Imagery`](@ref).
 
 `camera_follow` governs the indicator only, not the camera. The viewer shows it once a viewpoint
 arrives, and offers the way back to a user who took the camera with a drag. A session that declares
@@ -87,12 +92,14 @@ the frames after the first.
 function declare_furniture(server::Server;
                            timeline = true, animation = true, keyframe = true,
                            camera_follow = true, scene_mode = true, fullscreen = true,
-                           home = true, projection = false, nav_help = false, inspector = false,
-                           canvas_capture = false, region = :top_right, style = nothing)
+                           home = true, projection = false, basemap = true, nav_help = false,
+                           inspector = false, canvas_capture = false, region = :top_right,
+                           style = nothing)
     # Every item ships every time, in the wire's camelCase. Omitting one is not a patch.
     items = (; timeline, animation, keyframe, cameraFollow = camera_follow,
              sceneMode = scene_mode, fullscreen, home,
-             projection, navHelp = nav_help, inspector, canvasCapture = canvas_capture)
+             projection, basemap, navHelp = nav_help, inspector,
+             canvasCapture = canvas_capture)
     payload = (; items, region = wire_region(region))
     css = overlay_style(style)
     # An empty style is left off the wire entirely, so a declaration says only what it means to say.

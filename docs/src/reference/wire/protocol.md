@@ -319,8 +319,8 @@ command states the whole set.
   "payload": {
     "items": { "timeline": true, "animation": true, "keyframe": true, "cameraFollow": true,
                "sceneMode": true, "fullscreen": true, "home": true,
-               "projection": false, "navHelp": false, "inspector": false,
-               "canvasCapture": false },
+               "projection": false, "basemap": true, "navHelp": false,
+               "inspector": false, "canvasCapture": false },
     "region": "top-right",
     "style": { "gap": "4px" } }}
 ```
@@ -335,6 +335,7 @@ command states the whole set.
 | `fullscreen` | on | The fullscreen toggle |
 | `home` | on | Fly the camera back to the default view |
 | `projection` | **off** | The perspective / orthographic picker |
+| `basemap` | on | The picker the reader chooses a basemap with. It shows nothing while the session declares fewer than two |
 | `navHelp` | **off** | The navigation instructions |
 | `inspector` | **off** | The Cesium inspector panel |
 | `canvasCapture` | **off** | The button that copies a **canvas capture** to the clipboard, or downloads it. A right click opens its popup |
