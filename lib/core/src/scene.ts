@@ -125,17 +125,20 @@ export function basemapSet(imagery: SceneOptions["imagery"]): ImagerySpec[] {
  * texture below and the declared source above. Cesium walks a tile that will not load up to a ready
  * ancestor, finds none, and draws the layer below, so a source that stops answering leaves a globe.
  *
- * The list is handed on whole. The picker adds every provider of it at index 0 and tracks them as
- * one unit, so a switch replaces both layers of a backed entry together.
+ * The list is an array of promises and not a promise of an array, because the picker reads it
+ * synchronously: `ProviderViewModel` calls its creation function and asks `Array.isArray` of the
+ * answer, and a promise there is one layer built from a list. The list is handed on whole. The
+ * picker adds every provider of it at index 0 and tracks them as one unit, so a switch replaces
+ * both layers of a backed entry together.
  */
-export async function basemapProviders(
+export function basemapProviders(
   spec: ImagerySpec,
   ellipsoid: Ellipsoid,
   baseUrl: string,
-): Promise<ImageryProvider[]> {
-  if (spec.bundled) return [await loadImagery(baseUrl)];
-  const declared = await buildProvider(spec, ellipsoid);
-  return spec.backing ? [await loadImagery(baseUrl), declared] : [declared];
+): Promise<ImageryProvider>[] {
+  if (spec.bundled) return [loadImagery(baseUrl)];
+  const declared = Promise.resolve(buildProvider(spec, ellipsoid));
+  return spec.backing ? [loadImagery(baseUrl), declared] : [declared];
 }
 
 /**
@@ -155,7 +158,7 @@ async function buildBaseLayers(
   const [first] = basemapSet(opts.imagery);
   if (first) {
     try {
-      const providers = await basemapProviders(first, ellipsoid, opts.baseUrl);
+      const providers = await Promise.all(basemapProviders(first, ellipsoid, opts.baseUrl));
       return { layers: providers.map((p) => new ImageryLayer(p)), declared: true };
     } catch (err) {
       console.error(

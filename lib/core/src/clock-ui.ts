@@ -11,18 +11,20 @@
 // here; the only interaction Cesium leaves unwired is Timeline scrubbing, which merely dispatches a
 // `settime` event — so we set the clock time from it below.
 
-import { JulianDate, type Clock, type Scene } from "@cesium/engine";
+import { JulianDate, type Clock, type Ellipsoid, type Scene } from "@cesium/engine";
 import {
-  Animation, AnimationViewModel, CesiumInspector, ClockViewModel,
-  FullscreenButton, HomeButton, NavigationHelpButton, ProjectionPicker,
+  Animation, AnimationViewModel, BaseLayerPicker, CesiumInspector, ClockViewModel,
+  FullscreenButton, HomeButton, NavigationHelpButton, ProjectionPicker, ProviderViewModel,
   SceneModePicker, Timeline,
 } from "@cesium/widgets";
+import { BASEMAP_ICONS } from "./basemap-icons";
 import type { CameraAuthority } from "./camera";
 import {
-  bandLayout, cameraFollowView, countdownText, FURNITURE_DEFAULTS,
+  bandLayout, basemapPickable, cameraFollowView, countdownText, FURNITURE_DEFAULTS,
   type FurnitureDeclaration, type FurnitureId, type StopRow,
 } from "./furniture";
 import type { Overlay, OverlayRegion } from "./overlay";
+import { basemapProviders, type ImagerySpec } from "./scene";
 
 /** The keyframe the readout names: the instant its values were computed for, and the move onto it. */
 interface KeyframeReadout {
@@ -57,8 +59,8 @@ const FLAT = "font:inherit;color:inherit;background:none;border:0;padding:0;curs
 const DEFAULT_REGION: OverlayRegion = "top-right";
 
 /** Top to bottom inside the group. The order is fixed here, not declared. */
-const GROUP_ORDER = ["home", "sceneMode", "projection", "navHelp", "fullscreen", "canvasCapture",
-  "inspector"] as const;
+const GROUP_ORDER = ["home", "sceneMode", "projection", "basemap", "navHelp", "fullscreen",
+  "canvasCapture", "inspector"] as const;
 type GroupId = (typeof GROUP_ORDER)[number];
 
 // The group's own rule; a declared style merges over it. It carries `pointer-events:auto` because
@@ -101,6 +103,80 @@ function expandButton(el: HTMLElement, expand: () => void): { destroy(): void } 
   return { destroy: () => button.remove() };
 }
 
+/** What the basemap picker needs to build one entry of the declared set into a globe layer. */
+export interface Basemaps {
+  /** The declared set, in wire order. Entry 0 is what the globe wears at startup. */
+  specs: ImagerySpec[];
+  /** The shape the globe is built on, which every declared provider is tiled for. */
+  ellipsoid: Ellipsoid;
+  /** CESIUM_BASE_URL, which is where the bundled Earth texture answers. */
+  baseUrl: string;
+}
+
+/**
+ * How the picker draws each basemap that `KNOWN_EARTH_BASEMAPS` names.
+ *
+ * The wire carries the label and not the catalogue key, so the label is what this table reads. A
+ * basemap the table does not name — an author's own URL — draws the offline icon and sits under
+ * `Imagery`, because `ProviderViewModel` throws with no `iconUrl` and the picker groups its
+ * drop-down by category.
+ */
+const KNOWN_BASEMAPS: Record<string, { icon: string; category: string }> = {
+  "Natural Earth": { icon: BASEMAP_ICONS.offline_natural_earth, category: "Offline" },
+  "Blue Marble": { icon: BASEMAP_ICONS.blue_marble, category: "Imagery" },
+  "Blue Marble Relief": { icon: BASEMAP_ICONS.blue_marble_relief, category: "Imagery" },
+  OpenStreetMap: { icon: BASEMAP_ICONS.osm, category: "Maps" },
+};
+
+const UNKNOWN_BASEMAP = { icon: BASEMAP_ICONS.offline_natural_earth, category: "Imagery" };
+
+/**
+ * The basemap picker, which owns the globe's base layers from the moment it is built.
+ *
+ * `BaseLayerPickerViewModel` removes only the layers it added itself, so the layers the scene built
+ * come off first. Without that the picker stacks its own set over them, and the first switch takes
+ * only its own set away again. Entry 0 is selected here rather than left to the picker's default so
+ * that the choice is the declared one, and so that a backed entry is tracked as the two layers it
+ * is.
+ *
+ * The creation function hands `basemapProviders` on whole. The view model adds every provider of
+ * that list at index 0 in reverse and tracks the result as one unit, so a switch away from a backed
+ * entry replaces both of its layers together.
+ *
+ * A declaration that turns this item off and on again rebuilds the picker on entry 0. The pick is
+ * the reader's and nothing on the wire states it, so there is nothing to restore it from.
+ */
+function basemapPicker(el: HTMLElement, scene: Scene, basemaps: Basemaps): { destroy(): void } {
+  const models = basemaps.specs.map((spec, i) => {
+    const name = spec.name ?? `Basemap ${i + 1}`;
+    const look = KNOWN_BASEMAPS[name] ?? UNKNOWN_BASEMAP;
+    return new ProviderViewModel({
+      name,
+      tooltip: name,
+      iconUrl: look.icon,
+      category: look.category,
+      // `CreationFunction` spells `Promise<ImageryProvider[]>` where the view model reads a list:
+      // it asks `Array.isArray` of what the function gives back, and builds each element through
+      // `ImageryLayer.fromProviderAsync`, which takes a promise. So a list of promises is what the
+      // view model handles, and a promise of a list is the one shape it mistakes for one provider.
+      creationFunction: (() =>
+        basemapProviders(spec, basemaps.ellipsoid, basemaps.baseUrl)) as unknown as
+          ProviderViewModel.CreationFunction,
+    });
+  });
+  // Taken off, never destroyed: the globe's surface still holds the layers it is loading tiles for,
+  // and a destroyed layer under it stops the render loop.
+  scene.imageryLayers.removeAll(false);
+  return new BaseLayerPicker(el, {
+    globe: scene.globe,
+    imageryProviderViewModels: models,
+    selectedImageryProviderViewModel: models[0],
+    // No terrain to pick: this viewer draws the ellipsoid, and a terrain row in the drop-down would
+    // offer a choice that changes nothing.
+    terrainProviderViewModels: [],
+  });
+}
+
 export function buildFurniture(
   container: HTMLElement,
   scene: Scene,
@@ -108,6 +184,7 @@ export function buildFurniture(
   overlay: Overlay,
   expand?: () => void,
   captureCell?: (el: HTMLElement) => { destroy(): void },
+  basemaps?: Basemaps,
 ): Furniture {
   // Bottom-left: analog clock + shuttle ring + play/pause.
   const animEl = document.createElement("div");
@@ -194,6 +271,7 @@ export function buildFurniture(
     home: (el) => new HomeButton(el, scene),
     sceneMode: (el) => new SceneModePicker(el, scene),
     projection: (el) => new ProjectionPicker(el, scene),
+    basemap: (el) => basemapPicker(el, scene, basemaps!),
     navHelp: (el) => new NavigationHelpButton({ container: el }),
     fullscreen: (el) =>
       expand ? expandButton(el, expand) : new FullscreenButton(el, container),
@@ -216,10 +294,12 @@ export function buildFurniture(
    * the real capability, so the button cannot be forced on and a click on it does nothing. Such a
    * host supplies `expand` instead, and then the cell is a substitute button that calls it.
    *
-   * The capture cell has the same shape: only a caller that handed one over can show it.
+   * The capture cell has the same shape: only a caller that handed one over can show it. So does
+   * the basemap picker, which needs a set of two or more to pick within.
    */
   const available = (id: GroupId): boolean => {
     if (id === "canvasCapture") return captureCell !== undefined;
+    if (id === "basemap") return basemapPickable(basemaps?.specs.length ?? 0);
     return id !== "fullscreen" || expand !== undefined || document.fullscreenEnabled;
   };
 
@@ -306,7 +386,8 @@ export function buildFurniture(
   };
 
   // What is on screen now. It starts at the defaults, which is what a session that declares nothing
-  // sees: everything but the projection picker, the navigation help and the inspector.
+  // sees: everything but the projection picker, the navigation help and the inspector. The basemap
+  // picker is on among them, and it shows only where the declared set holds two entries or more.
   const items: Record<FurnitureId, boolean> = { ...FURNITURE_DEFAULTS };
   // The last declared range. A furniture declaration arrives independently of any range, so the
   // ruler needs the range held here to re-lay itself out whenever its box changes.

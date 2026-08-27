@@ -2,7 +2,7 @@ import * as Cesium from "@cesium/engine";
 import { SceneMode, type CesiumWidget } from "@cesium/engine";
 import { buildFurniture } from "./clock-ui";
 import { FURNITURE_DEFAULTS, type FurnitureDeclaration } from "./furniture";
-import { createScene, type SceneOptions } from "./scene";
+import { basemapSet, createScene, type SceneOptions } from "./scene";
 import {
   createModuleHost,
   type ModuleCapabilities,
@@ -118,7 +118,10 @@ export async function createViewer(
   // The Core's own on-screen items: created once, owned by the Core (single clock/timeline for all
   // modules), and persist across windows (like the scene).
   const furniture = buildFurniture(container, scene, widget.clock, overlay, opts.expand,
-    (el) => captureCell(el, widget));
+    (el) => captureCell(el, widget),
+    // The declared basemap set, which the picker reads. `createScene` has already put entry 0 on
+    // the globe, and the picker takes that base over when it is built.
+    { specs: basemapSet(opts.imagery), ellipsoid: scene.ellipsoid, baseUrl: opts.baseUrl });
   const onResize = () => furniture.resize();
   window.addEventListener("resize", onResize);
 
