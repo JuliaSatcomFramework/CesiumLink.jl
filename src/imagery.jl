@@ -33,8 +33,9 @@ give it for a URL alone — a remote host cannot be probed, and an unset maximum
 tiles that are not there.
 
 `credit` is one line of attribution, drawn over the globe at the bottom right. It names this basemap
-and appears only while this basemap is the one on screen. The string is yours to make legally
-correct; the viewer only gives it somewhere to appear.
+and appears only while this basemap is the one on screen. The string is HTML, so it may hold the
+link a source asks for, and the viewer sanitizes it before it draws it. The string is yours to make
+legally correct; the viewer only gives it somewhere to appear.
 
 `backing` draws the viewer's own offline pyramid underneath this one, so a source that stops
 answering leaves a globe rather than a hole. The pyramid is of Earth, so `start_server` throws when

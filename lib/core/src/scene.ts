@@ -10,6 +10,7 @@ import {
   UrlTemplateImageryProvider,
   WebMercatorTilingScheme,
 } from "@cesium/engine";
+import DOMPurify from "dompurify";
 
 /**
  * One basemap of the declared set. A server that mounts a directory decides `layout` by what the
@@ -307,8 +308,12 @@ const CREDIT_MARK = "data-cesiumlink-credit";
 
 /**
  * Draw the attribution line for the basemap the globe wears now, or take it down when that basemap
- * asks for none. Bottom right, and transparent to the pointer so it never takes a click meant for
- * the globe.
+ * asks for none. Bottom right.
+ *
+ * A credit is HTML, because Stadia, OpenStreetMap and Esri all ask for a linked attribution. The
+ * string comes from whoever started the server, so the viewer sanitizes it with `DOMPurify` first —
+ * which is what Cesium's own `Credit` does before it sets `innerHTML`. The line takes a click,
+ * or a link inside it could not be followed.
  *
  * This is a setter and not an append, because the reader picks the basemap and the picker calls it
  * on every switch: one line at a time, naming the basemap that was picked and never the backing
@@ -329,12 +334,11 @@ export function setCredit(container: HTMLElement, credit?: string): void {
     // 34px up, which is the band the Core's clock readout and ruler hold along the bottom edge — the
     // same inset the overlay's own bottom-right region starts at.
     el.style.cssText =
-      "position:absolute;right:8px;bottom:34px;z-index:5;pointer-events:none;" +
+      "position:absolute;right:8px;bottom:34px;z-index:5;" +
       "font:11px/1.4 sans-serif;color:#fff;text-shadow:0 0 3px #000";
     container.appendChild(el);
   }
-  // `textContent`, never `innerHTML`: the string comes from whoever started the server.
-  el.textContent = credit;
+  el.innerHTML = DOMPurify.sanitize(credit);
 }
 
 function warnIfSoftwareRenderer(widget: CesiumWidget): void {
