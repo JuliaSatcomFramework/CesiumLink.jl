@@ -198,6 +198,21 @@ end
     @test f["drape"] == false
     @test_throws "true or false" Areas(:cell; center = centers, drape = "yes")
     @test_throws "rides only a window that carries" Areas(:cell; drape = true)
+
+    # The mesh cell is the caller's to set, and the viewer's default travels as no key at all.
+    @test !haskey(p, "meshDeg")
+    fine = Areas(:cell; center = centers, radius = 400_000, mesh_deg = 0.25)
+    @test first(lowered(primitives_payload(fine)))["areas"][1]["meshDeg"] == 0.25
+    # Both bounds lead to a tessellation the browser does not come back from, so both are refused.
+    @test_throws "between 0.01 and 180.0" Areas(:cell; center = centers, mesh_deg = 0)
+    @test_throws "between 0.01 and 180.0" Areas(:cell; center = centers, mesh_deg = -1)
+    @test_throws "between 0.01 and 180.0" Areas(:cell; center = centers, mesh_deg = 1e-6)
+    @test_throws "between 0.01 and 180.0" Areas(:cell; center = centers, mesh_deg = 360)
+    @test_throws "between 0.01 and 180.0" Areas(:cell; center = centers, mesh_deg = Inf)
+    # `drape` is the neighbouring keyword and it is the one that takes a `true`.
+    @test_throws "so it is a number" Areas(:cell; center = centers, mesh_deg = true)
+    @test_throws "so it is a number" Areas(:cell; center = centers, mesh_deg = "fine")
+    @test_throws "rides only a window that carries" Areas(:cell; mesh_deg = 2)
 end
 
 @testitem "an area family draws the boundary it is given, and checks every ring of it" setup=[Wire] begin

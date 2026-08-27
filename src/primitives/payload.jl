@@ -97,6 +97,8 @@ lower(f::Areas) = (; f.kind, geometry(f)..., sent(; f.color, f.outline, f.show).
 # travels with the extents derived from it, which is where the module reads each region's span.
 geometry(f::Areas) =
     f.boundary !== nothing ?
-        (; boundary = f.boundary, extent = f.extent, heightM = f.height_m, sent(; f.drape)...) :
+        (; boundary = f.boundary, extent = f.extent, heightM = f.height_m,
+           sent(; f.drape, meshDeg = f.mesh_deg)...) :
     f.center === nothing ? (;) :
-    (; center = f.center, sides = f.sides, heightM = f.height_m, sent(; f.radius, f.drape)...)
+    (; center = f.center, sides = f.sides, heightM = f.height_m,
+       sent(; f.radius, f.drape, meshDeg = f.mesh_deg)...)

@@ -1,6 +1,10 @@
+# The finest and coarsest cell an `Areas` family may ask the browser to tessellate to, in degrees.
+const MIN_MESH_DEG = 0.01
+const MAX_MESH_DEG = 180.0
+
 """
     Areas(kind; center=nothing, boundary=nothing, radius=nothing, sides=nothing, height_m=0,
-          drape=nothing, color=nothing, outline=nothing, show=nothing)
+          drape=nothing, mesh_deg=nothing, color=nothing, outline=nothing, show=nothing)
 
 Ground footprints, either computed from a centre or given vertex by vertex. `center` is `2 × N`
 degrees of longitude and latitude, `radius` metres (one for the family or one per entity), and
@@ -45,10 +49,25 @@ it. `drape` overrides that measurement for the whole family: `true` makes every 
 globe, `false` makes every one cut through it. A footprint that follows the globe takes `height_m`
 for its whole surface, which is the only height it has anyway.
 
-`drape` describes geometry, so it rides the same window as `center` or `boundary`. `height_m` does
-too: it is a vertex coordinate, not an attribute, so a vector of one height per entity is read when
-the footprints are tessellated. Give a family many heights this way rather than one family per
-height, and expect a changed vector to re-tessellate exactly as a changed `center` does.
+`mesh_deg` says how finely a draped footprint follows the globe, in degrees of arc between the
+vertices the browser lays inside it, for the whole family. It is a different question from `drape`,
+which says whether a footprint follows the globe at all. Leaving it out takes the viewer's default
+of 4°.
+
+Draping does not take the sag away, it caps it: a footprint follows the globe one cell at a time,
+and each cell sags the same `θ/8` of its own width. So the default leaves about 4.8 km, the 4° row
+of the table above, however large the footprint is. Cost grows with the **square** of the cell
+count, so `mesh_deg` is what decides whether a continent-sized region is affordable.
+
+Coarser than the default buys nothing, so reach for a finer value only where that sag would show:
+on a globe carrying real terrain, or with `depthTestAgainstTerrain` on, a footprint that sags sinks
+into the ground instead of drawing over it.
+
+`drape` describes geometry, so it rides the same window as `center` or `boundary`. `mesh_deg` does
+too, and so does `height_m`: it is a vertex coordinate, not an attribute, so a vector of one height
+per entity is read when the footprints are tessellated. Give a family many heights this way rather
+than one family per height, and expect a changed vector to re-tessellate exactly as a changed
+`center` does.
 
 `color`, `outline` and `show` follow the array convention and switch at the keyframe crossing: a lone
 value covers the family, one value per entity varies across it, and a trailing keyframe dimension
@@ -93,12 +112,15 @@ struct Areas
     height_m::KnobValue
     # Whether the footprints follow the ellipsoid; `nothing` leaves it to the span they cover.
     drape::Union{Nothing,Bool}
+    # Degrees of arc between the vertices inside a draped footprint; `nothing` takes the viewer's.
+    mesh_deg::Union{Nothing,Float64}
     color::KnobValue
     outline::KnobValue
     # Per-entity visibility; hides fill and outline together.
     show::KnobValue
     # An INNER constructor, for the same reason as `Nodes`.
-    function Areas(kind, center, boundary, radius, sides, height_m, drape, color, outline, show)
+    function Areas(kind, center, boundary, radius, sides, height_m, drape, mesh_deg, color, outline,
+                   show)
         ctr = center === nothing ? nothing : convert(Matrix{Float64}, center)
         ctr === nothing || Base.size(ctr, 1) == 2 ||
             throw(ArgumentError("$kind.center is 2 × N degrees of (lon, lat) (got $(Base.size(ctr)))"))
@@ -125,6 +147,22 @@ struct Areas
         ctr === nothing && bnd === nothing && drape !== nothing &&
             throw(ArgumentError("$kind.drape describes geometry, which rides only a window that " *
                                 "carries `center` or `boundary`"))
+        # Both bounds only catch a typo, and both doors lead to the same place: a tessellation the
+        # browser does not come back from. Below the floor, cost grows with the square of the cell
+        # count, so a 140° region at 0.01° is 14000 cells along a side. Above the ceiling, a cell of
+        # a whole turn of the globe measures no length at all, and every triangle is then too long
+        # for it. `Bool` is refused outright rather than read as 1°: `drape` is the keyword next to
+        # this one and it is the one that takes a `true`.
+        mesh_deg === nothing || (mesh_deg isa Real && !(mesh_deg isa Bool)) || throw(ArgumentError(
+            "$kind.mesh_deg is degrees of arc across one cell of a draped footprint, so it is a " *
+            "number (got $(typeof(mesh_deg)))"))
+        m = mesh_deg === nothing ? nothing : Float64(mesh_deg)
+        m === nothing || (isfinite(m) && MIN_MESH_DEG ≤ m ≤ MAX_MESH_DEG) || throw(ArgumentError(
+            "$kind.mesh_deg is degrees of arc across one cell of a draped footprint and lies " *
+            "between $MIN_MESH_DEG and $MAX_MESH_DEG (got $m)"))
+        ctr === nothing && bnd === nothing && m !== nothing &&
+            throw(ArgumentError("$kind.mesh_deg describes geometry, which rides only a window that " *
+                                "carries `center` or `boundary`"))
         # A window carrying no geometry addresses standing footprints, whose entity count this family
         # does not restate; the forms that need one are checked on the windows that carry it.
         n = ctr !== nothing ? Base.size(ctr, 2) : bnd === nothing ? nothing : length(bnd)
@@ -136,13 +174,13 @@ struct Areas
                 "outline" => knob_frames(o, n, 4, "$kind.outline"),
                 "show" => knob_frames(v, n, 1, "$kind.show"))
         end
-        return new(String(kind), ctr, bnd, ext, r, sd, h, drape, c, o, v)
+        return new(String(kind), ctr, bnd, ext, r, sd, h, drape, m, c, o, v)
     end
 end
 
 Areas(kind; center = nothing, boundary = nothing, radius = nothing, sides = nothing, height_m = 0,
-      drape = nothing, color = nothing, outline = nothing, show = nothing) =
-    Areas(kind, center, boundary, radius, sides, height_m, drape, color, outline, show)
+      drape = nothing, mesh_deg = nothing, color = nothing, outline = nothing, show = nothing) =
+    Areas(kind, center, boundary, radius, sides, height_m, drape, mesh_deg, color, outline, show)
 
 # Every region's rings, structurally checked, with the bounding box of each outer ring. The extents
 # come out of the same pass because the hole check is a comparison of two of them, and the module
