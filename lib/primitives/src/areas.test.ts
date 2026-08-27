@@ -218,6 +218,31 @@ test("a footprint follows the globe when it spans enough of one to sag visibly",
   assert.equal(shape.perPositionHeight, undefined, "a 10° region is subdivided across the globe");
   assert.equal(shape.height, 3000, "and takes one height for the whole surface");
   assert.ok((shape.granularity as number) > 0);
+  // How finely a polygon drapes is a different question from whether it drapes, and tying the two
+  // together meshes a continent as finely as a hexagon: millions of triangles for sag no screen can
+  // show.
+  assert.notEqual(shape.granularity, (DRAPE_SPAN_DEG * Math.PI) / 180,
+                  "the mesh cell must not be derived from the drape threshold");
+});
+
+test("the caller sets the mesh cell, and changing it re-tessellates", () => {
+  const s = stage();
+  const region = (meshDeg?: number) =>
+    ({ kind: "region", boundary: [[SQUARE]], extent: extent(0, 10, 0, 10), meshDeg });
+  const cell = () => shapeOf(s.added, s.added.length - 1).granularity as number;
+  s.family.onWindow(region(), window());
+  const byDefault = cell();
+
+  s.family.onWindow(region(0.25), window());
+  assert.equal(cell(), (0.25 * Math.PI) / 180, "the caller's cell is used");
+  assert.notEqual(cell(), byDefault);
+
+  // The cell is how the geometry is made, so it belongs in the rebuild key beside `drape`. A window
+  // that changes it and repeats the same rings must re-tessellate rather than stand.
+  const before = s.added.length;
+  s.family.onWindow(region(2), window());
+  assert.ok(s.added.length > before, "a changed mesh cell rebuilds the geometry");
+  assert.equal(cell(), (2 * Math.PI) / 180);
 });
 
 test("drape decides it instead, whichever way the span would have gone", () => {
