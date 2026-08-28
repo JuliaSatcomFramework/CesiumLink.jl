@@ -226,7 +226,7 @@ catalogue_key(im::Imagery) = findfirst(==(im), KNOWN_EARTH_BASEMAPS)
 function with_common(d, im::Imagery)
     k = catalogue_key(im)
     k === nothing || (d = (; d..., key = String(k)))
-    im.name === nothing || (d = (; d..., im.name))
+    im.name === nothing || (d = (; d..., name = im.name))
     im.credit === nothing || (d = (; d..., credit = im.credit))
     im.backing && (d = (; d..., backing = true))
     return d

@@ -390,14 +390,26 @@ from the equatorial plane — beyond it the render loop throws and the scene sto
 at any usual range. Declaring a shape whose limit is within reach warns; it is not refused, since
 the camera may never travel that far.
 
-`imagery` is what the globe is textured with, and takes four kinds of value:
+`imagery` is what the globe is textured with, and takes one basemap, a list of them, or `:none`:
 
 | value | the globe wears |
 |---|---|
-| `nothing`, the default | the viewer's bundled Earth texture |
+| `nothing`, the default | on Earth, NASA GIBS Blue Marble backed by the bundled pyramid; on another body, the viewer's bundled texture |
 | a path to a directory | the tile pyramid in it, served from this server under `/assets/imagery/` |
 | any other string, or an [`Imagery`](@ref) | the source it names, declared as it stands |
+| a list of any of those | that set, first entry worn at startup |
 | `:none` | nothing: no base layer, and a flat colour |
+
+A list is a basemap set: the reader picks within it, and the picker hides itself while the set holds
+one basemap. [`KNOWN_EARTH_BASEMAPS`](@ref) names the three basemaps this package ships ready-made,
+each carrying the attribution its source asks for.
+
+So a session on Earth that names nothing asks `gibs.earthdata.nasa.gov` for tiles. Naming one
+bundled basemap is the whole opt-out — it removes the network, the picker and its button:
+
+```julia
+start_server(; imagery = KNOWN_EARTH_BASEMAPS.offline_natural_earth)
+```
 
 A directory is read once, here: the layout is sniffed from what it holds, the depth is probed from
 its level names, and a directory that is neither pyramid throws. A URL is never fetched — a source
@@ -430,7 +442,8 @@ more later.
 connection policy the editor's webview runs under. Both, because one asset needs both: Cesium fetches
 a tile as bytes and makes an image of them, so a tile is a connection and not an image load. A
 basemap named as a URL adds its own origin to this list, so a session that names a remote basemap and
-nothing else declares nothing here.
+nothing else declares nothing here. The default set on Earth names one, so a default session already
+carries `https://gibs.earthdata.nasa.gov`.
 
 `lighting` lights the globe from the sun at the clock's time, so a terminator runs across it and the
 night side goes dark. It is off by default: a scene whose colours carry its data wants an evenly lit
