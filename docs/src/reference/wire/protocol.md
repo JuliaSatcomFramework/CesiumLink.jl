@@ -54,7 +54,7 @@ The viewer *announces* on `ready`; the server *decides*. **On a version it does 
 server closes the socket with a reason.** The number bumps only on breaking changes.
 
 Version 2 widened `imagery` from one object to an object or a list of them. A version 1 viewer reads
-a list as one source with no `url` and draws a wrong globe with no message, so the handshake refuses
+a list as one source with no `url` and draws a wrong globe with no message. The handshake refuses
 the pair instead.
 
 A viewer built against a different framing drops the frame it cannot read and reports nothing, so
@@ -165,16 +165,17 @@ The session declaration. Sent once per connection, before anything else, and ret
   optionally `maxLevel`, `name`, `credit`, `key` and `backing`. A `bundled` entry names none of the
   first three.
   - `name` is the label the picker shows. `credit` is the attribution drawn over the globe while
-    this entry is the one on screen; it is HTML, and the viewer sanitizes it before it draws it.
-  - `key` names the catalogue basemap the entry is, such as `"blue_marble"`; the viewer draws its
+    this entry is the one on screen. It is HTML, and the viewer sanitizes it before it draws it.
+  - `key` names the catalogue basemap the entry is, such as `"blue_marble"`. The viewer draws its
     picker icon from that and never from the label. A basemap an author declared themselves carries
     no `key`.
-  - `backing` draws the viewer's own bundled Earth texture under this entry, so a source that stops
-    answering leaves a globe rather than a hole. It is a property of one entry, and never an entry
-    of its own: the reader cannot pick it, and it draws no credit.
-  - `bundled` marks the entry that **is** the bundled Earth texture. Such an entry carries no `url`:
-    the one it answers on is built from the viewer's own base URL, which only the page knows. It is
-    the one entry that needs neither a host nor a mount, so it travels into any recording.
+  - `backing` draws the viewer's own bundled Earth texture under this entry, so a source that
+    returns no tiles leaves a globe instead of a hole. The backing belongs to one entry, and the set
+    never holds it as an entry of its own. The reader cannot pick it, and it draws no credit.
+  - `bundled` marks the entry that **is** the bundled Earth texture. Such an entry carries no `url`.
+    The page builds the one it answers on from the viewer's own base URL. Only the page knows that
+    URL. It is the one entry that needs neither a host nor a mount, so it travels into any
+    recording.
   - A directory of tiles this server serves is the reserved `imagery` mount, so its `url` is a path
     into the `assets` map above (ADR-0021). One server serves one such mount, so at most one entry
     is a path.

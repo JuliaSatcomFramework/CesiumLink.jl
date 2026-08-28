@@ -49,8 +49,9 @@ viewer_dist
 ## The basemap
 
 `imagery` says what the globe is textured with: one basemap, or a **basemap set** the reader picks
-inside. A directory of tiles becomes the reserved assets mount `imagery`, which answers on
-`assets/imagery/` and reaches the page same-origin. Anything else is declared as the URL it is.
+inside. A directory of tiles becomes the reserved assets mount `imagery`, which responds on
+`assets/imagery/` and reaches the page same-origin. The server declares anything else as the URL it
+is.
 
 ```@docs
 Imagery

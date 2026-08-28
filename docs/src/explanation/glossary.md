@@ -106,20 +106,21 @@ _Avoid_: base layer (Cesium's own term for the same thing), texture, skin.
 **Basemap set**:
 Every basemap one session can wear, declared by the server as an ordered list. Entry 0
 is on the globe at startup. Each entry names one body, and every entry names the same
-body, so a reader who picks another one never sees a globe that disagrees with the
+body. A reader who picks another one never sees a globe that disagrees with the
 coordinates drawn on it. A set of one draws no picker.
 _Avoid_: layer stack, basemap list.
 
 **Basemap backing**:
-A second basemap drawn under a declared one, so that a source which stops answering
-leaves a globe rather than a hole. It is a property of one basemap, not an entry of the
-**basemap set**: it carries no transparency, the reader cannot pick it, and its place
-below is fixed. It is always the offline pyramid inside the viewer, so a session on
-another body may not ask for one. Its credit never appears — the credit line names the
+A second basemap drawn under a declared one, so that a source which returns no tiles
+leaves a globe instead of a hole. The backing belongs to one basemap, and the **basemap
+set** never holds it as an entry. It carries no transparency, the reader cannot pick it,
+and it always sits below. The backing is always the offline pyramid inside the viewer, so
+a session on another
+body cannot ask for one. Its credit never appears, because the credit line names the
 basemap the reader picked.
-_Avoid_: backing on its own (the word is used elsewhere in the codebase for other
-things), fallback layer (the **fallback** is what a basemap that will not build gives
-you, which is a different mechanism), underlay, stack.
+_Avoid_: backing on its own (the codebase uses the word elsewhere for other things),
+fallback layer (the **fallback** is what a basemap that does not build gives you, which
+is a different mechanism), underlay, stack.
 
 **Context object**:
 The single options-bag argument the Core passes into a module's `setup`

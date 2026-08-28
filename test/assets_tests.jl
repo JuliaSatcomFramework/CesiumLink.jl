@@ -114,10 +114,10 @@ end
         stop_server(server)
     end
 
-    # A set has an origin per entry, and the reader may pick any of them. A webview is given its
-    # policy once, when its panel is created, so every origin has to be in it from the start. The
-    # default set is Blue Marble over the pyramid inside the viewer, and that pyramid needs no
-    # origin, so a session that named nothing reaches one host and no other.
+    # A set has an origin per entry, and the reader can pick any of them. A webview gets its
+    # policy once, at panel creation, so every origin has to be in it from the start. The default
+    # set is Blue Marble over the pyramid inside the viewer. That pyramid needs no origin, so a
+    # session that named nothing reaches one host and no other.
     server = start_server(; dist_dir = nothing, host = "::1", port = freeport())
     try
         @test server.trusted_origins == ["https://gibs.earthdata.nasa.gov"]
@@ -125,7 +125,8 @@ end
         stop_server(server)
     end
 
-    # Naming a set narrows the policy again, and naming the pyramid inside the viewer empties it.
+    # When a session names a set, the policy narrows again. When it names the pyramid inside the
+    # viewer, the policy empties.
     server = start_server(; dist_dir = nothing, host = "::1", port = freeport(),
                           imagery = KNOWN_EARTH_BASEMAPS.offline_natural_earth)
     try

@@ -81,13 +81,14 @@ function recorded_scene(server)
     return p
 end
 
-# A basemap travels only when its tiles do, and a set is filtered one entry at a time (ADR-0024,
-# ADR-0034). An absolute URL is reachable from anywhere. The bundled pyramid is in every viewer, so
-# it travels wherever the file goes. Anything else is the relative URL of a mount, which answers 404
-# off this server, so recording it is worse than recording nothing.
+# A basemap travels only when its tiles do, and the recorder filters a set one entry at a time
+# (ADR-0024, ADR-0034). An absolute URL is reachable from anywhere. The bundled pyramid is in every
+# viewer, so it travels wherever the file goes. Anything else is the relative URL of a mount, which
+# returns 404 off this server. A record of it is worse than no record at all.
 #
-# Dropping the first entry promotes the next survivor, because entry 0 is what the globe wears at
-# startup. Dropping every entry records no basemap at all, and the player keeps its bundled texture.
+# When the first entry drops, the next survivor takes its place, because entry 0 is what the globe
+# wears at startup. When every entry drops, the file records no basemap at all, and the player keeps
+# its bundled texture.
 function recorded_imagery(imagery)
     imagery === false && return false
     imagery isa AbstractVector || return nothing

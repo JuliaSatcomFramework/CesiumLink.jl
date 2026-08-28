@@ -67,8 +67,8 @@ grows a button it did not ask for. The button and [`capture_canvas`](@ref) are i
 the same picture, and a session that leaves this button off still captures from Julia.
 
 `basemap` is the picker the reader chooses a basemap with. It is on by default and hides itself
-while the session declares fewer than two, so naming one basemap is already the whole opt-out and
-this keyword is for a session that declares a set and wants no picker over it. See
+while the session declares fewer than two. One declared basemap is therefore already the whole
+opt-out. This keyword is for a session that declares a set and needs no picker over it. See
 [`Imagery`](@ref).
 
 `camera_follow` governs the indicator only, not the camera. The viewer shows it once a viewpoint

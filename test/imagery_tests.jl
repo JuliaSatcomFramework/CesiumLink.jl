@@ -18,8 +18,8 @@
     # The easy case is one string, and it reaches everything that takes an `Imagery`.
     @test convert(Imagery, "u").url == "u"
 
-    # The pyramid inside the viewer is what a backing draws, so backing it with itself would put
-    # one texture on the globe twice.
+    # The pyramid inside the viewer is what a backing draws. If it backed itself, one texture
+    # would sit on the globe twice.
     @test_throws "cannot ask" Imagery(; bundled = true, backing = true)
     # It carries no URL either: the page builds the one it answers on.
     @test_throws "carries no URL" Imagery("u"; bundled = true)
@@ -28,7 +28,7 @@ end
 
 @testitem "the three states of `imagery` are three different declarations" begin
     # Absent, no base layer, and a named set are three declarations. An absent one on Earth is the
-    # default set, which the reader picks within; `:none` draws no base layer at all.
+    # default set, which the reader picks within. `:none` draws no base layer at all.
     d, dir = CesiumLink.resolve_imagery(nothing)
     @test length(d) == 2
     @test dir === nothing
@@ -38,40 +38,40 @@ end
     @test CesiumLink.resolve_imagery(:none) == (false, nothing)
     # A symbol that is not `:none` is a typo, and would otherwise be declared as a URL.
     @test_throws "`:none`" CesiumLink.resolve_imagery(:None)
-    # An empty set names no basemap, which is what `:none` says in one word.
+    # An empty set has no basemap, which is what `:none` says in one word.
     @test_throws "at least one basemap" CesiumLink.resolve_imagery(Imagery[])
 end
 
 @testitem "the basemaps this package knows are ready to declare" begin
     @test length(collect(KNOWN_EARTH_BASEMAPS)) == 3
-    # Shipping a name ships its attribution, so a source that asks for one carries it.
+    # A name this package ships carries its attribution, so a source that asks for one has it.
     @test all(!isempty, (KNOWN_EARTH_BASEMAPS.blue_marble.credit,
                          KNOWN_EARTH_BASEMAPS.blue_marble_relief.credit))
-    # The pyramid inside the viewer is the one entry with neither a URL nor a credit: it is public
-    # domain, and the page builds the URL it answers on.
+    # The pyramid inside the viewer is the one entry with neither a URL nor a credit. It is
+    # public domain, and the page builds the URL it answers on.
     offline = KNOWN_EARTH_BASEMAPS.offline_natural_earth
     @test offline.bundled && isempty(offline.url) && offline.credit === nothing
 
-    # The catalogue holds three, and an absent `imagery` declares two of them: entry 1 is what the
-    # globe wears at startup, and the pyramid inside the viewer is there to be picked deliberately.
-    # The third is named by an author who wants it, not shipped to one who named nothing.
+    # The catalogue holds three, and an absent `imagery` declares two of them. Entry 1 is what
+    # the globe wears at startup, and the pyramid inside the viewer is there for the reader to
+    # pick. An author names the third, and the default set leaves it out.
     d, _ = CesiumLink.resolve_imagery(nothing)
     @test [get(e, :name, nothing) for e in d] == ["Blue Marble", "Natural Earth"]
     @test last(d) == (; bundled = true, key = "offline_natural_earth", name = "Natural Earth")
     @test first(d).backing == true
     # The viewer reads the icon and the drop-down category off `key`, so every catalogue basemap
-    # carries one. Matching by label instead would hand a renamed basemap the fallback icon.
+    # carries one. A match by label would hand a renamed basemap the fallback icon instead.
     @test [e.key for e in d] == ["blue_marble", "offline_natural_earth"]
 end
 
 @testitem "a basemap set is refused when the viewer could not draw it" setup=[Pyramid] begin
     moon = (a = 1737400.0, b = 1737400.0)
     # A backing draws the pyramid inside the viewer, which is of Earth. Julia knows the ellipsoid
-    # before anything is declared, so the mismatch is impossible rather than forbidden.
+    # before the session declares anything, so the mismatch is impossible rather than forbidden.
     @test_throws "may not ask for one on this ellipsoid" start_server(;
         dist_dir = nothing, listen = false, ellipsoid = moon,
         imagery = KNOWN_EARTH_BASEMAPS.blue_marble)
-    # A basemap of the body itself asks for no backing, so it is declared.
+    # A basemap of the body itself asks for no backing, so the server declares it.
     server = start_server(; dist_dir = nothing, listen = false, ellipsoid = moon,
                           imagery = "https://host/moon/{z}/{x}/{y}.png")
     try
@@ -105,7 +105,7 @@ end
     @test only(d) == (; url = template, layout = "xyz", tiling = "geographic", maxLevel = 7,
                       credit = "USGS")
 
-    # A set keeps the order it was given, because entry 1 is what the globe wears at startup.
+    # A set keeps the order the author gave it, because entry 1 is what the globe wears at startup.
     d, _ = CesiumLink.resolve_imagery([KNOWN_EARTH_BASEMAPS.blue_marble_relief,
                                        KNOWN_EARTH_BASEMAPS.offline_natural_earth])
     @test [e.name for e in d] == ["Blue Marble Relief", "Natural Earth"]
@@ -280,11 +280,11 @@ end
                 url = "https://example.invalid/tiles/{z}/{x}/{y}.png"
                 @test served(url)["imagery"] == url
 
-                # A set names the first entry that carries a URL, because that is the one a reader
-                # is sent to. The default set starts with Blue Marble.
+                # A set names the first entry that carries a URL, because that is the one the page
+                # sends a reader to. The default set starts with Blue Marble.
                 @test startswith(served(nothing)["imagery"], "https://gibs.earthdata.nasa.gov/")
 
-                # A globe with no base layer names no tiles.
+                # A globe with no base layer has no tiles.
                 @test !haskey(served(:none), "imagery")
             end
         finally

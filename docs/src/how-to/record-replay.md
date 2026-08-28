@@ -59,9 +59,10 @@ These do travel:
 - `false`, a globe with no base layer, which names no tiles.
 
 A basemap this server mounts is a relative URL under `assets/imagery/…`. It answers nothing
-once the server stops, so [`record!`](@ref) drops that entry from the set and warns. Dropping the
-first entry promotes the next one, because the first entry is what the globe wears at startup. Dropping
-every entry leaves the header with no `imagery` field, and the player keeps its bundled texture.
+once the server stops, so [`record!`](@ref) drops that entry from the set and warns. When the
+first entry drops, the next one takes its place, because the first entry is what the globe wears at
+startup. When every entry drops, the header carries no `imagery` field, and the player keeps its
+bundled texture.
 
 Copy the mounted tiles beside the recording, then name them with `?imagery=`, which takes a URL
 relative to the player page:

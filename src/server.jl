@@ -394,7 +394,7 @@ the camera may never travel that far.
 
 | value | the globe wears |
 |---|---|
-| `nothing`, the default | on Earth, NASA GIBS Blue Marble backed by the bundled pyramid; on another body, the viewer's bundled texture |
+| `nothing`, the default | on Earth, Blue Marble from NASA GIBS backed by the bundled pyramid; on another body, the viewer's bundled texture |
 | a path to a directory | the tile pyramid in it, served from this server under `/assets/imagery/` |
 | any other string, or an [`Imagery`](@ref) | the source it names, declared as it stands |
 | a list of any of those | that set, first entry worn at startup |
@@ -402,10 +402,10 @@ the camera may never travel that far.
 
 A list is a basemap set: the reader picks within it, and the picker hides itself while the set holds
 one basemap. [`KNOWN_EARTH_BASEMAPS`](@ref) names the three basemaps this package ships ready-made,
-each carrying the attribution its source asks for.
+and each carries the attribution its source asks for.
 
-So a session on Earth that names nothing asks `gibs.earthdata.nasa.gov` for tiles. Naming one
-bundled basemap is the whole opt-out — it removes the network, the picker and its button:
+So a session on Earth that names nothing asks `gibs.earthdata.nasa.gov` for tiles. One bundled
+basemap is the whole opt-out: it removes the network, the picker, and its button:
 
 ```julia
 start_server(; imagery = KNOWN_EARTH_BASEMAPS.offline_natural_earth)
@@ -472,9 +472,9 @@ function start_server(; dist_dir = viewer_dist(), host = "127.0.0.1", port = 0,
     asset_dirs = resolve_assets(assets)
     imagery_dir === nothing || (asset_dirs[IMAGERY_MOUNT] = imagery_dir)
     origins = collect(String, trusted_origins)
-    # A basemap named as a URL is an origin the page must reach, so the session declares it rather
-    # than making the author list it twice. Every entry of the set, because the reader may pick any
-    # of them and a webview is given its policy once, when its panel is created.
+    # A basemap named as a URL is an origin the page must reach, so the session declares it and
+    # the author lists it once. The set declares every entry, because the reader can pick any of
+    # them. A webview gets its policy once, at panel creation.
     if declared_imagery isa AbstractVector
         for d in declared_imagery
             haskey(d, :url) || continue

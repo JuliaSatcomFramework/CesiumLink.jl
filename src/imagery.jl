@@ -5,7 +5,7 @@
 """
     Imagery(url; name=nothing, tiling=:mercator, max_level=nothing, credit=nothing, backing=false)
 
-One basemap. A session declares a **basemap set** — one of these, or several — and the reader picks
+One basemap. A session declares a **basemap set** (one of these, or several), and the reader picks
 which of them the globe wears. `url` names one of two kinds, and the string itself decides which:
 
 | `url` | what the server does |
@@ -33,12 +33,12 @@ give it for a URL alone — a remote host cannot be probed, and an unset maximum
 tiles that are not there.
 
 `credit` is one line of attribution, drawn over the globe at the bottom right. It names this basemap
-and appears only while this basemap is the one on screen. The string is HTML, so it may hold the
+and appears only while this basemap is the one on screen. The string is HTML, so it can hold the
 link a source asks for, and the viewer sanitizes it before it draws it. The string is yours to make
-legally correct; the viewer only gives it somewhere to appear.
+legally correct. The viewer only gives it somewhere to appear.
 
-`backing` draws the viewer's own offline pyramid underneath this one, so a source that stops
-answering leaves a globe rather than a hole. The pyramid is of Earth, so `start_server` throws when
+`backing` draws the viewer's own offline pyramid underneath this one, so a source that returns no
+tiles leaves a globe instead of a hole. The pyramid is of Earth, so `start_server` throws when
 a session on another body asks for one.
 
 Ready-made values are in [`KNOWN_EARTH_BASEMAPS`](@ref).
@@ -56,9 +56,9 @@ struct Imagery
     max_level::Union{Int,Nothing}
     credit::Union{String,Nothing}
     backing::Bool
-    # The pyramid inside the viewer. It carries no URL: the one it answers on is built from
-    # `CESIUM_BASE_URL`, which only the page knows, so the wire carries a marker and the viewer
-    # resolves it.
+    # The pyramid inside the viewer. It carries no URL. The page builds the one it answers on
+    # from `CESIUM_BASE_URL`, and only the page knows that value. The wire therefore carries a
+    # marker, and the viewer resolves it.
     bundled::Bool
     # An INNER constructor so validation runs for every call form: an unreadable tiling scheme would
     # otherwise be declared to the viewer and build a provider that draws nothing.
@@ -75,8 +75,8 @@ struct Imagery
                                 "answers on (got $(repr(u)))"))
         bundled || !isempty(u) ||
             throw(ArgumentError("a basemap needs a URL or a directory, and this one is empty"))
-        # The bundled pyramid IS what a backing draws, so backing it with itself would put the same
-        # texture on the globe twice.
+        # The bundled pyramid IS what a backing draws. If it backed itself, the same texture
+        # would sit on the globe twice.
         bundled && backing &&
             throw(ArgumentError("the bundled basemap is what a backing draws, so it cannot ask " *
                                 "for one"))
@@ -101,13 +101,13 @@ of Earth, so none belongs in a session on another body.
 
 | Key | What the globe wears | Deepest level |
 |---|---|---|
-| `offline_natural_earth` | the pyramid inside the viewer; reaches no network | 2 |
-| `blue_marble` | NASA GIBS Blue Marble, with sea-floor colour | 8 |
-| `blue_marble_relief` | NASA GIBS Blue Marble, land relief only | 8 |
+| `offline_natural_earth` | the pyramid inside the viewer, which reaches no network | 2 |
+| `blue_marble` | Blue Marble from NASA GIBS, with sea-floor colour | 8 |
+| `blue_marble_relief` | Blue Marble from NASA GIBS, land relief only | 8 |
 
-Pick the ones you want by name. This is a `NamedTuple` rather than a list to filter, because a
-filter selects by name string: rename a basemap in a later release and the filter matches nothing,
-which hands back a basemap the caller meant to drop.
+Pick the ones you want by name. This is a `NamedTuple` and not a list to filter, because a filter
+selects by name string. Rename a basemap in a later release, and the filter matches nothing and
+hands back a basemap the caller meant to drop.
 
 ```julia
 start_server()                                                    # the default set
@@ -131,9 +131,9 @@ const KNOWN_EARTH_BASEMAPS = (;
         credit = "NASA EOSDIS GIBS"),
 )
 
-# What a session declares when the caller names nothing: a sharp globe that repairs itself offline
-# (ADR-0034). The offline pyramid is in the set as well as under the first entry, so a reader can
-# choose the calm flat map deliberately rather than only by losing the network.
+# What a session declares when the caller declares nothing: a sharp globe that repairs itself offline
+# (ADR-0034). The offline pyramid is in the set as well as under the first entry. A reader can
+# therefore pick the calm flat map at any time, and not only when the network drops.
 #
 # Two entries and no more. The set is also what the picker offers, and what widens the content
 # policy: every entry's origin reaches `img-src` and `connect-src`. A session that named no basemap
@@ -212,17 +212,17 @@ end
 
 # The declaration for the pyramid inside the viewer. It carries no URL and no layout: the page
 # builds both from `CESIUM_BASE_URL`, which is the one thing about this basemap the server cannot
-# know. It is also the basemap a `backing` draws, so a set may hold it twice over — once as an
-# entry a reader can pick, and once under an entry that asked to be backed.
+# know. It is also the basemap a `backing` draws, so a set can hold it twice over. It appears once
+# as an entry a reader can pick, and once under an entry that asked for a backing.
 bundled_declaration(im::Imagery) = with_common((; bundled = true), im)
 
 # The catalogue name of a basemap, or `nothing` for one an author built. It is what the picker looks
-# an icon and a category up by, so renaming a label cannot change what the drop-down draws.
+# an icon and a category up by, so a renamed label cannot change what the drop-down draws.
 catalogue_key(im::Imagery) = findfirst(==(im), KNOWN_EARTH_BASEMAPS)
 
-# The fields every kind of basemap carries. `key` names the catalogue entry this is, `name` labels
-# the entry in the picker, and a set of one draws no picker, so a lone basemap without one declares
-# nothing here.
+# The fields every kind of basemap carries. `key` names the catalogue entry this is, and `name`
+# labels the entry in the picker. A set of one draws no picker, so a lone basemap without one
+# declares nothing here.
 function with_common(d, im::Imagery)
     k = catalogue_key(im)
     k === nothing || (d = (; d..., key = String(k)))
@@ -267,17 +267,18 @@ end
 
 # Whether a session stands on Earth. A backing draws the pyramid inside the viewer, which is of
 # Earth, and so is every basemap in the default set. Every real Earth datum agrees with WGS 84 to
-# far better than a percent of the semi-major axis, and every other body differs by much more, so
-# this refuses the Moon without refusing GRS 80.
+# far better than a percent of the semi-major axis. Every other body differs by much more. This
+# test therefore refuses the Moon and accepts Geodetic Reference System 1980 (GRS 80).
 is_earth(ellipsoid) = ellipsoid === nothing ||
                       isapprox(Float64(ellipsoid.a), Ellipsoids.WGS84.a; rtol = 0.01)
 
 # One `imagery` argument as a list of `Imagery`. A string is a basemap and not a collection of
-# characters, so it is matched before anything is iterated.
+# characters, so the string method takes it first, before the method that iterates.
 basemap_set(imagery::Union{AbstractString,Imagery}) = [convert(Imagery, imagery)]
 basemap_set(imagery) = Imagery[convert(Imagery, e) for e in imagery]
 
-# What `start_server` was given for `imagery`, as the wire declaration and the directory to mount.
+# What the caller gave `start_server` for `imagery`, as the wire declaration and the directory to
+# mount.
 # The declaration is a *list*: a session declares every basemap it can wear, and the reader picks
 # between them (ADR-0034). `nothing` declares the default set, `false` asks for a globe with no base
 # layer, and anything else names the set itself.
@@ -317,9 +318,9 @@ function resolve_imagery(imagery, ellipsoid = nothing)
     return (declarations, dir)
 end
 
-# What a session that names no basemap declares. On Earth that is the default set, which is the one
+# The declaration for a session with no basemap of its own. On Earth that is the default set, which is the one
 # behaviour a reader notices on upgrade. On another body it is nothing at all, so the viewer keeps
-# the bundled texture it has always kept: the default set is of Earth, and Earth's coastlines under
+# the bundled texture it has always kept. The default set is of Earth, and Earth's coastlines under
 # a Moon scene are the picture ADR-0020 warns about.
 function default_declaration(ellipsoid)
     is_earth(ellipsoid) || return (nothing, nothing)
@@ -333,8 +334,8 @@ end
 function imagery_source(server)
     haskey(server.asset_dirs, IMAGERY_MOUNT) && return server.asset_dirs[IMAGERY_MOUNT]
     server.imagery isa AbstractVector || return nothing
-    # The first entry the reader can be sent to, which is the first that names a URL. The bundled
-    # pyramid names none, and it is in the viewer wherever the viewer is.
+    # The first entry the page can send the reader to, which is the first with a URL. The
+    # bundled pyramid names none, and it is in the viewer wherever the viewer is.
     for d in server.imagery
         haskey(d, :url) && return d.url
     end

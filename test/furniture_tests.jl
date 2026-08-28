@@ -37,9 +37,9 @@ end
         @test p2["items"]["navHelp"] == false
         @test p2["items"]["sceneMode"] == false
 
-        # The basemap picker is on by default, and it is the one thing that turns it off from
-        # Julia: below two declared basemaps the viewer hides it anyway, so a session that declares
-        # a set and wants no picker over it has nowhere else to say so.
+        # The basemap picker is on by default. This flag is the one thing that turns it off
+        # from Julia. Below two declared basemaps the viewer hides the picker anyway. A session
+        # that declares a set and wants no picker over it has nowhere else to say so.
         declare_furniture(server; basemap = false)
         @test declared(server, "core", "furniture")["items"]["basemap"] == false
     finally
