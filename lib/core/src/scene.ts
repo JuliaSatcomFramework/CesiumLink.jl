@@ -26,7 +26,11 @@ export interface ImagerySpec {
   tiling?: "geographic" | "mercator";
   /** XYZ only. The deepest level the source holds. Absent means Cesium asks for any level. */
   maxLevel?: number;
-  /** An attribution line. It is user text and the viewer renders it as text, never as markup. */
+  /**
+   * An attribution line. The string is HTML, because a linked attribution is what a tile source
+   * asks for, and the viewer draws it as markup. It comes from whoever started the server, so
+   * `setCredit` passes it through `DOMPurify.sanitize` first and draws only what comes back.
+   */
   credit?: string;
   /** The label the picker draws for this basemap. A set of one draws no picker and needs no name. */
   name?: string;
@@ -137,25 +141,42 @@ export function basemapSet(imagery: SceneOptions["imagery"]): ImagerySpec[] {
  * answer, and a promise there is one layer built from a list. The list is handed on whole. The
  * picker adds every provider of it at index 0 and tracks them as one unit, so a switch replaces
  * both layers of a backed entry together.
+ *
+ * A source that will not build gives the bundled Earth texture in its place, and one loud message:
+ * the scene is the point and the texture is decoration, so a globe wearing the wrong face beats a
+ * page that draws nothing (ADR-0020). The fallback lives here rather than in the caller because the
+ * picker builds its own layers and must fall back the same way. `onFallback` is how a caller hears
+ * that it happened; it runs before the list settles, and a credit that names the declared source
+ * has to come down when it does. A backed entry then holds the bundled texture twice, which draws
+ * as one texture.
+ *
+ * Only `TileMapServiceImageryProvider.fromUrl` and the bundled fetch can reach the catch.
+ * `UrlTemplateImageryProvider` constructs synchronously and never throws, so an XYZ source at a dead
+ * host gives blank tiles and one console error per tile, and no fallback at all.
  */
 export function basemapProviders(
   spec: ImagerySpec,
   ellipsoid: Ellipsoid,
   baseUrl: string,
+  onFallback?: () => void,
 ): Promise<ImageryProvider>[] {
   if (spec.bundled) return [loadImagery(baseUrl)];
-  const declared = Promise.resolve(buildProvider(spec, ellipsoid));
+  const built = (async () => buildProvider(spec, ellipsoid))();
+  const declared = built.catch((err) => {
+    console.error(
+      `CesiumLink: the declared basemap at ${spec.url} did not build (${err}). ` +
+        `The globe below wears the bundled Earth texture, which is not what this scene declared.`,
+    );
+    onFallback?.();
+    return loadImagery(baseUrl);
+  });
   return spec.backing ? [loadImagery(baseUrl), declared] : [declared];
 }
 
 /**
- * The base layers the declaration asks for, bottom first. A source that will not build gives the
- * bundled texture and a loud message: the scene is the point and the texture is decoration, so a
- * globe wearing the wrong face beats a page that draws nothing (ADR-0020).
- *
- * Only `TileMapServiceImageryProvider.fromUrl` and the bundled fetch can reach the catch.
- * `UrlTemplateImageryProvider` constructs synchronously and never throws, so an XYZ source at a dead
- * host gives blank tiles and one console error per tile, and no fallback at all.
+ * The base layers the declaration asks for, bottom first, and whether the globe wears what the
+ * scene declared. `declared` is false when a source fell back to the bundled texture, and false
+ * again when nothing was declared at all: either way the declared credit describes no layer here.
  */
 async function buildBaseLayers(
   opts: SceneOptions,
@@ -163,18 +184,14 @@ async function buildBaseLayers(
 ): Promise<{ layers: ImageryLayer[] | false; declared: boolean }> {
   if (opts.imagery === false) return { layers: false, declared: true };
   const [first] = basemapSet(opts.imagery);
-  if (first) {
-    try {
-      const providers = await Promise.all(basemapProviders(first, ellipsoid, opts.baseUrl));
-      return { layers: providers.map((p) => new ImageryLayer(p)), declared: true };
-    } catch (err) {
-      console.error(
-        `CesiumLink: the declared basemap at ${first.url} did not build (${err}). ` +
-          `The globe below wears the bundled Earth texture, which is not what this scene declared.`,
-      );
-    }
+  if (!first) {
+    return { layers: [new ImageryLayer(await loadImagery(opts.baseUrl))], declared: false };
   }
-  return { layers: [new ImageryLayer(await loadImagery(opts.baseUrl))], declared: false };
+  let declared = true;
+  const providers = basemapProviders(first, ellipsoid, opts.baseUrl, () => {
+    declared = false;
+  });
+  return { layers: (await Promise.all(providers)).map((p) => new ImageryLayer(p)), declared };
 }
 
 function buildProvider(
@@ -312,8 +329,9 @@ const CREDIT_MARK = "data-cesiumlink-credit";
  *
  * A credit is HTML, because Stadia, OpenStreetMap and Esri all ask for a linked attribution. The
  * string comes from whoever started the server, so the viewer sanitizes it with `DOMPurify` first —
- * which is what Cesium's own `Credit` does before it sets `innerHTML`. The line takes a click,
- * or a link inside it could not be followed.
+ * which is what Cesium's own `Credit` does before it sets `innerHTML`. Nothing but a link in it
+ * takes the pointer: the line lies over the globe, and a drag that starts on its text has to turn
+ * the globe rather than stop on a word.
  *
  * This is a setter and not an append, because the reader picks the basemap and the picker calls it
  * on every switch: one line at a time, naming the basemap that was picked and never the backing
@@ -334,11 +352,15 @@ export function setCredit(container: HTMLElement, credit?: string): void {
     // 34px up, which is the band the Core's clock readout and ruler hold along the bottom edge — the
     // same inset the overlay's own bottom-right region starts at.
     el.style.cssText =
-      "position:absolute;right:8px;bottom:34px;z-index:5;" +
+      "position:absolute;right:8px;bottom:34px;z-index:5;pointer-events:none;" +
       "font:11px/1.4 sans-serif;color:#fff;text-shadow:0 0 3px #000";
     container.appendChild(el);
   }
   el.innerHTML = DOMPurify.sanitize(credit);
+  // The line itself is transparent to the pointer, so each link has to take it back.
+  el.querySelectorAll("a").forEach((a) => {
+    a.style.pointerEvents = "auto";
+  });
 }
 
 function warnIfSoftwareRenderer(widget: CesiumWidget): void {

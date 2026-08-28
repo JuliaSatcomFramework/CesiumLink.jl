@@ -141,7 +141,8 @@ const UNKNOWN_BASEMAP = { icon: BASEMAP_ICONS.offline_natural_earth, category: "
  *
  * The creation function hands `basemapProviders` on whole. The view model adds every provider of
  * that list at index 0 in reverse and tracks the result as one unit, so a switch away from a backed
- * entry replaces both of its layers together.
+ * entry replaces both of its layers together. A source that will not build falls back to the
+ * bundled Earth texture there, so a picked entry never leaves the reader a bare globe (ADR-0020).
  *
  * A declaration that turns this item off and on again rebuilds the picker on entry 0. The pick is
  * the reader's and nothing on the wire states it, so there is nothing to restore it from.
@@ -156,6 +157,9 @@ function basemapPicker(
   basemaps: Basemaps,
   container: HTMLElement,
 ): { destroy(): void } {
+  // The entry the picker last built for. A fallback is heard after the switch that started it, so
+  // the answer is only worth acting on while it is still the entry on the globe.
+  let picked: ImagerySpec | undefined;
   const models = basemaps.specs.map((spec, i) => {
     const name = spec.name ?? `Basemap ${i + 1}`;
     const look = (spec.key === undefined ? undefined : KNOWN_BASEMAPS[spec.key]) ?? UNKNOWN_BASEMAP;
@@ -171,8 +175,13 @@ function basemapPicker(
       creationFunction: (() => {
         // The credit follows the pick: it names the basemap the reader chose and never the backing
         // under it, and an entry that carries none takes the line down (ADR-0034).
+        picked = spec;
         setCredit(container, spec.credit);
-        return basemapProviders(spec, basemaps.ellipsoid, basemaps.baseUrl);
+        // A source that will not build draws the bundled Earth texture, which the declared credit
+        // does not describe, so the line comes down with it (ADR-0020).
+        return basemapProviders(spec, basemaps.ellipsoid, basemaps.baseUrl, () => {
+          if (picked === spec) setCredit(container, undefined);
+        });
       }) as unknown as ProviderViewModel.CreationFunction,
     });
   });
