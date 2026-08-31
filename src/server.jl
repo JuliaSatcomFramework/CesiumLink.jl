@@ -438,12 +438,14 @@ Mounts are fixed here, so serving another folder means a new server. The set is 
 VSCode webview is given the directories it may read when its panel is created, and cannot be given
 more later.
 
-`trusted_origins` lists the origins the page may reach off-site, and widens both the image and the
+`trusted_origins` lists the sources the page may reach off-site, and widens both the image and the
 connection policy the editor's webview runs under. Both, because one asset needs both: Cesium fetches
-a tile as bytes and makes an image of them, so a tile is a connection and not an image load. A
-basemap named as a URL adds its own origin to this list, so a session that names a remote basemap and
-nothing else declares nothing here. The default set on Earth names one, so a default session already
-carries `https://cdn.jsdelivr.net`.
+a tile as bytes and makes an image of them, so a tile is a connection and not an image load. An entry
+you pass here reaches the policy exactly as you wrote it. A basemap named as a URL adds a source of
+its own instead, and that source keeps the path down to the tile directory, so it trusts one
+directory of one host and not everything else that host serves. A session that names a remote basemap
+and nothing else therefore declares nothing here, and the default set on Earth adds the pinned tile
+directory it reads under `cdn.jsdelivr.net`.
 
 `lighting` lights the globe from the sun at the clock's time, so a terminator runs across it and the
 night side goes dark. It is off by default: a scene whose colours carry its data wants an evenly lit
@@ -472,13 +474,14 @@ function start_server(; dist_dir = viewer_dist(), host = "127.0.0.1", port = 0,
     asset_dirs = resolve_assets(assets)
     imagery_dir === nothing || (asset_dirs[IMAGERY_MOUNT] = imagery_dir)
     origins = collect(String, trusted_origins)
-    # A basemap named as a URL is an origin the page must reach, so the session declares it and
-    # the author lists it once. The set declares every entry, because the reader can pick any of
-    # them. A webview gets its policy once, at panel creation.
+    # A basemap named as a URL is a place the page must reach, so the session declares it and the
+    # author lists it once. Each entry declares the tile directory it reads and no more. The set
+    # declares every entry, because the reader can pick any of them. A webview gets its policy
+    # once, at panel creation.
     if declared_imagery isa AbstractVector
         for d in declared_imagery
             haskey(d, :url) || continue
-            o = url_origin(d.url)
+            o = csp_source(d.url)
             o === nothing || o in origins || push!(origins, o)
         end
     end

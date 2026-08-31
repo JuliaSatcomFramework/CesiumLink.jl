@@ -68,9 +68,11 @@ mount has a name of one path element, and `/assets/<name>/<file>` is the path a 
 module asks the Core to resolve that path, because each host answers it its own way. `imagery` is
 reserved for the basemap's tiles, and an `assets` key of that name throws.
 
-`trusted_origins` names the origins the page may reach off-site. It widens the image policy and the
+`trusted_origins` names the sources the page may reach off-site. It widens the image policy and the
 connection policy the VSCode webview runs under, because Cesium fetches a tile as bytes and makes an
-image of them. A basemap named as a URL adds its own origin.
+image of them. An entry you pass reaches the policy exactly as you wrote it. A basemap named as a URL
+adds a source of its own instead, and that source keeps the path down to the tile directory, so it
+trusts one directory of one host and not everything else that host serves.
 
 [`start_server`](@ref) reads both keywords once. See
 [Put your own model on a satellite](../how-to/models.md) for a mounted folder a payload points into.

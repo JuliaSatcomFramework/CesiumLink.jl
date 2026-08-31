@@ -283,16 +283,28 @@ async function askForScene() {
 
 // --- the panel ----------------------------------------------------------------------------
 
-// The origin of a basemap the server declared as a URL, for the page's policy to name. A mounted
-// pyramid is an entry in the `assets` map like any other, so only the URL case is read here.
-function imageryOrigin(imagery) {
-  if (!imagery || !/^https?:\/\//i.test(imagery)) return null;
-  try {
-    return new URL(imagery).origin;
-  } catch (e) {
-    log.appendLine(`no origin in the basemap URL ${imagery}: ${e.message}`);
-    return null;
-  }
+// The policy source for a basemap the server declared as a URL. A CSP source carries a path as well
+// as an origin, and a path ending in `/` matches by prefix, so the page trusts the one tile
+// directory this scene reads and not everything else that host serves. The prefix runs to the last
+// `/` before the first `{`, since everything from the first placeholder on differs per tile.
+// `csp_source` in `src/imagery.jl` fills the same list by the same rule, and the two must agree.
+//
+// A mounted pyramid is an entry in the `assets` map like any other, so only the URL case is read.
+function imageryCspSource(imagery) {
+  const m = /^(https?:\/\/[^/?#]+)([^?#]*)/i.exec(imagery || '');
+  if (!m) return null;
+  const [, origin, path] = m;
+  // The list joins with a space and the directives join with `;`, so a source carrying whitespace,
+  // `;` or `,` would not be one source any more.
+  if (/[\s;,]/.test(origin)) return null;
+  // A placeholder in the host leaves no path to trust: a cut inside an authority would name a host
+  // nobody declared.
+  if (origin.includes('{')) return origin;
+  const head = path.split('{')[0];
+  const cut = head.lastIndexOf('/');
+  if (cut < 0) return origin;
+  const prefix = head.slice(0, cut + 1);
+  return /[\s;,]/.test(prefix) ? origin : origin + prefix;
 }
 
 // Every mount the panel can actually grant, as name to directory. A directory the extension host
@@ -335,7 +347,7 @@ function open(context, picked) {
   const roots = [vscode.Uri.file(picked.dist),
                  ...Object.values(mounts).map((dir) => vscode.Uri.file(dir))];
   const origins = [...picked.trustedOrigins];
-  const declared = imageryOrigin(picked.imagery);
+  const declared = imageryCspSource(picked.imagery);
   if (declared && !origins.includes(declared)) origins.push(declared);
   const panel = vscode.window.createWebviewPanel(
     'cesiumLink', picked.label, vscode.ViewColumn.Active, {
@@ -594,6 +606,6 @@ function pageHtml(webview, assetBase, mountBases, trustedOrigins) {
 // panel is given is fixed when it is created, so it is worth checking without an editor to run in,
 // and the discovery half is what the Julia server has to agree with.
 module.exports = {
-  activate, deactivate: () => {}, imageryOrigin, readableMounts, sceneMounts, pageHtml,
+  activate, deactivate: () => {}, imageryCspSource, readableMounts, sceneMounts, pageHtml,
   discoveryDir, isRunning, answers, liveScenes, scene,
 };

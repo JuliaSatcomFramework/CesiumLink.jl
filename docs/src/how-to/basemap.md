@@ -191,9 +191,10 @@ start_server(; imagery = Imagery("https://tiles.stadiamaps.com/tiles/alidade_smo
                                  credit = "&copy; Stadia Maps, OpenMapTiles and OpenStreetMap contributors"))
 ```
 
-The server declares that URL untouched. It reads the origin off it, `https://tiles.stadiamaps.com`,
-and adds that alone to `trusted_origins`. The content policy of a VSCode panel therefore opens for
-the host and never for the query string.
+The server declares that URL untouched. It reads one source off it,
+`https://tiles.stadiamaps.com/tiles/alidade_smooth/`, and adds that alone to `trusted_origins`. The
+source stops at the last `/` before the first placeholder, so the content policy of a VSCode panel
+opens for that one tile directory and never for the query string.
 
 !!! warning "A recording carries the key"
     A recording carries the declared set, and the set carries the whole URL. So a recording made with

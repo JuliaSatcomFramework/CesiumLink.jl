@@ -145,8 +145,8 @@ const KNOWN_EARTH_BASEMAPS = (;
 # therefore pick the calm flat map at any time, and not only when the network drops.
 #
 # Two entries and no more. The set is also what the picker offers, and what widens the content
-# policy: every entry's origin reaches `img-src` and `connect-src`. A session that named no basemap
-# has agreed to no host beyond the one its default set names.
+# policy: every entry's tile directory reaches `img-src` and `connect-src`. A session that named no
+# basemap has agreed to no host beyond the one its default set names.
 const DEFAULT_EARTH_BASEMAPS = [KNOWN_EARTH_BASEMAPS.blue_marble_labeled,
                                 KNOWN_EARTH_BASEMAPS.offline_natural_earth]
 
@@ -356,9 +356,27 @@ end
 declared_assets(server) =
     Dict(name => "assets/$name/" for name in keys(server.asset_dirs))
 
-# The origin of a declared URL — scheme, host and port — or `nothing` for anything that is not an
-# absolute URL. A CSP names origins and not paths, so a tile template reaches the list as its origin.
-function url_origin(url::AbstractString)
-    m = match(r"^([a-zA-Z][a-zA-Z0-9+.\-]*://[^/?#]+)", url)
-    return m === nothing ? nothing : m.captures[1]
+# The content-policy source expression for a declared URL, or `nothing` for anything that is not an
+# absolute URL. A CSP source takes a path as well as an origin, and a path ending in `/` matches by
+# prefix, so a declared basemap trusts one tile directory rather than every repository its CDN
+# mirrors. The prefix runs to the last `/` before the first `{`, since everything from the first
+# placeholder on differs per tile.
+function csp_source(url::AbstractString)
+    m = match(r"^([a-zA-Z][a-zA-Z0-9+.\-]*://[^/?#]+)([^?#]*)", url)
+    m === nothing && return nothing
+    origin, path = m.captures[1], m.captures[2]
+    # The list joins with a space and the directives join with `;`, so a source carrying whitespace,
+    # `;` or `,` would not be one source any more. An origin carrying one names nothing reachable.
+    occursin(r"[\s;,]", origin) && return nothing
+    # A placeholder in the host leaves no path to trust: cutting inside an authority would name a
+    # host nobody declared.
+    occursin('{', origin) && return origin
+    i = findfirst('{', path)
+    head = i === nothing ? path : path[1:prevind(path, i)]
+    j = findlast('/', head)
+    j === nothing && return origin
+    prefix = head[1:j]
+    # `;` and `,` are outside the path grammar of a CSP source, and whitespace would split the list.
+    occursin(r"[\s;,]", prefix) && return origin
+    return origin * prefix
 end

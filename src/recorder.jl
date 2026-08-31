@@ -92,7 +92,7 @@ end
 function recorded_imagery(imagery)
     imagery === false && return false
     imagery isa AbstractVector || return nothing
-    kept = filter(d -> get(d, :bundled, false) || url_origin(get(d, :url, "")) !== nothing, imagery)
+    kept = filter(d -> get(d, :bundled, false) || csp_source(get(d, :url, "")) !== nothing, imagery)
     length(kept) == length(imagery) ||
         @warn "a basemap served from this server cannot be reached once the server stops, so it \
             is left out of the recording" left_out = length(imagery) - length(kept)
