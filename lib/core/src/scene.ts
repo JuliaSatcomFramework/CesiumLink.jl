@@ -10,7 +10,7 @@ import {
   UrlTemplateImageryProvider,
   WebMercatorTilingScheme,
 } from "@cesium/engine";
-import DOMPurify from "dompurify";
+import type { Overlay } from "./overlay";
 
 /**
  * One basemap of the declared set. A server that mounts a directory decides `layout` by what the
@@ -29,7 +29,8 @@ export interface ImagerySpec {
   /**
    * An attribution line. The string is HTML, because a linked attribution is what a tile source
    * asks for, and the viewer draws it as markup. It comes from whoever started the server, so
-   * `setCredit` passes it through `DOMPurify.sanitize` first and draws only what comes back.
+   * `overlay.setCredit` passes it through `DOMPurify.sanitize` first and draws only what comes
+   * back.
    */
   credit?: string;
   /** The label the picker draws for this basemap. A set of one draws no picker and needs no name. */
@@ -260,6 +261,7 @@ function separateDrawingBuffer(widget: CesiumWidget): void {
 export async function createScene(
   container: HTMLElement,
   opts: SceneOptions,
+  overlay: Pick<Overlay, "setCredit">,
 ): Promise<CesiumWidget> {
   // Before anything is constructed: `Ellipsoid.default` is what every conversion helper that was
   // not handed an ellipsoid reads — `Cartesian3.fromDegrees` in a module decoding a payload above
@@ -275,7 +277,8 @@ export async function createScene(
   useBaseUrl(opts.baseUrl);
   const { layers, declared } = await buildBaseLayers(opts, ellipsoid ?? Ellipsoid.default);
 
-  // Detached container swallows the ion/Cesium credit chrome.
+  // Detached container swallows the ion/Cesium credit chrome. It stays hidden, because showing it
+  // brings the Cesium branding credit back with it; the basemap attribution is the overlay's line.
   const credits = document.createElement("div");
   credits.style.display = "none";
 
@@ -307,7 +310,7 @@ export async function createScene(
   // under-credited. A fallback draws that texture in place of the source, which the declared credit
   // does not cover, so there the line stays off.
   const startsOn = basemapSet(opts.imagery)[0];
-  setCredit(container, declared ? startsOn?.credit : undefined);
+  overlay.setCredit(declared ? startsOn?.credit : undefined);
   // `clock.canAnimate` belongs to the playback in `windows.ts`, which clears it to hold the clock over
   // frames the buffer does not reach. CesiumWidget otherwise rewrites that flag on every tick from
   // whether its DataSourceDisplay is up to date, which would erase the hold. The `models` module
@@ -318,49 +321,6 @@ export async function createScene(
   // Software-WebGL guard: a software rasterizer means single-digit FPS (see design notes).
   warnIfSoftwareRenderer(widget);
   return widget;
-}
-
-/** The mark on the one line this module owns, so a later call finds it instead of adding a second. */
-const CREDIT_MARK = "data-cesiumlink-credit";
-
-/**
- * Draw the attribution line for the basemap the globe wears now, or take it down when that basemap
- * asks for none. Bottom right.
- *
- * A credit is HTML, because Stadia, OpenStreetMap and Esri all ask for a linked attribution. The
- * string comes from whoever started the server, so the viewer sanitizes it with `DOMPurify` first —
- * which is what Cesium's own `Credit` does before it sets `innerHTML`. Nothing but a link in it
- * takes the pointer: the line lies over the globe, and a drag that starts on its text has to turn
- * the globe rather than stop on a word.
- *
- * This is a setter and not an append, because the reader picks the basemap and the picker calls it
- * on every switch: one line at a time, naming the basemap that was picked and never the backing
- * under it (ADR-0034).
- *
- * Cesium's own credit container stays hidden, because showing it brings the Cesium branding credit
- * back with it.
- */
-export function setCredit(container: HTMLElement, credit?: string): void {
-  let el = container.querySelector<HTMLElement>(`:scope > [${CREDIT_MARK}]`);
-  if (!credit) {
-    el?.remove();
-    return;
-  }
-  if (el === null) {
-    el = document.createElement("div");
-    el.setAttribute(CREDIT_MARK, "");
-    // 34px up, which is the band the Core's clock readout and ruler hold along the bottom edge — the
-    // same inset the overlay's own bottom-right region starts at.
-    el.style.cssText =
-      "position:absolute;right:8px;bottom:34px;z-index:5;pointer-events:none;" +
-      "font:11px/1.4 sans-serif;color:#fff;text-shadow:0 0 3px #000";
-    container.appendChild(el);
-  }
-  el.innerHTML = DOMPurify.sanitize(credit);
-  // The line itself is transparent to the pointer, so each link has to take it back.
-  el.querySelectorAll("a").forEach((a) => {
-    a.style.pointerEvents = "auto";
-  });
 }
 
 function warnIfSoftwareRenderer(widget: CesiumWidget): void {

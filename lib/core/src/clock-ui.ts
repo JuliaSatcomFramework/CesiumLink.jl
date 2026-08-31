@@ -24,7 +24,7 @@ import {
   type FurnitureDeclaration, type FurnitureId, type StopRow,
 } from "./furniture";
 import type { Overlay, OverlayRegion } from "./overlay";
-import { basemapProviders, type ImagerySpec, setCredit } from "./scene";
+import { basemapProviders, type ImagerySpec } from "./scene";
 
 /** The keyframe the readout names: the instant its values were computed for, and the move onto it. */
 interface KeyframeReadout {
@@ -147,15 +147,15 @@ const UNKNOWN_BASEMAP = { icon: BASEMAP_ICONS.offline_natural_earth, category: "
  * A declaration that turns this item off and on again rebuilds the picker on entry 0. The pick is
  * the reader's and nothing on the wire states it, so there is nothing to restore it from.
  *
- * `container` is the viewer's own element, which the credit line hangs in. The line is rewritten
- * inside the creation function rather than from a subscription, because that function is what the
- * view model runs for every switch, including the one this constructor makes.
+ * The overlay owns the credit line. It is rewritten inside the creation function rather than from a
+ * subscription, because that function is what the view model runs for every switch, including the
+ * one this constructor makes.
  */
 function basemapPicker(
   el: HTMLElement,
   scene: Scene,
   basemaps: Basemaps,
-  container: HTMLElement,
+  overlay: Overlay,
 ): { destroy(): void } {
   // The entry the picker last built for. A fallback is heard after the switch that started it, so
   // the answer is only worth acting on while it is still the entry on the globe.
@@ -176,11 +176,11 @@ function basemapPicker(
         // The credit follows the pick: it names the basemap the reader chose and never the backing
         // under it, and an entry that carries none takes the line down (ADR-0034).
         picked = spec;
-        setCredit(container, spec.credit);
+        overlay.setCredit(spec.credit);
         // A source that will not build draws the bundled Earth texture, which the declared credit
         // does not describe, so the line comes down with it (ADR-0020).
         return basemapProviders(spec, basemaps.ellipsoid, basemaps.baseUrl, () => {
-          if (picked === spec) setCredit(container, undefined);
+          if (picked === spec) overlay.setCredit(undefined);
         });
       }) as unknown as ProviderViewModel.CreationFunction,
     });
@@ -292,7 +292,7 @@ export function buildFurniture(
     home: (el) => new HomeButton(el, scene),
     sceneMode: (el) => new SceneModePicker(el, scene),
     projection: (el) => new ProjectionPicker(el, scene),
-    basemap: (el) => basemapPicker(el, scene, basemaps!, container),
+    basemap: (el) => basemapPicker(el, scene, basemaps!, overlay),
     navHelp: (el) => new NavigationHelpButton({ container: el }),
     fullscreen: (el) =>
       expand ? expandButton(el, expand) : new FullscreenButton(el, container),

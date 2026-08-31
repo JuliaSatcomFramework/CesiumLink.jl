@@ -108,12 +108,13 @@ export async function createViewer(
   container: HTMLElement,
   opts: ViewerOptions,
 ): Promise<ViewerHandle> {
-  const widget = await createScene(container, opts);
-  const scene = widget.scene;
-
-  // One overlay for all modules: the Core owns the positioned regions modules add controls to. It is
-  // built before the furniture, which contributes its button group to a region like anything else.
+  // One overlay for all modules: the Core owns the positioned regions modules add controls to. It
+  // takes the container and nothing else, so it is built first: the scene hands it the credit line
+  // for the basemap it starts on, and the furniture contributes its button group to a region like
+  // anything else.
   const overlay = createOverlay(container);
+  const widget = await createScene(container, opts, overlay);
+  const scene = widget.scene;
 
   // The Core's own on-screen items: created once, owned by the Core (single clock/timeline for all
   // modules), and persist across windows (like the scene).
