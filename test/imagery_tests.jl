@@ -43,25 +43,29 @@ end
 end
 
 @testitem "the basemaps this package knows are ready to declare" begin
-    @test length(collect(KNOWN_EARTH_BASEMAPS)) == 3
+    @test length(collect(KNOWN_EARTH_BASEMAPS)) == 4
     # A name this package ships carries its attribution, so a source that asks for one has it.
     @test all(!isempty, (KNOWN_EARTH_BASEMAPS.blue_marble.credit,
-                         KNOWN_EARTH_BASEMAPS.blue_marble_relief.credit))
+                         KNOWN_EARTH_BASEMAPS.blue_marble_relief.credit,
+                         KNOWN_EARTH_BASEMAPS.blue_marble_labeled.credit))
+    # The labelled source asks for all three of its names in one line. Carry them as it states them.
+    @test KNOWN_EARTH_BASEMAPS.blue_marble_labeled.credit ==
+          "FreeTiler.com | NASA | OSM Contributors"
     # The pyramid inside the viewer is the one entry with neither a URL nor a credit. It is
     # public domain, and the page builds the URL it answers on.
     offline = KNOWN_EARTH_BASEMAPS.offline_natural_earth
     @test offline.bundled && isempty(offline.url) && offline.credit === nothing
 
-    # The catalogue holds three, and an absent `imagery` declares two of them. Entry 1 is what
+    # The catalogue holds four, and an absent `imagery` declares two of them. Entry 1 is what
     # the globe wears at startup, and the pyramid inside the viewer is there for the reader to
-    # pick. An author names the third, and the default set leaves it out.
+    # pick. An author names the other two, and the default set leaves them out.
     d, _ = CesiumLink.resolve_imagery(nothing)
-    @test [get(e, :name, nothing) for e in d] == ["Blue Marble", "Natural Earth"]
+    @test [get(e, :name, nothing) for e in d] == ["Blue Marble Labeled", "Natural Earth"]
     @test last(d) == (; bundled = true, key = "offline_natural_earth", name = "Natural Earth")
     @test first(d).backing == true
     # The viewer reads the icon and the drop-down category off `key`, so every catalogue basemap
     # carries one. A match by label would hand a renamed basemap the fallback icon instead.
-    @test [e.key for e in d] == ["blue_marble", "offline_natural_earth"]
+    @test [e.key for e in d] == ["blue_marble_labeled", "offline_natural_earth"]
 end
 
 @testitem "a basemap set is refused when the viewer could not draw it" setup=[Pyramid] begin
@@ -281,8 +285,8 @@ end
                 @test served(url)["imagery"] == url
 
                 # A set names the first entry that carries a URL, because that is the one the page
-                # sends a reader to. The default set starts with Blue Marble.
-                @test startswith(served(nothing)["imagery"], "https://gibs.earthdata.nasa.gov/")
+                # sends a reader to. The default set starts with Blue Marble Labeled.
+                @test startswith(served(nothing)["imagery"], "https://cdn.jsdelivr.net/")
 
                 # A globe with no base layer has no tiles.
                 @test !haskey(served(:none), "imagery")

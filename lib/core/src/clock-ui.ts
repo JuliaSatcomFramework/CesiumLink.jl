@@ -126,6 +126,7 @@ const KNOWN_BASEMAPS: Record<string, { icon: string; category: string }> = {
   offline_natural_earth: { icon: BASEMAP_ICONS.offline_natural_earth, category: "Offline" },
   blue_marble: { icon: BASEMAP_ICONS.blue_marble, category: "Imagery" },
   blue_marble_relief: { icon: BASEMAP_ICONS.blue_marble_relief, category: "Imagery" },
+  blue_marble_labeled: { icon: BASEMAP_ICONS.blue_marble_labeled, category: "Imagery" },
 };
 
 const UNKNOWN_BASEMAP = { icon: BASEMAP_ICONS.offline_natural_earth, category: "Imagery" };

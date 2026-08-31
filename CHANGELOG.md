@@ -8,9 +8,9 @@ All notable changes to CesiumLink are in this file.
 
 ### Added
 
-- `KNOWN_EARTH_BASEMAPS` names three ready-made `Imagery` values of Earth:
-  `offline_natural_earth`, `blue_marble` and `blue_marble_relief`. Each one carries the attribution
-  its source asks for. `Imagery` and `KNOWN_EARTH_BASEMAPS` are both exported.
+- `KNOWN_EARTH_BASEMAPS` names four ready-made `Imagery` values of Earth:
+  `offline_natural_earth`, `blue_marble`, `blue_marble_relief` and `blue_marble_labeled`. Each one
+  carries the attribution its source asks for. `Imagery` and `KNOWN_EARTH_BASEMAPS` are both exported.
 - `imagery` takes a list, so a server declares a basemap **set** and the reader picks inside it. A
   picker button stands in the furniture group while the set holds two or more.
 - `Imagery` takes `backing`. A basemap marked that way draws the viewer's bundled pyramid underneath
@@ -23,8 +23,8 @@ All notable changes to CesiumLink are in this file.
 ### Changed
 
 - **Breaking behaviour.** An absent `imagery` on Earth no longer means the bundled texture alone. It
-  declares NASA GIBS Blue Marble backed by the bundled pyramid, so a default session asks
-  `gibs.earthdata.nasa.gov` for tiles. One line takes the network out again:
+  declares Blue Marble with OpenStreetMap labels backed by the bundled pyramid, so a default session
+  asks `cdn.jsdelivr.net` for tiles. One line takes the network out again:
   `start_server(; imagery = KNOWN_EARTH_BASEMAPS.offline_natural_earth)`. A session on another body
   is unchanged: it still wears the bundled texture and reaches no network.
 - A recording carries the whole declared set, not one basemap. A recording made with a keyed URL

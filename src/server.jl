@@ -394,17 +394,17 @@ the camera may never travel that far.
 
 | value | the globe wears |
 |---|---|
-| `nothing`, the default | on Earth, Blue Marble from NASA GIBS backed by the bundled pyramid; on another body, the viewer's bundled texture |
+| `nothing`, the default | on Earth, Blue Marble with OpenStreetMap labels backed by the bundled pyramid; on another body, the viewer's bundled texture |
 | a path to a directory | the tile pyramid in it, served from this server under `/assets/imagery/` |
 | any other string, or an [`Imagery`](@ref) | the source it names, declared as it stands |
 | a list of any of those | that set, first entry worn at startup |
 | `:none` | nothing: no base layer, and a flat colour |
 
 A list is a basemap set: the reader picks within it, and the picker hides itself while the set holds
-one basemap. [`KNOWN_EARTH_BASEMAPS`](@ref) names the three basemaps this package ships ready-made,
+one basemap. [`KNOWN_EARTH_BASEMAPS`](@ref) names the four basemaps this package ships ready-made,
 and each carries the attribution its source asks for.
 
-So a session on Earth that names nothing asks `gibs.earthdata.nasa.gov` for tiles. One bundled
+So a session on Earth that names nothing asks `cdn.jsdelivr.net` for tiles. One bundled
 basemap is the whole opt-out: it removes the network, the picker, and its button:
 
 ```julia
@@ -443,7 +443,7 @@ connection policy the editor's webview runs under. Both, because one asset needs
 a tile as bytes and makes an image of them, so a tile is a connection and not an image load. A
 basemap named as a URL adds its own origin to this list, so a session that names a remote basemap and
 nothing else declares nothing here. The default set on Earth names one, so a default session already
-carries `https://gibs.earthdata.nasa.gov`.
+carries `https://cdn.jsdelivr.net`.
 
 `lighting` lights the globe from the sun at the clock's time, so a terminator runs across it and the
 night side goes dark. It is off by default: a scene whose colours carry its data wants an evenly lit

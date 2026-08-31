@@ -3,9 +3,9 @@
 The globe wears a **basemap**. The server declares a **basemap set** (one basemap, or several), and
 the reader picks inside the set. `imagery` says what the set holds, once, at `start_server`.
 
-From 0.2.0 a session on Earth that says nothing declares two basemaps: Blue Marble over the pyramid
-inside the viewer. Blue Marble comes from NASA's Global Imagery Browse Services (GIBS), so a default
-session asks `gibs.earthdata.nasa.gov` for tiles. This is the one change a reader meets on upgrade,
+From 0.2.0 a session on Earth that says nothing declares two basemaps: Blue Marble with
+OpenStreetMap labels over the pyramid inside the viewer. Those tiles are served over jsDelivr, so a
+default session asks `cdn.jsdelivr.net` for tiles. This is the one change a reader meets on upgrade,
 and the release is 0.2.0 because of it. A session on another body still wears the bundled texture
 and declares nothing.
 
@@ -30,6 +30,7 @@ attribution its source asks for, so a session that declares one also credits it.
 | `offline_natural_earth` | the pyramid inside the viewer, which reaches no network | 2 | none, the texture is public domain |
 | `blue_marble` | Blue Marble from NASA GIBS, with sea-floor colour | 8 | `NASA EOSDIS GIBS` |
 | `blue_marble_relief` | Blue Marble from NASA GIBS, land relief only | 8 | `NASA EOSDIS GIBS` |
+| `blue_marble_labeled` | Blue Marble with OpenStreetMap place labels drawn over it | 8 | `FreeTiler.com \| NASA \| OSM Contributors` |
 
 Every one of them is of Earth. None belongs in a session on another body.
 
@@ -37,10 +38,10 @@ Name the ones you want, in the order you want them:
 
 ```julia
 # the default set, stated by hand
-start_server(; imagery = [KNOWN_EARTH_BASEMAPS.blue_marble,
+start_server(; imagery = [KNOWN_EARTH_BASEMAPS.blue_marble_labeled,
                           KNOWN_EARTH_BASEMAPS.offline_natural_earth])
 
-# all three
+# all four
 start_server(; imagery = collect(KNOWN_EARTH_BASEMAPS))
 ```
 
@@ -55,7 +56,7 @@ basemaps. [Choose the on-screen furniture](furniture.md) turns it off by hand.
 
 **A basemap can name a basemap backing.** `backing = true` draws the bundled pyramid under that
 basemap. A source that returns no tiles leaves a globe instead of a hole, and the globe repairs
-itself when the source answers again. Both known online basemaps ask for one.
+itself when the source answers again. All three known online basemaps ask for one.
 
 A basemap backing belongs to one basemap, and the set never holds it as an entry. The reader cannot
 pick it, it carries no transparency, and it always sits below. The backing is always the bundled
@@ -173,7 +174,7 @@ means an XYZ template, and anything else means a TMS pyramid.
 
 ## Sources you may add yourself
 
-This package knows three basemaps. Any other tile source you can legally use is one `Imagery` away.
+This package knows four basemaps. Any other tile source you can legally use is one `Imagery` away.
 Read that source's terms yourself: the viewer draws the credit you give it, and it knows nothing else
 about your tiles.
 

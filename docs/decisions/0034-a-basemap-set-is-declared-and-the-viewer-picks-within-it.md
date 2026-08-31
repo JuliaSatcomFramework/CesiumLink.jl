@@ -149,3 +149,32 @@ and needs no origin. Naming a set narrows the policy to whatever that set holds.
 **`?imagery=` still names one basemap.** ADR-0019 says what the query string is for — looking at a
 pyramid you have just built, and publishing a globe that is a URL and nothing else — and neither
 wants a set. A URL may legally hold a comma, so a list in that parameter would be guesswork.
+
+## Amendment: a fourth basemap, and it is the default
+
+The catalogue holds four. `blue_marble_labeled` is NASA Blue Marble with OpenStreetMap place labels
+drawn over it, from `github.com/freetiler/nasa-bluemarble-labeled` over jsDelivr, and it reaches
+level 8 as the two GIBS entries do.
+
+| Name | Source | Levels |
+|---|---|---|
+| `blue_marble_labeled` | `freetiler/nasa-bluemarble-labeled` over jsDelivr | 0-8 |
+
+**The default set is `blue_marble_labeled` backed by `offline_natural_earth`.** The set is still two
+entries, and `blue_marble` stays in the catalogue as a name an author can pick. A reader who opens a
+default session reads place names on the globe, which a satellite mosaic alone does not give them.
+
+Every statement above that names `blue_marble` as the default now names `blue_marble_labeled`. Two
+consequences move with it:
+
+- A default session reaches `cdn.jsdelivr.net`, not `gibs.earthdata.nasa.gov`. That one origin is
+  what `trusted_origins` carries, and from there `img-src` and `connect-src`.
+- The credit line reads `FreeTiler.com | NASA | OSM Contributors`, which is the attribution the
+  source asks for. The imagery is under NASA's open-data policy and the labels are under ODbL.
+
+**The URL pins a commit, not the branch.** jsDelivr serves the branch head otherwise, so the tiles
+could change under a reader with no release behind the change. The pinned URL also answers
+`immutable, max-age=31536000`, where the branch URL answers `max-age=604800`.
+
+**The tileset is not vendored.** It is 421 MB, and ADR-0027 keeps the viewer artifact to bytes worth
+hosting forever.

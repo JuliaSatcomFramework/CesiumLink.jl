@@ -116,11 +116,11 @@ end
 
     # A set has an origin per entry, and the reader can pick any of them. A webview gets its
     # policy once, at panel creation, so every origin has to be in it from the start. The default
-    # set is Blue Marble over the pyramid inside the viewer. That pyramid needs no origin, so a
+    # set is Blue Marble Labeled over the pyramid inside the viewer. That pyramid needs no origin, so a
     # session that named nothing reaches one host and no other.
     server = start_server(; dist_dir = nothing, host = "::1", port = freeport())
     try
-        @test server.trusted_origins == ["https://gibs.earthdata.nasa.gov"]
+        @test server.trusted_origins == ["https://cdn.jsdelivr.net"]
     finally
         stop_server(server)
     end
@@ -167,7 +167,7 @@ end
                     # What the author listed comes first, and the default basemap set adds the one
                     # origin it reaches after it.
                     @test entry["trustedOrigins"] == ["https://cdn.example",
-                                                      "https://gibs.earthdata.nasa.gov"]
+                                                      "https://cdn.jsdelivr.net"]
                 finally
                     stop_server(server)
                 end

@@ -104,6 +104,7 @@ of Earth, so none belongs in a session on another body.
 | `offline_natural_earth` | the pyramid inside the viewer, which reaches no network | 2 |
 | `blue_marble` | Blue Marble from NASA GIBS, with sea-floor colour | 8 |
 | `blue_marble_relief` | Blue Marble from NASA GIBS, land relief only | 8 |
+| `blue_marble_labeled` | Blue Marble with OpenStreetMap place labels over it | 8 |
 
 Pick the ones you want by name. This is a `NamedTuple` and not a list to filter, because a filter
 selects by name string. Rename a basemap in a later release, and the filter matches nothing and
@@ -129,6 +130,14 @@ const KNOWN_EARTH_BASEMAPS = (;
          default/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpeg";
         name = "Blue Marble Relief", max_level = 8, backing = true,
         credit = "NASA EOSDIS GIBS"),
+    # The URL pins a commit rather than the branch head. jsDelivr serves whatever the branch points
+    # at, so an unpinned URL lets the tiles change under a reader; the pinned form also answers
+    # `immutable, max-age=31536000` against the branch form's `max-age=604800`.
+    blue_marble_labeled = Imagery(
+        "https://cdn.jsdelivr.net/gh/freetiler/nasa-bluemarble-labeled@\
+         425bf60e567bfe3bcacf6764ed8c1420306c6c98/tiles/{z}/{x}/{y}.jpeg";
+        name = "Blue Marble Labeled", max_level = 8, backing = true,
+        credit = "FreeTiler.com | NASA | OSM Contributors"),
 )
 
 # What a session declares when the caller declares nothing: a sharp globe that repairs itself offline
@@ -138,7 +147,7 @@ const KNOWN_EARTH_BASEMAPS = (;
 # Two entries and no more. The set is also what the picker offers, and what widens the content
 # policy: every entry's origin reaches `img-src` and `connect-src`. A session that named no basemap
 # has agreed to no host beyond the one its default set names.
-const DEFAULT_EARTH_BASEMAPS = [KNOWN_EARTH_BASEMAPS.blue_marble,
+const DEFAULT_EARTH_BASEMAPS = [KNOWN_EARTH_BASEMAPS.blue_marble_labeled,
                                 KNOWN_EARTH_BASEMAPS.offline_natural_earth]
 
 # The levels of a tile pyramid: every subdirectory whose name is an integer.
