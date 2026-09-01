@@ -5,9 +5,10 @@ the reader picks inside the set. `imagery` says what the set holds, once, at `st
 
 From 0.2.0 a session on Earth that says nothing declares two basemaps: ASTER Colour Relief over
 the pyramid inside the viewer. Both come from NASA GIBS, so a default session asks
-`gibs.earthdata.nasa.gov` for tiles and no other host. This is the one change a reader meets on
-upgrade, and the release is 0.2.0 because of it. A session on another body still wears the bundled
-texture and declares nothing.
+`gibs.earthdata.nasa.gov` for tiles and no other host. Place names and country borders draw over
+that globe, from two files inside the viewer. This is the one change a reader meets on upgrade, and
+the release is 0.2.0 because of it. A session on another body still wears the bundled texture and
+declares nothing.
 
 ## Take the network out of it
 
@@ -19,6 +20,10 @@ start_server(; imagery = KNOWN_EARTH_BASEMAPS.offline_natural_earth)
 
 That one line removes the network, the picker, and its button. The pyramid is in the viewer bundle, so
 the page fetches no tile from anywhere. A set of one has nothing to pick, so the picker hides itself.
+
+The place names and the country borders stay on the globe. Their two files ship inside the viewer
+too, so they reach no network either. [Names and borders over the
+globe](#names-and-borders-over-the-globe) turns them off.
 
 ## The basemaps this package knows
 
@@ -75,6 +80,19 @@ startup. The credit line at the bottom right names the basemap you picked, and t
 it on every switch. Natural Earth is the bundled pyramid, so it draws no credit and asks for no
 tile.
 
+The picker sorts the six under three headings. A heading names what the reader sees, and never who
+serves the tiles. Relief holds the maps somebody drew, and Imagery holds the photographs:
+
+| Heading | What sits under it |
+|:--|:--|
+| Offline | `offline_natural_earth`, the pyramid inside the viewer |
+| Relief | `aster_colour_relief`, `aster_grey_relief` and `emodnet_baselayer` |
+| Imagery | `blue_marble` and `blue_marble_relief` |
+
+EMODnet sits under Relief with the two ASTER maps although another host serves it. A basemap you
+name yourself carries no catalogue key, so the picker draws it with the Natural Earth icon and puts
+it under Imagery.
+
 The recording carries the set and not the pick. Reload the page and the globe wears entry 1 again.
 
 ## What a set is, and what a backing is
@@ -97,6 +115,39 @@ never names the backing. The bundled texture is public domain and asks for nothi
 Nothing travels back up the wire. Which basemap is on screen is the viewer's own business, as the
 camera is. A recording therefore carries the declared set, and a replay opens on the same first entry
 with the same set to pick from. See ADR-0034 for the whole decision and what it declines.
+
+## Names and borders over the globe
+
+The viewer draws two more layers above whatever basemap the reader picked: the place names and the
+country borders. Both are on by default, and `start_server` takes a flag for each:
+
+```julia
+# the names alone, with no line asserting a boundary
+start_server(; country_borders = false)
+
+# the bare globe
+start_server(; named_places = false, country_borders = false)
+```
+
+The names are the continents, the oceans and seas, the countries, and their larger cities. The
+borders are the boundary lines between countries. The two flags stay separate because a border is a
+political claim. A reader who wants the names without one turns the borders off and keeps the
+names.
+
+Neither layer belongs to a basemap. The picker takes off the imagery layers of the entry on the
+globe. Neither of these is an imagery layer, so a switch leaves both where they are. Both files ship
+inside the viewer, so neither reaches the network, opens an origin, or adds to the credit line.
+
+The reader switches each layer from the `annotations` cell, which stands beside the basemap picker
+and holds one checkbox each. A tick is that reader's own view of the globe and never travels back to
+the server. The next browser therefore opens on what `start_server` declared. [Choose the on-screen
+furniture](furniture.md) takes the cell down for a session that wants no switch, and the declared
+flags still decide what draws.
+
+The names thin out as you fly in. Each name states the band of camera heights that draws it. A
+continent therefore gives way to the countries in it, and a country to its cities. The viewer keeps
+only the names the camera can see, ranks them, and drops any whose text box lands on one already
+kept. See ADR-0036 for the whole decision, what it measured, and what it declines.
 
 ## Point at a basemap on the web
 
