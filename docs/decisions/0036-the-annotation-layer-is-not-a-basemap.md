@@ -35,11 +35,18 @@ region line is a second political claim on top of the country line: a reader who
 meets none, and a session that says nothing pays no frames for them.
 
 The layer also pages, for the reason the names do. Natural Earth's `MIN_ZOOM` says how deep each of
-the 581 lines belongs, and the generator writes that as the `minz` the names already carry. The
+the 10,178 lines belongs, and the generator writes that as the `minz` the names already carry. The
 viewer rebuilds the data source from the lines the camera's level reaches, and rebuilds it again
-only when the level crosses into another band, of which the file holds three. Hiding an entity is
+only when the level crosses into another band, of which the file holds ten. Hiding an entity is
 not enough here either: a hidden polyline is still a polyline, and the polylines are the expensive
 half of drawing this.
+
+The region lines are the 1:10m file, where the country lines are 1:50m, because the 1:50m regions
+file covers a dozen large countries and no other: Italy has no line in it. The 1:10m file cuts each
+boundary into many short parts and Cesium makes an entity of each, so the generator chains the parts
+back into lines and thins the vertices to a spacing between the two scales. That takes the file from
+45,000 entities and 10 MB to 10,000 entities and 2.5 MB, and the frame cost from double to close to
+none.
 
 **They carry no credit and open no origin.** Every file ships inside the viewer, so nothing reaches
 the network. The data is Natural Earth, which is public domain. ADR-0034's rule stands unamended:
@@ -108,7 +115,7 @@ pipe is slow. This globe has no terrain, so a plain polyline at height zero lies
 
 The boundary scale is the expensive half. Names cost little and lines cost the frame: 1:110m and
 1:50m boundaries are indistinguishable on frame time, and 1:10m roughly doubles it. So the pair is
-Natural Earth 1:10m names with 1:50m boundaries. 1:110m would be free on the same measurement, but
+Natural Earth 1:10m names with 1:50m country boundaries. 1:110m would be free on the same measurement, but
 its outlines cut corners: at 900 km the Swiss border is a chunky polygon and Lake Geneva has lost
 its shape.
 
