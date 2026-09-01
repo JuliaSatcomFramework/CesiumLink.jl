@@ -19,6 +19,7 @@ import {
   LabelCollection,
   LabelStyle,
   type Rectangle,
+  SceneMode,
   SceneTransforms,
   VerticalOrigin,
 } from "@cesium/engine";
@@ -42,7 +43,7 @@ export interface NamedPlace {
 
 /**
  * One feature of `region-borders.geojson`. The generator keeps the geometry and one property: the
- * geographic level the line starts drawing at, which is what holds 581 lines off a globe view.
+ * geographic level the line starts drawing at, which is what holds 10,000 lines off a globe view.
  */
 interface RegionLine {
   properties: { minz: number };
@@ -179,8 +180,8 @@ interface Box {
 
 /** What the camera makes of a place, which is what decides whether two names land on each other. */
 export interface CameraView {
-  /** The camera position in world coordinates. */
-  eye: { x: number; y: number; z: number };
+  /** The camera position in world coordinates, or `undefined` for a view with no far side. */
+  eye: { x: number; y: number; z: number } | undefined;
   /**
    * Where a longitude and latitude land on the canvas, or `undefined` when they land nowhere on it.
    */
@@ -195,7 +196,7 @@ export interface CameraView {
  * without the test a name behind the Earth spends a slot from the cap, and one just past the limb
  * writes its letters into the black beside the disc — `SOUTH AMERICA` reads as `ERICA`.
  */
-export function behindGlobe(lon: number, lat: number, eye: CameraView["eye"]): boolean {
+export function behindGlobe(lon: number, lat: number, eye: NonNullable<CameraView["eye"]>): boolean {
   const rad = Math.PI / 180;
   const cosLat = Math.cos(lat * rad);
   // On a sphere the unit surface normal is the direction of the point itself.
@@ -296,7 +297,7 @@ export function visibleNames(
       (west <= east ? r.lon >= west && r.lon <= east : r.lon >= west || r.lon <= east));
   const candidates = rows.filter((r) =>
     r.minz <= level && level <= r.maxz && inView(r) &&
-    !(camera && behindGlobe(r.lon, r.lat, camera.eye)));
+    !(camera?.eye && behindGlobe(r.lon, r.lat, camera.eye)));
 
   const rank = standing(candidates);
   candidates.sort((a, b) => rank.get(b)! - rank.get(a)! || b.importance - a.importance);
@@ -373,8 +374,11 @@ export function addAnnotations(
       const scene = widget.scene;
       const camera = scene.camera;
       const canvas = scene.canvas;
+      // Only a globe has a far side. In 2D and Columbus view the camera's world position is not a
+      // point over an ellipsoid, and the test read from it hides every name.
+      const eye = scene.mode === SceneMode.SCENE3D ? camera.positionWC : undefined;
       const view: CameraView = {
-        eye: camera.positionWC,
+        eye,
         window(lon, lat) {
           const at = SceneTransforms.worldToWindowCoordinates(scene, Cartesian3.fromDegrees(lon, lat));
           if (!at || at.x < 0 || at.y < 0 || at.x > canvas.clientWidth || at.y > canvas.clientHeight) {
@@ -498,7 +502,9 @@ function labelFor(r: NamedPlace) {
     style: LabelStyle.FILL_AND_OUTLINE,
     horizontalOrigin: style.dot ? HorizontalOrigin.LEFT : HorizontalOrigin.CENTER,
     verticalOrigin: VerticalOrigin.CENTER,
-    heightReference: HeightReference.CLAMP_TO_GROUND,
+    // On the ellipsoid, not clamped: there is no terrain to clamp to, and a clamped label in 2D
+    // lands well away from its place.
+    heightReference: HeightReference.NONE,
     // Depth-tested, so a name on the far side of the globe is behind it rather than through it.
     disableDepthTestDistance: 0,
   };
