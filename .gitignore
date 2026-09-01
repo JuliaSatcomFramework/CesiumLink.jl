@@ -19,6 +19,9 @@ extension/out/
 
 *.log
 
+# The Natural Earth downloads `tools/make-annotation-data.mjs` keeps between hand runs
+tools/.cache/
+
 # Working folders that never travel
 .scratch/
 .cdp/
