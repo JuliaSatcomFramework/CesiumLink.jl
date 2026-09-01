@@ -18,7 +18,6 @@ import {
   HorizontalOrigin,
   LabelCollection,
   LabelStyle,
-  PolylineOutlineMaterialProperty,
   type Rectangle,
   SceneTransforms,
   VerticalOrigin,
@@ -108,37 +107,18 @@ const CAMERA_STEP = 0.1;
 const LEVEL_HEIGHT = 4e7;
 
 /**
- * The dark edge every boundary line wears.
+ * How a country line is drawn: white at just over half strength, two pixels wide.
  *
- * A plain light line is legible over a photograph and vanishes over a drawn relief map, which is
- * what the default basemap is. An edge under the line reads over both, so one style serves every
- * entry in the catalogue and no line has to be tuned to a basemap.
+ * Strong enough to read over a photograph and a drawn relief map alike, and faint enough that a
+ * whole-globe view is a globe with borders rather than a net with a globe behind it. No dark edge:
+ * an edge makes a line legible at any width by making it heavier, and heavier is the fault.
  */
-const LINE_EDGE = Color.BLACK.withAlpha(0.75);
+const COUNTRY_LINE = Color.WHITE.withAlpha(0.55);
+const COUNTRY_LINE_WIDTH = 2;
 
-/** How much of a line's width the dark edge takes, half of it on each side. */
-const LINE_EDGE_WIDTH = 2;
-
-/** A region line is dimmer than a country line, because a region is a smaller claim. */
-const REGION_LINE = Color.WHITE.withAlpha(0.75);
-
-/**
- * `GeoJsonDataSource` draws a line as a flat colour and takes no outline, so the material goes on
- * after the load.
- *
- * The outline eats into the width rather than adding to it, so `strokeWidth` must stay wider than
- * `LINE_EDGE_WIDTH`. At or below it the edge covers the line and every boundary draws black.
- */
-function edgeLines(source: GeoJsonDataSource, colour: Color): void {
-  for (const entity of source.entities.values) {
-    if (entity.polyline === undefined) continue;
-    entity.polyline.material = new PolylineOutlineMaterialProperty({
-      color: colour,
-      outlineColor: LINE_EDGE,
-      outlineWidth: LINE_EDGE_WIDTH,
-    });
-  }
-}
+/** A region line is fainter and thinner than a country line, because a region is a smaller claim. */
+const REGION_LINE = Color.WHITE.withAlpha(0.4);
+const REGION_LINE_WIDTH = 1.5;
 
 /** How each kind of name is drawn. A `dot` kind hangs its text to the right of its position. */
 const STYLE: Record<NamedPlace["kind"], { font: string; fill: string; dot: boolean }> = {
@@ -424,10 +404,9 @@ export function addAnnotations(
     // says nothing, so the data source loads, the entities exist, `polygon.outline` reads true and
     // the globe is bare.
     const source = await GeoJsonDataSource.load(base + "country-borders.geojson", {
-      stroke: Color.WHITE,
-      strokeWidth: 4,
+      stroke: COUNTRY_LINE,
+      strokeWidth: COUNTRY_LINE_WIDTH,
     });
-    edgeLines(source, Color.WHITE);
     source.show = on.borders;
     borders = source;
     widget.dataSources.add(source);
@@ -460,12 +439,10 @@ export function addAnnotations(
       const features = all.filter((f) => f.properties.minz <= want);
       if (features.length === 0) return;
       GeoJsonDataSource.load({ type: "FeatureCollection", features }, {
-        // Thinner and dimmer than a country line, because a region is a smaller claim.
         stroke: REGION_LINE,
-        strokeWidth: 3,
+        strokeWidth: REGION_LINE_WIDTH,
       }).then((source) => {
         if (mine !== newest) return;
-        edgeLines(source, REGION_LINE);
         regions = source;
         widget.dataSources.add(source);
       }).catch(warn("region borders"));
