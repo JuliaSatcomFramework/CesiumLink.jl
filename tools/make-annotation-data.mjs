@@ -256,7 +256,9 @@ async function regions() {
     features: (await features(REGIONS)).filter((f) => f.geometry !== null).map((f) => {
       const g = f.geometry;
       const parts = g.type === "LineString" ? [g.coordinates] : g.coordinates;
-      const lines = chain(parts).map((l) => thin(l, REGION_TOLERANCE));
+      // Four decimal places is eleven metres, as for the names.
+      const lines = chain(parts).map((l) =>
+        thin(l, REGION_TOLERANCE).map(([x, y]) => [Number(x.toFixed(4)), Number(y.toFixed(4))]));
       return {
         type: "Feature",
         properties: { minz: Math.max(0, level(f.properties.MIN_ZOOM, 3)) },
