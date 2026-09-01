@@ -130,11 +130,15 @@ async function places() {
     });
   }
 
+  // The level each country's name starts at, by its three-letter code, which is what puts a capital
+  // on the globe at the same level as its country.
+  const countryLevel = new Map();
   for (const f of await features(COUNTRIES)) {
     const p = f.properties;
     // LABELRANK runs 1 (most important) to 10, and is a rank rather than a zoom hint: rank 2 lands
     // at level 3 and rank 10 at level 7.
     const minz = Math.max(3, (Number(p.LABELRANK) || 5) + 1);
+    countryLevel.set(p.ADM0_A3, minz);
     const box = p.LABEL_X === null || p.LABEL_Y === null ? boundingBox(f.geometry) : null;
     rows.push({
       name: p.NAME || p.ADMIN,
@@ -154,8 +158,9 @@ async function places() {
     rows.push({
       name: p.name, lon: p.longitude, lat: p.latitude,
       kind: capital ? "capital" : "city",
-      // A capital is named as soon as its country is, however small the city.
-      minz: capital ? Math.min(minz, 3) : minz,
+      // A capital is named at the level its country is, however small the city: not before it,
+      // which would put Algiers on a globe that says nothing of Algeria, and not after.
+      minz: capital ? (countryLevel.get(p.adm0_a3) ?? Math.min(minz, 3)) : minz,
       maxz: NO_CEILING,
       importance: Number(p.pop_max) || 0,
     });
