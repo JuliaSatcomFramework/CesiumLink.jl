@@ -135,9 +135,10 @@ async function places() {
   const countryLevel = new Map();
   for (const f of await features(COUNTRIES)) {
     const p = f.properties;
-    // LABELRANK runs 1 (most important) to 10, and is a rank rather than a zoom hint: rank 2 lands
-    // at level 3 and rank 10 at level 7.
-    const minz = Math.max(3, (Number(p.LABELRANK) || 5) + 1);
+    // LABELRANK runs 1 (most important) to 10, and is a rank rather than a zoom hint. It is read
+    // as the level all the same, floored at 3 where the cities start: a rank-3 country is one whose
+    // whole territory is in view at level 3, and a globe that names Kano and not Niger is wrong.
+    const minz = Math.max(3, Number(p.LABELRANK) || 5);
     countryLevel.set(p.ADM0_A3, minz);
     const box = p.LABEL_X === null || p.LABEL_Y === null ? boundingBox(f.geometry) : null;
     rows.push({
