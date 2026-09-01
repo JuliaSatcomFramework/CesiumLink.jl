@@ -18,6 +18,7 @@ import {
   HorizontalOrigin,
   LabelCollection,
   LabelStyle,
+  PolylineOutlineMaterialProperty,
   type Rectangle,
   SceneTransforms,
   VerticalOrigin,
@@ -105,6 +106,39 @@ const CAMERA_STEP = 0.1;
 
 /** The camera height, in metres, at which a geographic level is the legible one. */
 const LEVEL_HEIGHT = 4e7;
+
+/**
+ * The dark edge every boundary line wears.
+ *
+ * A plain light line is legible over a photograph and vanishes over a drawn relief map, which is
+ * what the default basemap is. An edge under the line reads over both, so one style serves every
+ * entry in the catalogue and no line has to be tuned to a basemap.
+ */
+const LINE_EDGE = Color.BLACK.withAlpha(0.75);
+
+/** How much of a line's width the dark edge takes, half of it on each side. */
+const LINE_EDGE_WIDTH = 2;
+
+/** A region line is dimmer than a country line, because a region is a smaller claim. */
+const REGION_LINE = Color.WHITE.withAlpha(0.75);
+
+/**
+ * `GeoJsonDataSource` draws a line as a flat colour and takes no outline, so the material goes on
+ * after the load.
+ *
+ * The outline eats into the width rather than adding to it, so `strokeWidth` must stay wider than
+ * `LINE_EDGE_WIDTH`. At or below it the edge covers the line and every boundary draws black.
+ */
+function edgeLines(source: GeoJsonDataSource, colour: Color): void {
+  for (const entity of source.entities.values) {
+    if (entity.polyline === undefined) continue;
+    entity.polyline.material = new PolylineOutlineMaterialProperty({
+      color: colour,
+      outlineColor: LINE_EDGE,
+      outlineWidth: LINE_EDGE_WIDTH,
+    });
+  }
+}
 
 /** How each kind of name is drawn. A `dot` kind hangs its text to the right of its position. */
 const STYLE: Record<NamedPlace["kind"], { font: string; fill: string; dot: boolean }> = {
@@ -383,10 +417,11 @@ export function addAnnotations(
     // and says nothing, so the data source loads, the entities exist, `polygon.outline` reads true
     // and the globe is bare.
     const source = await GeoJsonDataSource.load(base + "country-borders.geojson", {
-      stroke: Color.WHITE.withAlpha(0.55),
-      strokeWidth: 2,
+      stroke: Color.WHITE,
+      strokeWidth: 4,
       clampToGround: true,
     });
+    edgeLines(source, Color.WHITE);
     source.show = on.borders;
     borders = source;
     widget.dataSources.add(source);
@@ -403,8 +438,11 @@ export function addAnnotations(
     // asked for another, and the load that arrives late must not put its lines on the globe.
     let newest = 0;
     repaintRegions = () => {
+      // Natural Earth's shallowest hint puts 153 lines on a whole-globe view, which is the noise
+      // the band exists to keep off. Every hint therefore starts one level deeper than it asks for,
+      // and level 0 draws nothing at all.
       const want = on.regions && on.borders
-        ? Math.min(levelAt(widget.camera.positionCartographic.height), deepest)
+        ? Math.min(levelAt(widget.camera.positionCartographic.height) - 1, deepest)
         : -1;
       if (want === band) return;
       band = want;
@@ -417,11 +455,12 @@ export function addAnnotations(
       if (features.length === 0) return;
       GeoJsonDataSource.load({ type: "FeatureCollection", features }, {
         // Thinner and dimmer than a country line, because a region is a smaller claim.
-        stroke: Color.WHITE.withAlpha(0.3),
-        strokeWidth: 1,
+        stroke: REGION_LINE,
+        strokeWidth: 3,
         clampToGround: true,
       }).then((source) => {
         if (mine !== newest) return;
+        edgeLines(source, REGION_LINE);
         regions = source;
         widget.dataSources.add(source);
       }).catch(warn("region borders"));
