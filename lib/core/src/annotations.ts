@@ -1,10 +1,13 @@
-// Place names and country borders, drawn above whatever basemap the reader picked.
+// Place names, country borders and region borders, drawn above whatever basemap the reader picked.
 //
-// Neither is a basemap. The session owns both, the Core adds them once, and the picker never
-// touches them: it removes only the base layers it counted from the entry on the globe, so a layer
-// added above survives a switch (ADR-0036).
+// None of the three is a basemap. The session owns them, the Core adds them once, and the picker
+// never touches them: it removes only the base layers it counted from the entry on the globe, so a
+// layer added above survives a switch (ADR-0036).
 //
-// The two are independent. Either may be off while the other is on.
+// The names and the country borders are independent, and either may be off while the other is on.
+// The region borders depend on the country borders: a region line never draws while the country
+// lines are off, because a region edge without the country edge around it is a claim with no
+// context.
 
 import {
   Cartesian3,
@@ -37,25 +40,44 @@ export interface NamedPlace {
   maxz: number;
 }
 
-/** The two layers, each switchable on its own. */
+/**
+ * One feature of `region-borders.geojson`. The generator keeps the geometry and one property: the
+ * geographic level the line starts drawing at, which is what holds 581 lines off a globe view.
+ */
+interface RegionLine {
+  properties: { minz: number };
+}
+
+/** The three layers, each switchable, and the region borders held to the country borders. */
 export interface Annotations {
   /** Whether the place names are drawn: what the session declared, until something switches it. */
   readonly places: boolean;
   /** Whether the country borders are drawn. */
   readonly borders: boolean;
+  /** Whether the region borders are asked for. They draw only while `borders` is true as well. */
+  readonly regions: boolean;
   /** Draw the place names, or take them off. */
   showPlaces(on: boolean): void;
-  /** Draw the country borders, or take them off. */
+  /** Draw the country borders, or take them off. Taking them off takes the region lines with them. */
   showBorders(on: boolean): void;
+  /** Ask for the region borders, or take them off. */
+  showRegions(on: boolean): void;
 }
 
-/** Which of the two layers the session asked for. Either absent is that layer drawn. */
+/**
+ * Which of the three layers the session asked for.
+ *
+ * `places` and `borders` are drawn when absent, so each states only a departure from the default.
+ * `regions` is the other way round: it is drawn only when it is asked for. A region line is a
+ * second political claim on top of the country line, and a reader who wants no claims meets none.
+ */
 export interface AnnotationFlags {
   places?: boolean;
   borders?: boolean;
+  regions?: boolean;
 }
 
-// The handle for a viewer, so that whatever puts the two flags on the wire can reach the layers
+// The handle for a viewer, so that whatever puts the flags on the wire can reach the layers
 // without every caller of `createScene` having to carry them.
 const attached = new WeakMap<CesiumWidget, Annotations>();
 
@@ -281,14 +303,14 @@ export function visibleNames(
 }
 
 /**
- * Add the two annotation layers to a widget, and answer the handle that switches each on and off.
+ * Add the annotation layers to a widget, and answer the handle that switches each on and off.
  *
- * `show` is what the session declared. Both files are fetched either way, so a layer declared off
- * can still be switched on later; what a layer that is off does not pay for is the paging pass,
- * which is where the cost is.
+ * `show` is what the session declared. Every file is fetched either way, so a layer declared off
+ * can still be switched on later; what a layer that is off does not pay for is the pass that fills
+ * it, which is where the cost is.
  *
  * The data is fetched in the background: the layers appear when it arrives, and a fetch that fails
- * leaves the globe as it was and says so once. Nothing here reaches the network — both files ship
+ * leaves the globe as it was and says so once. Nothing here reaches the network — every file ships
  * inside the viewer — so this opens no origin and asks for no credit.
  */
 export function addAnnotations(
@@ -298,10 +320,31 @@ export function addAnnotations(
 ): Annotations {
   const base = annotationBase(baseUrl);
   let borders: GeoJsonDataSource | null = null;
+  let regions: GeoJsonDataSource | null = null;
   // Fills the label collection from the camera it is called under. It stays a no-op until the names
   // arrive, and switching the layer back on calls it rather than waiting for the camera to move.
   let repopulate = () => {};
-  const on = { places: show.places !== false, borders: show.borders !== false };
+  // Rebuilds the region lines for the band the camera is in. Same contract as `repopulate`.
+  let repaintRegions = () => {};
+  const on = {
+    places: show.places !== false,
+    borders: show.borders !== false,
+    // The one flag that states what it asks for rather than what it drops.
+    regions: show.regions === true,
+  };
+  const warn = (what: string) => (err: unknown) => {
+    console.warn(`CesiumLink: the ${what} did not load (${err}). The globe wears none.`);
+  };
+  // `moveEnd` fires only once the camera has settled, so on its own the names lag a zoom by the
+  // whole of it and then snap. `changed` fires during the movement instead, every time the view
+  // has altered by `percentageChanged`.
+  const onCamera = () => {
+    repopulate();
+    repaintRegions();
+  };
+  widget.camera.percentageChanged = CAMERA_STEP;
+  widget.camera.changed.addEventListener(onCamera);
+  widget.camera.moveEnd.addEventListener(onCamera);
 
   const names = (async () => {
     const rows: NamedPlace[] = await (await fetch(base + "named-places.json")).json();
@@ -331,12 +374,6 @@ export function addAnnotations(
         collection.add(labelFor(r));
       }
     };
-    // `moveEnd` fires only once the camera has settled, so on its own the names lag a zoom by the
-    // whole of it and then snap. `changed` fires during the movement instead, every time the view
-    // has altered by `percentageChanged`.
-    widget.camera.percentageChanged = CAMERA_STEP;
-    widget.camera.changed.addEventListener(repopulate);
-    widget.camera.moveEnd.addEventListener(repopulate);
     repopulate();
   })();
 
@@ -355,11 +392,46 @@ export function addAnnotations(
     widget.dataSources.add(source);
   })();
 
-  for (const [what, done] of [["place names", names], ["country borders", lines]] as const) {
-    done.catch((err) => {
-      console.warn(`CesiumLink: the ${what} did not load (${err}). The globe wears none.`);
-    });
-  }
+  const areas = (async () => {
+    const all: RegionLine[] = (await (await fetch(base + "region-borders.geojson")).json()).features;
+    // Past the deepest band the whole file is drawn, so the level decides nothing more and the
+    // layer stops rebuilding however far in the camera goes.
+    const deepest = all.reduce((z, f) => Math.max(z, f.properties.minz), 0);
+    // Which band is on the globe. Minus one is none of them, which is what an off layer draws.
+    let band = -1;
+    // Which rebuild is the current one. A camera that moves on while a band loads has already
+    // asked for another, and the load that arrives late must not put its lines on the globe.
+    let newest = 0;
+    repaintRegions = () => {
+      const want = on.regions && on.borders
+        ? Math.min(levelAt(widget.camera.positionCartographic.height), deepest)
+        : -1;
+      if (want === band) return;
+      band = want;
+      const mine = ++newest;
+      if (regions) {
+        widget.dataSources.remove(regions, true);
+        regions = null;
+      }
+      const features = all.filter((f) => f.properties.minz <= want);
+      if (features.length === 0) return;
+      GeoJsonDataSource.load({ type: "FeatureCollection", features }, {
+        // Thinner and dimmer than a country line, because a region is a smaller claim.
+        stroke: Color.WHITE.withAlpha(0.3),
+        strokeWidth: 1,
+        clampToGround: true,
+      }).then((source) => {
+        if (mine !== newest) return;
+        regions = source;
+        widget.dataSources.add(source);
+      }).catch(warn("region borders"));
+    };
+    repaintRegions();
+  })();
+
+  names.catch(warn("place names"));
+  lines.catch(warn("country borders"));
+  areas.catch(warn("region borders"));
 
   const handle: Annotations = {
     // Read off the same object the two setters write, so a control over the globe states what the
@@ -370,6 +442,9 @@ export function addAnnotations(
     get borders() {
       return on.borders;
     },
+    get regions() {
+      return on.regions;
+    },
     showPlaces(draw) {
       on.places = draw;
       repopulate();
@@ -377,6 +452,13 @@ export function addAnnotations(
     showBorders(draw) {
       on.borders = draw;
       if (borders) borders.show = draw;
+      // A region line never draws while the country lines are off, so the country switch drives
+      // both. The reader sees the region lines go with the borders and come back with them.
+      repaintRegions();
+    },
+    showRegions(draw) {
+      on.regions = draw;
+      repaintRegions();
     },
   };
   attached.set(widget, handle);

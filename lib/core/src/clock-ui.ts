@@ -226,11 +226,11 @@ function basemapPicker(
 }
 
 /**
- * The map-annotations cell: one button that opens two checkboxes, one per annotation layer.
+ * The map-annotations cell: one button that opens three checkboxes, one per annotation layer.
  *
- * One cell and not two buttons. The place names and the country borders are two halves of one
- * idea — what the globe wears above the basemap — although each switches on its own, and the
- * column is tall enough already.
+ * One cell and not three buttons. The place names, the country borders and the region borders are
+ * three parts of one idea — what the globe wears above the basemap — although each switches on its
+ * own, and the column is tall enough already.
  *
  * A box starts at what the session declared and writes straight to the layer. Nothing about a tick
  * travels upward: it is the reader's own view of a scene the server states, which is the rule the
@@ -245,7 +245,7 @@ function annotationsCell(el: HTMLElement, layers: Annotations): { destroy(): voi
   const button = document.createElement("button");
   button.type = "button";
   button.className = "cesium-button";
-  button.title = "Place names and country borders";
+  button.title = "Place names, country borders and region borders";
   button.textContent = "A";
   button.style.cssText = "width:32px;height:32px;padding:0;font:16px/32px sans-serif";
   button.setAttribute("aria-expanded", "false");
@@ -264,9 +264,17 @@ function annotationsCell(el: HTMLElement, layers: Annotations): { destroy(): voi
     box.addEventListener("change", () => set(box.checked));
     label.append(box, document.createTextNode(text));
     panel.appendChild(label);
+    return box;
   };
   row("Place names", layers.places, (draw) => layers.showPlaces(draw));
-  row("Country borders", layers.borders, (draw) => layers.showBorders(draw));
+  row("Country borders", layers.borders, (draw) => {
+    layers.showBorders(draw);
+    // A region line never draws while the country lines are off. The box says so by going dead,
+    // which is what a reader can see: a live box that changes nothing reads as a broken one.
+    regions.disabled = !draw;
+  });
+  const regions = row("Region borders", layers.regions, (draw) => layers.showRegions(draw));
+  regions.disabled = !layers.borders;
   // Click to open, click to close, which is what the camera-follow item does. Not hover: hover has
   // no touch story and is hostile to a box the reader is aiming a pointer at.
   const toggle = () => {

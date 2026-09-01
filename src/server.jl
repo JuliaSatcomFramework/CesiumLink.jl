@@ -180,11 +180,13 @@ mutable struct Server
     const lighting::Bool
     # Whether the sky around the globe is drawn. It cannot change mid-session, for the same reason.
     const stars::Bool
-    # Whether the place names are drawn above the basemap, and whether the country borders are. Two
-    # switches and not one: a border is a political claim, and a reader may want the names without
-    # it. Neither can change mid-session, for the reason the imagery cannot.
+    # Whether the place names are drawn above the basemap, whether the country borders are, and
+    # whether the region borders are. Three switches and not one: a border is a political claim, and
+    # a reader may want the names without it. The region lines draw only while the country lines do.
+    # None of the three can change mid-session, for the reason the imagery cannot.
     const named_places::Bool
     const country_borders::Bool
+    const region_borders::Bool
     # The open session recording, or `nothing`, and the wall-clock instant it was opened at — every
     # broadcast frame is stamped with its offset from that. Guarded by `record_lock`, its own, so
     # that a slow disk holds up nothing but the next frame to be recorded.
@@ -333,7 +335,7 @@ end
     start_server(; dist_dir=viewer_dist(), host="127.0.0.1", port=0, title=basename(pwd()),
                  ellipsoid=nothing, imagery=nothing, assets=nothing, trusted_origins=String[],
                  lighting=false, stars=false, named_places=true, country_borders=true,
-                 open=:auto, listen=!in_notebook()) -> Server
+                 region_borders=false, open=:auto, listen=!in_notebook()) -> Server
 
 Start the one-port HTTP+WebSocket listener and return a running [`Server`](@ref). Static files are
 served from `dist_dir` (the built viewer); the WebSocket lives at `/ws`, same-origin with the page.
@@ -477,12 +479,20 @@ switched on its own. They are two flags rather than one because a border is a po
 reader who needs the names without any line asserting a boundary turns the borders off and keeps
 them. The data ships inside the viewer, so neither reaches the network and neither adds a credit
 line.
+
+`region_borders` draws the boundary lines between the regions inside a country: its states and its
+provinces. It is off by default, where the other two layers are on. A region line is a second
+political claim on top of the country line, so a reader who wants no claims meets none. The layer
+also costs frames, so a default session pays nothing for it. It draws only while `country_borders`
+draws: a region edge with no country edge around it is a claim with no context. The lines thin out
+as the camera pulls back, and from the globe none of them draws.
 """
 function start_server(; dist_dir = viewer_dist(), host = "127.0.0.1", port = 0,
                       title = basename(pwd()), ellipsoid = nothing, imagery = nothing,
                       assets = nothing, trusted_origins = String[],
                       lighting = false, stars = false, named_places = true,
-                      country_borders = true, open = :auto, listen = !in_notebook())
+                      country_borders = true, region_borders = false, open = :auto,
+                      listen = !in_notebook())
     open === :auto || open === true || open === false ||
         throw(ArgumentError("`open` takes `:auto`, `true` or `false`, and got $(repr(open))"))
     declared_imagery, imagery_dir = resolve_imagery(imagery, ellipsoid)
@@ -507,7 +517,7 @@ function start_server(; dist_dir = viewer_dist(), host = "127.0.0.1", port = 0,
                     dist_dir === nothing ? nothing : normpath(String(dist_dir)),
                     ellipsoid === nothing ? nothing : ellipsoid_radii(ellipsoid),
                     declared_imagery, asset_dirs, origins, lighting, stars, named_places,
-                    country_borders, nothing, 0.0,
+                    country_borders, region_borders, nothing, 0.0,
                     ReentrantLock(), String(host), listen, nothing)
     # A server with no port has nothing to bind, nothing to publish and no page to open. The three
     # steps below are the port and what reaches it, and a notebook server skips all three.
@@ -698,6 +708,7 @@ function handle_msg(server::Server, client, frame)
             modules_message(server.modules; server.ellipsoid, server.imagery, server.lighting,
                             server.stars, named_places = server.named_places,
                             country_borders = server.country_borders,
+                            region_borders = server.region_borders,
                             furniture = declared_furniture(server),
                             assets = declared_assets(server)),
             retained_messages(server; skip = rebuild === nothing ? () : (CORE_WINDOW,)), rebuild
@@ -834,6 +845,7 @@ function declare_modules(server::Server, id::AbstractString)
         return modules_message(server.modules; server.ellipsoid, server.imagery, server.lighting,
                                server.stars, named_places = server.named_places,
                                country_borders = server.country_borders,
+                               region_borders = server.region_borders,
                                furniture = declared_furniture(server),
                                assets = declared_assets(server)),
                Frame[f for (key, f) in server.retained if first(key) == id]

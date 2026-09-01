@@ -55,9 +55,11 @@ test("a recording that states no scene declares none, as it did before the heade
   assert.equal(d.imagery, undefined);
   assert.equal(d.lighting, undefined);
   assert.equal(d.stars, undefined);
-  // Both annotation layers are drawn by default, so a header that states neither asks for both.
+  // The names and the country borders are drawn by default, so a header that states neither asks
+  // for both. The region borders are the other way round: unstated is undrawn.
   assert.equal(d.namedPlaces, undefined);
   assert.equal(d.countryBorders, undefined);
+  assert.equal(d.regionBorders, undefined);
 });
 
 test("an annotation layer the recorded session had off stays off through the replay", () => {
@@ -66,6 +68,12 @@ test("an annotation layer the recorded session had off stays off through the rep
   // The two are independent, so taking the names off leaves the borders drawn.
   assert.equal(d.countryBorders, undefined);
   assert.equal(declarationOf({ ...HEADER, countryBorders: false }).countryBorders, false);
+});
+
+test("region borders the recorded session asked for are asked for again on the replay", () => {
+  // This flag is carried when it is on, where the other two are carried when they are off.
+  assert.equal(declarationOf({ ...HEADER, regionBorders: true }).regionBorders, true);
+  assert.equal(declarationOf({ ...HEADER, regionBorders: false }).regionBorders, undefined);
 });
 
 test("an option beats the header, which is how relocated tiles are named again", () => {

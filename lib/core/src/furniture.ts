@@ -34,9 +34,9 @@ export const FURNITURE_DEFAULTS: Record<FurnitureId, boolean> = {
   // one basemap is therefore the whole opt-out: it takes the network, the picker and the button
   // away in one line, and no author has to think about it (ADR-0034).
   basemap: true,
-  // On by default, because both annotation layers are drawn by default and this is the only way to
-  // take one off from the page. A session that declares both layers off still shows the cell, and
-  // its two boxes then start unticked.
+  // On by default, because two of the three annotation layers are drawn by default and this cell is
+  // the only way to take one off from the page. It is also the only way to put the region borders
+  // on. A session that declares every layer off still shows the cell, with its boxes unticked.
   annotations: true,
   navHelp: false,
   inspector: false,

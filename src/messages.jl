@@ -35,7 +35,7 @@ dropped_message(n::Integer) = commands_message([Command(CORE_DROPPED..., (; n = 
 """
     modules_message(mods; ellipsoid=nothing, furniture=nothing, imagery=nothing,
                     assets=nothing, lighting=false, stars=false, named_places=true,
-                    country_borders=true) -> Frame
+                    country_borders=true, region_borders=false) -> Frame
 
 The `modules` notification wire frame: the session declaration. `modules` is which ES
 modules the viewer is to load, in declaration order, each with the same-origin URL the server serves
@@ -68,12 +68,16 @@ countries, each above whatever basemap is on screen. Both are on by default, so 
 `true` and carried as `false` when off — the opposite way round to the two fields above, because the
 wire states what departs from the default.
 
+`region_borders` draws the boundary lines between the regions inside a country. It is off by
+default, so it is omitted when `false` and carried as `true` when on. It draws only while
+`country_borders` draws as well.
+
 Sent once per connection, on `ready`, before any state addressed to a module. The viewer builds its
 widget from what this carries, so nothing precedes it.
 """
 function modules_message(mods; ellipsoid = nothing, furniture = nothing, imagery = nothing,
                          assets = nothing, lighting = false, stars = false, named_places = true,
-                         country_borders = true)
+                         country_borders = true, region_borders = false)
     params = (; modules = [(; m.id, url = module_url(m), apiVersion = m.api_version) for m in mods])
     ellipsoid === nothing || (params = (; params..., ellipsoid))
     furniture === nothing || (params = (; params..., furniture))
@@ -83,6 +87,7 @@ function modules_message(mods; ellipsoid = nothing, furniture = nothing, imagery
     stars && (params = (; params..., stars))
     named_places || (params = (; params..., namedPlaces = false))
     country_borders || (params = (; params..., countryBorders = false))
+    region_borders && (params = (; params..., regionBorders = true))
     # A declaration carries no arrays, so its region is empty.
     return Frame(JSON.json((; method = "modules", params)))
 end

@@ -1,13 +1,13 @@
 #!/usr/bin/env node
-// Writes the checked-in annotation data the label overlay draws: place names and country
-// boundaries, both from Natural Earth.
+// Writes the checked-in annotation data the label overlay draws: place names, country boundaries
+// and region boundaries, all from Natural Earth.
 //
 //   node tools/make-annotation-data.mjs
 //
-// Run it by hand, when Natural Earth cuts a release. It is not part of the build: the two files it
+// Run it by hand, when Natural Earth cuts a release. It is not part of the build: the three files it
 // writes are committed, so the build never reaches the network.
 //
-// It downloads its four inputs the first time and keeps them under `tools/.cache/natural-earth`,
+// It downloads its five inputs the first time and keeps them under `tools/.cache/natural-earth`,
 // which git ignores. Delete that directory to re-fetch.
 //
 // Names come from the 1:10m set and boundaries from the 1:50m set, and the mismatch is deliberate.
@@ -16,7 +16,7 @@
 // 1:50m is free against 1:110m and its outlines follow the coast, where 1:110m turns Switzerland
 // into a chunky polygon at 900 km.
 //
-// Natural Earth is public domain, so neither output carries a credit line.
+// Natural Earth is public domain, so no output carries a credit line.
 import { cpSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -30,6 +30,7 @@ const PLACES = "ne_10m_populated_places_simple";
 const COUNTRIES = "ne_10m_admin_0_countries";
 const MARINE = "ne_10m_geography_marine_polys";
 const BORDERS = "ne_50m_admin_0_boundary_lines_land";
+const REGIONS = "ne_50m_admin_1_states_provinces_lines";
 
 // A city or a capital keeps its name to the deepest level a camera reaches, so it needs no ceiling.
 const NO_CEILING = 99;
@@ -166,13 +167,38 @@ async function places() {
   return rows.map((r) => ({ ...r, lon: round(r.lon), lat: round(r.lat) }));
 }
 
+/** The region boundaries, each carrying the level it starts drawing at and nothing else.
+ *
+ * Natural Earth's `MIN_ZOOM` is what keeps this layer from reading as noise: all 581 lines at once
+ * from the globe say nothing and cost frames. The hint is converted the way `minz` is, so the
+ * three bands it holds are levels 1, 2 and 3.
+ *
+ * The rest of the properties go. Every line is the same `SCALERANK` and the file carries thirty-odd
+ * `FCLASS_` columns, one per country's own view of the boundary, all null here. Dropping them takes
+ * the file from 883 KB to 419 KB, and the layer reads none of them.
+ */
+async function regions() {
+  return {
+    type: "FeatureCollection",
+    features: (await features(REGIONS)).map((f) => ({
+      type: "Feature",
+      properties: { minz: Math.max(0, level(f.properties.MIN_ZOOM, 3)) },
+      geometry: f.geometry,
+    })),
+  };
+}
+
 const rows = await places();
+const lines = await regions();
 mkdirSync(out, { recursive: true });
 writeFileSync(join(out, "named-places.json"), JSON.stringify(rows));
 // The boundary file travels as it stands: Cesium builds a ground polyline per LineString, and it
 // will not draw the outline of a polygon on terrain.
 cpSync(await input(BORDERS), join(out, "country-borders.geojson"));
+writeFileSync(join(out, "region-borders.geojson"), JSON.stringify(lines));
 
 const kb = (f) => `${Math.round(statSync(join(out, f)).size / 1024)} KB`;
 console.log(`wrote ${rows.length} names to ${join(out, "named-places.json")} (${kb("named-places.json")})`);
 console.log(`wrote ${join(out, "country-borders.geojson")} (${kb("country-borders.geojson")})`);
+console.log(`wrote ${lines.features.length} region lines to \
+${join(out, "region-borders.geojson")} (${kb("region-borders.geojson")})`);
