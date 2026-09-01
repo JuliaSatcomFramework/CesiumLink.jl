@@ -254,7 +254,8 @@ const VIEWER_MARK = "data-cesiumlink-viewer";
  */
 function separateDrawingBuffer(widget: CesiumWidget): void {
   const taken = new Set(
-    [...document.querySelectorAll(`canvas[${VIEWER_MARK}]`)]
+    reachableDocuments()
+      .flatMap((doc) => [...doc.querySelectorAll(`canvas[${VIEWER_MARK}]`)])
       .map((c) => c.getAttribute(VIEWER_MARK)),
   );
   let slot = 0;
@@ -264,6 +265,35 @@ function separateDrawingBuffer(widget: CesiumWidget): void {
   // A canvas with no layout yet reports 0. The side to fall back on is then 500 pixels.
   const side = Math.min(widget.canvas.clientWidth, widget.canvas.clientHeight) || 500;
   widget.resolutionScale = Math.max(0.5, 1 - slot / side);
+}
+
+/**
+ * Every document whose marks this viewer may read: its own, and each same-origin document of the
+ * window tree around it.
+ *
+ * The pool that hands out those buffers belongs to the browser and not to a document, so two
+ * viewers in two iframes collide exactly as two viewers in one page do. A viewer that reads its own
+ * document alone finds no mark, so both take slot 0 and both draw at one size. A documentation page
+ * that embeds two players is where this happens.
+ *
+ * A frame of another origin throws on `.document`, and this steps over it. Two viewers on opposite
+ * sides of that boundary cannot see each other, and nothing here can repair it.
+ */
+function reachableDocuments(): Document[] {
+  const out: Document[] = [];
+  const visit = (w: Window): void => {
+    let doc: Document;
+    try {
+      doc = w.document;
+    } catch {
+      return;
+    }
+    out.push(doc);
+    for (let i = 0; i < w.frames.length; i++) visit(w.frames[i]);
+  };
+  visit(window.top ?? window);
+  if (!out.includes(document)) out.push(document);
+  return out;
 }
 
 /**
