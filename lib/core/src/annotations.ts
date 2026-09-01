@@ -16,6 +16,7 @@ import {
   LabelCollection,
   LabelStyle,
   type Rectangle,
+  SceneTransforms,
   VerticalOrigin,
 } from "@cesium/engine";
 
@@ -105,17 +106,137 @@ export function levelAt(height: number): number {
 }
 
 /**
- * The names to draw: the ones this level carries, inside the view, ranked, and capped at what a
- * frame can afford.
+ * Metres. The mean Earth radius: whether the globe stands in front of a name does not need the
+ * ellipsoid's 0.3 per cent flattening.
+ */
+const EARTH_RADIUS = 6_371_000;
+
+/**
+ * How far past the limb a name must sit before it is kept, as a dot product. Zero would keep a name
+ * exactly on the edge of the disc, where half its text falls into space.
+ */
+const LIMB_MARGIN = 0.02;
+
+/** The width of a sans-serif glyph, as a fraction of the font size, averaged over mixed case. */
+const GLYPH_WIDTH = 0.55;
+
+/** Pixels of clearance around a name's box. The outline alone is 3 px wide. */
+const BOX_PAD = 3;
+
+/** A rectangle in window pixels, with y downward. */
+interface Box {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+}
+
+/** What the camera makes of a place, which is what decides whether two names land on each other. */
+export interface CameraView {
+  /** The camera position in world coordinates. */
+  eye: { x: number; y: number; z: number };
+  /**
+   * Where a longitude and latitude land on the canvas, or `undefined` when they land nowhere on it.
+   */
+  window(lon: number, lat: number): { x: number; y: number } | undefined;
+}
+
+/**
+ * Whether the globe stands between the camera and a place.
  *
- * This is the whole paging pass. A name is kept on three counts and no more — its level, its
- * position and its rank — so a declutter step that drops a name whose text would land on one
- * already kept goes after the sort and before the cap.
+ * A place's own surface normal and the direction from the camera to it agree only on the far
+ * hemisphere. The view rectangle cannot answer this: at globe range it covers the whole world, so
+ * without the test a name behind the Earth spends a slot from the cap, and one just past the limb
+ * writes its letters into the black beside the disc — `SOUTH AMERICA` reads as `ERICA`.
+ */
+export function behindGlobe(lon: number, lat: number, eye: CameraView["eye"]): boolean {
+  const rad = Math.PI / 180;
+  const cosLat = Math.cos(lat * rad);
+  // On a sphere the unit surface normal is the direction of the point itself.
+  const n = { x: cosLat * Math.cos(lon * rad), y: cosLat * Math.sin(lon * rad), z: Math.sin(lat * rad) };
+  const dx = n.x * EARTH_RADIUS - eye.x;
+  const dy = n.y * EARTH_RADIUS - eye.y;
+  const dz = n.z * EARTH_RADIUS - eye.z;
+  const len = Math.hypot(dx, dy, dz) || 1;
+  return (n.x * dx + n.y * dy + n.z * dz) / len > -LIMB_MARGIN;
+}
+
+/** The text a name is drawn with, leading space and all. */
+function textOf(r: NamedPlace): string {
+  // A dotted kind marks a point rather than an area, so its text hangs beside that point.
+  return STYLE[r.kind].dot ? "  " + r.name : r.name;
+}
+
+/**
+ * Roughly where a name's text lands, given the pixel its position projects to.
+ *
+ * Character count against font size is enough. A name clipped by a neighbour it half touches is a
+ * smaller fault than a name that vanishes, so the box errs neither way on purpose.
+ */
+function boxOf(r: NamedPlace, x: number, y: number): Box {
+  const style = STYLE[r.kind];
+  const size = Number(/(\d+(?:\.\d+)?)px/.exec(style.font)?.[1] ?? 12);
+  const width = textOf(r).length * size * GLYPH_WIDTH + 2 * BOX_PAD;
+  const height = size * 1.2 + 2 * BOX_PAD;
+  // A dotted kind hangs its text to the right of its position; every other kind is centred on it.
+  const left = style.dot ? x - BOX_PAD : x - width / 2;
+  return { left, right: left + width, top: y - height / 2, bottom: y + height / 2 };
+}
+
+function hits(a: Box, b: Box): boolean {
+  return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+}
+
+/**
+ * Standing inside a kind, from 1 for the largest down to 1/n for the smallest.
+ *
+ * `importance` mixes units across the kinds — population for a city, a capital and a country, area
+ * for a continent, an ocean and a sea — so the raw numbers are not one scale. Sorted raw, every
+ * country outranks every city inside it, and the water sinks: an ocean reads about 10,000 against
+ * a city's population, so over Europe at level 5 all 31 water names in view fall past the cap and
+ * none is drawn. Standing puts the kinds on one scale and leaves the order within a kind exactly as
+ * `importance` gives it, so no kind decides anything on its own.
+ */
+function standing(rows: NamedPlace[]): Map<NamedPlace, number> {
+  const kinds = new Map<NamedPlace["kind"], NamedPlace[]>();
+  for (const r of rows) {
+    const same = kinds.get(r.kind);
+    if (same) same.push(r);
+    else kinds.set(r.kind, [r]);
+  }
+  const rank = new Map<NamedPlace, number>();
+  for (const same of kinds.values()) {
+    same.sort((a, b) => b.importance - a.importance);
+    same.forEach((r, i) => rank.set(r, (same.length - i) / same.length));
+  }
+  return rank;
+}
+
+/**
+ * The names to draw: the ones this level carries, on the near side of the globe, in view, ranked,
+ * decluttered, and capped at what a frame can afford.
+ *
+ * This is the whole paging pass, and the order of its three parts is the design.
+ *
+ * 1. **Range.** A continent, an ocean and a country name stop competing where the cities inside
+ *    them take over, and a name the globe hides never competes at all.
+ * 2. **Rank.** Sorted before anything is dropped, so the name a reader most expects to see is the
+ *    one that claims its pixels.
+ * 3. **Collision.** A greedy walk down that order, keeping a name only when its box misses every
+ *    box already kept. Without the rank ahead of it this keeps whichever name the file happened to
+ *    list first: Rome and Vatican City are two kilometres apart and both are capitals.
+ *
+ * `camera` is what turns a position into pixels. Without one the pass stops after the rank, which
+ * is what a caller measuring the filter alone wants.
+ *
+ * Four hundred boxes is 160,000 box tests, about 1 ms. If that ever shows in a frame, sort the
+ * boxes into a grid before comparing them — do not reach for a grid first.
  */
 export function visibleNames(
   rows: NamedPlace[],
   level: number,
   view: Rectangle | undefined,
+  camera?: CameraView,
 ): NamedPlace[] {
   const deg = 180 / Math.PI;
   const south = view ? view.south * deg : -90;
@@ -127,10 +248,26 @@ export function visibleNames(
   const inView = (r: NamedPlace) =>
     !view || (r.lat >= south && r.lat <= north &&
       (west <= east ? r.lon >= west && r.lon <= east : r.lon >= west || r.lon <= east));
-  return rows
-    .filter((r) => r.minz <= level && level <= r.maxz && inView(r))
-    .sort((a, b) => a.minz - b.minz || b.importance - a.importance)
-    .slice(0, ON_SCREEN);
+  const candidates = rows.filter((r) =>
+    r.minz <= level && level <= r.maxz && inView(r) &&
+    !(camera && behindGlobe(r.lon, r.lat, camera.eye)));
+
+  const rank = standing(candidates);
+  candidates.sort((a, b) => rank.get(b)! - rank.get(a)! || b.importance - a.importance);
+  if (!camera) return candidates.slice(0, ON_SCREEN);
+
+  const kept: NamedPlace[] = [];
+  const boxes: Box[] = [];
+  for (const r of candidates) {
+    if (kept.length >= ON_SCREEN) break;
+    const at = camera.window(r.lon, r.lat);
+    if (!at) continue;
+    const box = boxOf(r, at.x, at.y);
+    if (boxes.some((b) => hits(box, b))) continue;
+    boxes.push(box);
+    kept.push(r);
+  }
+  return kept;
 }
 
 /**
@@ -154,10 +291,22 @@ export function addAnnotations(widget: CesiumWidget, baseUrl: string): Annotatio
     collection.show = on.places;
     labels = collection;
     const repopulate = () => {
-      const camera = widget.scene.camera;
+      const scene = widget.scene;
+      const camera = scene.camera;
+      const canvas = scene.canvas;
+      const view: CameraView = {
+        eye: camera.positionWC,
+        window(lon, lat) {
+          const at = SceneTransforms.worldToWindowCoordinates(scene, Cartesian3.fromDegrees(lon, lat));
+          if (!at || at.x < 0 || at.y < 0 || at.x > canvas.clientWidth || at.y > canvas.clientHeight) {
+            return undefined;
+          }
+          return at;
+        },
+      };
       collection.removeAll();
       const level = levelAt(camera.positionCartographic.height);
-      for (const r of visibleNames(rows, level, camera.computeViewRectangle())) {
+      for (const r of visibleNames(rows, level, camera.computeViewRectangle(), view)) {
         collection.add(labelFor(r));
       }
     };
@@ -209,8 +358,7 @@ function labelFor(r: NamedPlace) {
   const style = STYLE[r.kind];
   return {
     position: Cartesian3.fromDegrees(r.lon, r.lat),
-    // A dotted kind marks a point rather than an area, so its text hangs beside that point.
-    text: style.dot ? "  " + r.name : r.name,
+    text: textOf(r),
     font: style.font,
     fillColor: Color.fromCssColorString(style.fill),
     outlineColor: Color.BLACK,

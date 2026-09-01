@@ -57,6 +57,20 @@ holds only what the camera can see: filter the pool to the level the camera heig
 the view rectangle, rank what is left, cap it near 400, and rebuild. Filtering costs 0.2 ms and
 rebuilding 2.8 ms.
 
+**The pass drops what the reader cannot see, then declutters what is left.** At globe range the
+view rectangle covers the whole world, so it keeps the hemisphere behind the Earth. A name just
+past the limb then writes its letters into the black beside the disc, and the far side spends
+slots from the cap. One dot product per row answers this: a place's own surface normal and the
+direction from the camera to that place agree only on the far side. What survives is ranked, and
+the pass walks that order and keeps a name only when its text box misses every box already kept.
+The rank must come before the walk. Rome and Vatican City are two kilometres apart and both are
+capitals, so without a rank the order of the file decides which one the reader sees.
+
+**The rank reads standing inside a kind, not `importance` itself.** That number mixes units:
+population for a city, a capital and a country, area for a continent, an ocean and a sea. Sorted
+raw, an ocean reads about 10,000 against a city's population of millions. Over Europe at level 5
+all 31 water names in view then fall past the cap and none of them is drawn.
+
 **The rebuild runs on `camera.changed` as well as on `moveEnd`.** `moveEnd` fires only once the
 camera has settled. Over a five second flight from 14,000 km to 200 km it gave zero rebuilds, and
 all 22 sampled frames drew the level the camera had left. With both events and
