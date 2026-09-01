@@ -4,95 +4,105 @@
     "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
     "tilesLoaded": true,
     "scene": {
-      "primitives": 7,
+      "primitives": 9,
       "billboards": 45,
-      "polylines": 1302,
-      "groundPrimitives": 0
+      "polylines": 1555,
+      "groundPrimitives": 1
     },
     "drawCommands": {
       "samples": 30,
-      "min": 28,
-      "median": 28,
-      "max": 28
+      "min": 32,
+      "median": 32,
+      "max": 32
     },
     "tickMs": {
       "samples": 60,
-      "median": 11.1,
-      "p95": 20.7,
-      "max": 28.1
+      "median": 9.9,
+      "p95": 14.5,
+      "max": 17.4
     },
     "pickMs": {
       "samples": 20,
-      "median": 33.2,
-      "p95": 1183.4
+      "median": 43.5,
+      "p95": 1233.2
     },
     "wireBytes": {
-      "payloads": [],
+      "payloads": [
+        {
+          "url": "/annotations/named-places.json",
+          "bytes": 793072
+        }
+      ],
       "inboundByMethod": {
         "?": {
           "count": 24,
-          "bytes": 1057976,
-          "maxBytes": 1054720
+          "bytes": 1129504,
+          "maxBytes": 1126168
         }
       },
-      "inboundTotal": 1057976
+      "inboundTotal": 1129504
     },
     "roundTripNote": "Measured with the render loop stopped, so this is the server's work plus loopback and nothing else. Perceived latency in a running viewer additionally waits for the main thread, which this host's software rasteriser holds far longer than a real one would.",
     "roundTripMs": {},
-    "url": "http://127.0.0.1:43227/?ws=auto",
-    "capturedAt": "2026-08-08T14:29:12.657Z",
+    "url": "http://127.0.0.1:40547/?ws=auto",
+    "capturedAt": "2026-09-01T14:56:48.297Z",
     "caveat": "Frames per second and frame time are meaningless here — this host renders through SwiftShader, a software rasteriser. Neither is measured and neither may be asserted on. Draw-command count is CPU-side and does not depend on having a GPU."
   },
   "entities": {
     "cell": 1478,
-    "feeder": 3,
+    "feeder": 5,
     "gateway": 5,
     "isl": 72,
     "sat": 40,
-    "user": 1403
+    "user": 1478
   },
   "vscode": {
     "source": "websocket",
     "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
     "tilesLoaded": true,
     "scene": {
-      "primitives": 7,
+      "primitives": 9,
       "billboards": 45,
-      "polylines": 1418,
-      "groundPrimitives": 0
+      "polylines": 1555,
+      "groundPrimitives": 1
     },
     "drawCommands": {
       "samples": 30,
-      "min": 28,
-      "median": 28,
-      "max": 28
+      "min": 32,
+      "median": 32,
+      "max": 32
     },
     "tickMs": {
       "samples": 60,
-      "median": 12.3,
-      "p95": 25,
-      "max": 27.6
+      "median": 9.1,
+      "p95": 15.3,
+      "max": 18.2
     },
     "pickMs": {
       "samples": 20,
-      "median": 34,
-      "p95": 1165.4
+      "median": 25.6,
+      "p95": 886.9
     },
     "wireBytes": {
-      "payloads": [],
+      "payloads": [
+        {
+          "url": "/annotations/named-places.json",
+          "bytes": 793072
+        }
+      ],
       "inboundByMethod": {
         "?": {
           "count": 25,
-          "bytes": 1058088,
-          "maxBytes": 1054720
+          "bytes": 1129616,
+          "maxBytes": 1126168
         }
       },
-      "inboundTotal": 1058088
+      "inboundTotal": 1129616
     },
     "roundTripNote": "Measured with the render loop stopped, so this is the server's work plus loopback and nothing else. Perceived latency in a running viewer additionally waits for the main thread, which this host's software rasteriser holds far longer than a real one would.",
     "roundTripMs": {},
-    "url": "http://127.0.0.1:43227/vscode-harness.html",
-    "capturedAt": "2026-08-08T14:30:17.710Z",
+    "url": "http://127.0.0.1:40547/vscode-harness.html",
+    "capturedAt": "2026-09-01T14:57:58.386Z",
     "caveat": "Frames per second and frame time are meaningless here — this host renders through SwiftShader, a software rasteriser. Neither is measured and neither may be asserted on. Draw-command count is CPU-side and does not depend on having a GPU."
   }
 }
