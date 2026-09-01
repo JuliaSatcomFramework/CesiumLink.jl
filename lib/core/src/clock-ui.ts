@@ -17,6 +17,7 @@ import {
   FullscreenButton, HomeButton, NavigationHelpButton, ProjectionPicker, ProviderViewModel,
   SceneModePicker, Timeline,
 } from "@cesium/widgets";
+import type { Annotations } from "./annotations";
 import { BASEMAP_ICONS } from "./basemap-icons";
 import type { CameraAuthority } from "./camera";
 import {
@@ -55,12 +56,16 @@ const PILL = "height:22px;padding:0 8px;font:12px/22px sans-serif;color:#edffff;
 /** A button with no chrome of its own, so the pill that holds it still reads as one box. */
 const FLAT = "font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;";
 
+/** The box a group cell opens into. It wears the pill's colours and is sized by what it holds. */
+const PANEL = "font:12px/18px sans-serif;color:#edffff;background:rgba(38,38,38,0.92);" +
+  "border:1px solid #444;border-radius:3px;padding:6px 8px;white-space:nowrap;";
+
 /** Where the group sits when a declaration names no region. */
 const DEFAULT_REGION: OverlayRegion = "top-right";
 
 /** Top to bottom inside the group. The order is fixed here, not declared. */
-const GROUP_ORDER = ["home", "sceneMode", "projection", "basemap", "navHelp", "fullscreen",
-  "canvasCapture", "inspector"] as const;
+const GROUP_ORDER = ["home", "sceneMode", "projection", "basemap", "annotations", "navHelp",
+  "fullscreen", "canvasCapture", "inspector"] as const;
 type GroupId = (typeof GROUP_ORDER)[number];
 
 // The group's own rule; a declared style merges over it. It carries `pointer-events:auto` because
@@ -220,6 +225,66 @@ function basemapPicker(
   });
 }
 
+/**
+ * The map-annotations cell: one button that opens two checkboxes, one per annotation layer.
+ *
+ * One cell and not two buttons. The place names and the country borders are two halves of one
+ * idea — what the globe wears above the basemap — although each switches on its own, and the
+ * column is tall enough already.
+ *
+ * A box starts at what the session declared and writes straight to the layer. Nothing about a tick
+ * travels upward: it is the reader's own view of a scene the server states, which is the rule the
+ * basemap pick already follows (ADR-0017).
+ *
+ * The panel hangs out of the cell, so the cell is what it is positioned against, and it is
+ * `display:none` while closed — which is what lets the group's rank observer read a shut cell as
+ * reaching nothing below it.
+ */
+function annotationsCell(el: HTMLElement, layers: Annotations): { destroy(): void } {
+  el.style.position = "relative";
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "cesium-button";
+  button.title = "Place names and country borders";
+  button.textContent = "A";
+  button.style.cssText = "width:32px;height:32px;padding:0;font:16px/32px sans-serif";
+  button.setAttribute("aria-expanded", "false");
+  // Anchored to the cell's right edge, so the panel grows leftward and stays on the page in the
+  // top-right corner the group sits in by default.
+  const panel = document.createElement("div");
+  panel.style.cssText = PANEL +
+    "position:absolute;top:34px;right:0;display:none;flex-direction:column;gap:4px";
+  const row = (text: string, on: boolean, set: (draw: boolean) => void) => {
+    const label = document.createElement("label");
+    label.style.cssText = "display:flex;align-items:center;gap:6px;cursor:pointer";
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    box.checked = on;
+    box.style.cssText = "margin:0;cursor:pointer";
+    box.addEventListener("change", () => set(box.checked));
+    label.append(box, document.createTextNode(text));
+    panel.appendChild(label);
+  };
+  row("Place names", layers.places, (draw) => layers.showPlaces(draw));
+  row("Country borders", layers.borders, (draw) => layers.showBorders(draw));
+  // Click to open, click to close, which is what the camera-follow item does. Not hover: hover has
+  // no touch story and is hostile to a box the reader is aiming a pointer at.
+  const toggle = () => {
+    const open = panel.style.display === "none";
+    panel.style.display = open ? "flex" : "none";
+    button.setAttribute("aria-expanded", String(open));
+  };
+  button.addEventListener("click", toggle);
+  el.append(button, panel);
+  return {
+    destroy() {
+      button.removeEventListener("click", toggle);
+      button.remove();
+      panel.remove();
+    },
+  };
+}
+
 export function buildFurniture(
   container: HTMLElement,
   scene: Scene,
@@ -228,6 +293,7 @@ export function buildFurniture(
   expand?: () => void,
   captureCell?: (el: HTMLElement) => { destroy(): void },
   basemaps?: Basemaps,
+  annotations?: Annotations,
 ): Furniture {
   // Bottom-left: analog clock + shuttle ring + play/pause.
   const animEl = document.createElement("div");
@@ -315,6 +381,7 @@ export function buildFurniture(
     sceneMode: (el) => new SceneModePicker(el, scene),
     projection: (el) => new ProjectionPicker(el, scene),
     basemap: (el) => basemapPicker(el, scene, basemaps!, overlay),
+    annotations: (el) => annotationsCell(el, annotations!),
     navHelp: (el) => new NavigationHelpButton({ container: el }),
     fullscreen: (el) =>
       expand ? expandButton(el, expand) : new FullscreenButton(el, container),
@@ -338,11 +405,13 @@ export function buildFurniture(
    * host supplies `expand` instead, and then the cell is a substitute button that calls it.
    *
    * The capture cell has the same shape: only a caller that handed one over can show it. So does
-   * the basemap picker, which needs a set of two or more to pick within.
+   * the basemap picker, which needs a set of two or more to pick within, and the annotations cell,
+   * which has nothing to switch on a globe built with no annotation layers.
    */
   const available = (id: GroupId): boolean => {
     if (id === "canvasCapture") return captureCell !== undefined;
     if (id === "basemap") return basemapPickable(basemaps?.specs.length ?? 0);
+    if (id === "annotations") return annotations !== undefined;
     return id !== "fullscreen" || expand !== undefined || document.fullscreenEnabled;
   };
 

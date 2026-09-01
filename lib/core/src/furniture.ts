@@ -9,11 +9,11 @@
 
 import type { OverlayRegion } from "./overlay";
 
-/** The twelve items the server can ask for. The wire spells an id in camelCase. */
+/** The thirteen items the server can ask for. The wire spells an id in camelCase. */
 export type FurnitureId =
   | "timeline" | "animation" | "keyframe" | "cameraFollow"
   | "sceneMode" | "fullscreen" | "home"
-  | "projection" | "basemap" | "navHelp" | "inspector" | "canvasCapture";
+  | "projection" | "basemap" | "annotations" | "navHelp" | "inspector" | "canvasCapture";
 
 /**
  * What is on screen when a declaration names nothing. This table is the one place a default lives;
@@ -34,6 +34,10 @@ export const FURNITURE_DEFAULTS: Record<FurnitureId, boolean> = {
   // one basemap is therefore the whole opt-out: it takes the network, the picker and the button
   // away in one line, and no author has to think about it (ADR-0034).
   basemap: true,
+  // On by default, because both annotation layers are drawn by default and this is the only way to
+  // take one off from the page. A session that declares both layers off still shows the cell, and
+  // its two boxes then start unticked.
+  annotations: true,
   navHelp: false,
   inspector: false,
   // Off by default, so no scene grows a button it did not ask for. A capture also reaches the

@@ -39,6 +39,10 @@ export interface NamedPlace {
 
 /** The two layers, each switchable on its own. */
 export interface Annotations {
+  /** Whether the place names are drawn: what the session declared, until something switches it. */
+  readonly places: boolean;
+  /** Whether the country borders are drawn. */
+  readonly borders: boolean;
   /** Draw the place names, or take them off. */
   showPlaces(on: boolean): void;
   /** Draw the country borders, or take them off. */
@@ -358,6 +362,14 @@ export function addAnnotations(
   }
 
   const handle: Annotations = {
+    // Read off the same object the two setters write, so a control over the globe states what the
+    // layers are rather than holding a second copy of it that can drift.
+    get places() {
+      return on.places;
+    },
+    get borders() {
+      return on.borders;
+    },
     showPlaces(draw) {
       on.places = draw;
       repopulate();

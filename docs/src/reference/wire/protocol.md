@@ -352,8 +352,8 @@ command states the whole set.
   "payload": {
     "items": { "timeline": true, "animation": true, "keyframe": true, "cameraFollow": true,
                "sceneMode": true, "fullscreen": true, "home": true,
-               "projection": false, "basemap": true, "navHelp": false,
-               "inspector": false, "canvasCapture": false },
+               "projection": false, "basemap": true, "annotations": true,
+               "navHelp": false, "inspector": false, "canvasCapture": false },
     "region": "top-right",
     "style": { "gap": "4px" } }}
 ```
@@ -369,6 +369,7 @@ command states the whole set.
 | `home` | on | Fly the camera back to the default view |
 | `projection` | **off** | The perspective / orthographic picker |
 | `basemap` | on | The picker the reader chooses a basemap with. It shows nothing while the session declares fewer than two |
+| `annotations` | on | The cell that opens onto the two annotation layers, a checkbox each: the place names and the country borders. A tick writes to the layer and never travels back to the server |
 | `navHelp` | **off** | The navigation instructions |
 | `inspector` | **off** | The Cesium inspector panel |
 | `canvasCapture` | **off** | The button that copies a **canvas capture** to the clipboard, or downloads it. A right click opens its popup |
@@ -380,7 +381,7 @@ The same payload rides the session declaration (§ ↓ `modules`), which builds 
 command states the set at any time after that.
 
 `items` carries the whole set. The first four are the **band**, fixed to the bottom edge. The other
-seven are one **group**, a column of buttons that travels whole into the region `region` names — one of
+nine are one **group**, a column of buttons that travels whole into the region `region` names — one of
 the four overlay regions, default `top-right`. An unknown name warns and falls back to `top-right`.
 `style` is CSS merged over the group's own rule, in the spelling the browser reads
 (`flex-direction`, not `flex_direction`).

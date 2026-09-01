@@ -8,7 +8,7 @@
         @test p["items"] == Dict("timeline" => true, "animation" => true, "keyframe" => true,
                                  "cameraFollow" => true, "sceneMode" => true, "fullscreen" => true,
                                  "home" => true, "projection" => false, "basemap" => true,
-                                 "navHelp" => false, "inspector" => false,
+                                 "annotations" => true, "navHelp" => false, "inspector" => false,
                                  "canvasCapture" => false)
         @test p["region"] == "top-right"
         # An empty style is left off the wire entirely.
@@ -26,7 +26,7 @@ end
         p = declared(server, "core", "furniture")
         @test p["items"]["timeline"] == false
         @test p["items"]["inspector"] == true
-        @test length(p["items"]) == 12
+        @test length(p["items"]) == 13
 
         # The second call carries the second call's values and nothing carried over from the first,
         # so an item this call does not name is back at its default.
@@ -42,6 +42,12 @@ end
         # that declares a set and wants no picker over it has nowhere else to say so.
         declare_furniture(server; basemap = false)
         @test declared(server, "core", "furniture")["items"]["basemap"] == false
+
+        # The annotations cell is on by default for the same reason: both layers are drawn, so
+        # the cell is the only way a reader takes one off. Turning it off leaves the layers as
+        # the session declared them, since a tick never travels back here.
+        declare_furniture(server; annotations = false)
+        @test declared(server, "core", "furniture")["items"]["annotations"] == false
     finally
         stop_server(server)
     end

@@ -1,5 +1,6 @@
 import * as Cesium from "@cesium/engine";
 import { SceneMode, type CesiumWidget } from "@cesium/engine";
+import { annotationsOf } from "./annotations";
 import { buildFurniture } from "./clock-ui";
 import { FURNITURE_DEFAULTS, type FurnitureDeclaration } from "./furniture";
 import { basemapSet, createScene, type SceneOptions } from "./scene";
@@ -22,6 +23,8 @@ import type { Declaration, Transport } from "./transport";
 
 export { blockAt, decodeArrays, isNdArray } from "./codec";
 export type { Block, Dtype, NdArray, WireArray } from "./codec";
+export { annotationsOf } from "./annotations";
+export type { Annotations } from "./annotations";
 export { loadImagery } from "./scene";
 export type { ImagerySpec, SceneOptions } from "./scene";
 export type { AssetBase, AssetMounts } from "./assets";
@@ -125,7 +128,10 @@ export async function createViewer(
     // the globe, so that is what `onGlobe` starts as, and the picker takes that base over when it
     // is built. This object outlives every picker built from it, which is what lets a second one
     // know which layers the first left behind.
-    { specs, ellipsoid: scene.ellipsoid, baseUrl: opts.baseUrl, onGlobe: specs[0] });
+    { specs, ellipsoid: scene.ellipsoid, baseUrl: opts.baseUrl, onGlobe: specs[0] },
+    // The two annotation layers `createScene` added, which the map-annotations cell switches. The
+    // cell reads its two boxes off this handle, so what it shows is what the session declared.
+    annotationsOf(widget));
   const onResize = () => furniture.resize();
   window.addEventListener("resize", onResize);
 
