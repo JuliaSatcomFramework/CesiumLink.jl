@@ -135,13 +135,27 @@ end
 
     # A set has a source per entry, and the reader can pick any of them. A webview gets its policy
     # once, at panel creation, so every source has to be in it from the start. The default set is
-    # Blue Marble Labeled over the pyramid inside the viewer. That pyramid needs no source, so a
+    # ASTER Colour Relief over the pyramid inside the viewer. That pyramid needs no source, so a
     # session that named nothing reaches one directory of one host and nothing else.
     server = start_server(; dist_dir = nothing, host = "::1", port = freeport())
     try
         @test server.trusted_origins ==
-              ["https://cdn.jsdelivr.net/gh/freetiler/nasa-bluemarble-labeled\
-                @425bf60e567bfe3bcacf6764ed8c1420306c6c98/tiles/"]
+              ["https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/ASTER_GDEM_Color_Shaded_Relief/\
+                default/GoogleMapsCompatible_Level12/"]
+    finally
+        stop_server(server)
+    end
+
+    # An author who names EMODnet opens a second host for their own session, and one directory of
+    # it rather than the whole host.
+    server = start_server(; dist_dir = nothing, host = "::1", port = freeport(),
+                          imagery = [KNOWN_EARTH_BASEMAPS.aster_colour_relief,
+                                     KNOWN_EARTH_BASEMAPS.emodnet_baselayer])
+    try
+        @test server.trusted_origins ==
+              ["https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/ASTER_GDEM_Color_Shaded_Relief/\
+                default/GoogleMapsCompatible_Level12/",
+               "https://tiles.emodnet-bathymetry.eu/2020/baselayer/web_mercator/"]
     finally
         stop_server(server)
     end
@@ -189,8 +203,9 @@ end
                     # first. The default basemap set adds the one tile directory it reads after it.
                     @test entry["trustedOrigins"] ==
                           ["https://cdn.example",
-                           "https://cdn.jsdelivr.net/gh/freetiler/nasa-bluemarble-labeled\
-                            @425bf60e567bfe3bcacf6764ed8c1420306c6c98/tiles/"]
+                           "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/\
+                            ASTER_GDEM_Color_Shaded_Relief/default/\
+                            GoogleMapsCompatible_Level12/"]
                 finally
                     stop_server(server)
                 end

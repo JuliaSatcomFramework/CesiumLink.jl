@@ -102,9 +102,11 @@ of Earth, so none belongs in a session on another body.
 | Key | What the globe wears | Deepest level |
 |---|---|---|
 | `offline_natural_earth` | the pyramid inside the viewer, which reaches no network | 2 |
+| `aster_colour_relief` | ASTER shaded relief from NASA GIBS, in colour | 12 |
+| `aster_grey_relief` | ASTER shaded relief from NASA GIBS, in grey | 12 |
+| `emodnet_baselayer` | EMODnet Bathymetry, with sea-floor relief | 15 |
 | `blue_marble` | Blue Marble from NASA GIBS, with sea-floor colour | 8 |
 | `blue_marble_relief` | Blue Marble from NASA GIBS, land relief only | 8 |
-| `blue_marble_labeled` | Blue Marble with OpenStreetMap place labels over it | 8 |
 
 Pick the ones you want by name. This is a `NamedTuple` and not a list to filter, because a filter
 selects by name string. Rename a basemap in a later release, and the filter matches nothing and
@@ -120,6 +122,26 @@ Each value carries the attribution its source asks for.
 """
 const KNOWN_EARTH_BASEMAPS = (;
     offline_natural_earth = Imagery(; name = "Natural Earth", bundled = true),
+    # The two ASTER reliefs are drawn maps of the land and reach level 12, deeper than any
+    # photograph GIBS serves. Neither carries sea-floor colour: the ocean is one flat blue.
+    aster_colour_relief = Imagery(
+        "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/ASTER_GDEM_Color_Shaded_Relief/\
+         default/GoogleMapsCompatible_Level12/{z}/{y}/{x}.jpeg";
+        name = "ASTER Colour Relief", max_level = 12, backing = true,
+        credit = "NASA EOSDIS GIBS"),
+    aster_grey_relief = Imagery(
+        "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/ASTER_GDEM_Greyscale_Shaded_Relief/\
+         default/GoogleMapsCompatible_Level12/{z}/{y}/{x}.jpeg";
+        name = "ASTER Grey Relief", max_level = 12, backing = true,
+        credit = "NASA EOSDIS GIBS"),
+    # The one entry on a host other than GIBS. Its path order is `{z}/{x}/{y}`, where the GIBS
+    # entries are `{z}/{y}/{x}`: a WMTS REST path names the tile row before the tile column. A
+    # template reaches the browser as it stands, so a swapped pair draws a scrambled globe rather
+    # than an error.
+    emodnet_baselayer = Imagery(
+        "https://tiles.emodnet-bathymetry.eu/2020/baselayer/web_mercator/{z}/{x}/{y}.png";
+        name = "EMODnet Baselayer", max_level = 15, backing = true,
+        credit = "EMODnet Bathymetry (CC BY 4.0)"),
     blue_marble = Imagery(
         "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_ShadedRelief_Bathymetry/\
          default/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpeg";
@@ -130,14 +152,6 @@ const KNOWN_EARTH_BASEMAPS = (;
          default/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpeg";
         name = "Blue Marble Relief", max_level = 8, backing = true,
         credit = "NASA EOSDIS GIBS"),
-    # The URL pins a commit rather than the branch head. jsDelivr serves whatever the branch points
-    # at, so an unpinned URL lets the tiles change under a reader; the pinned form also answers
-    # `immutable, max-age=31536000` against the branch form's `max-age=604800`.
-    blue_marble_labeled = Imagery(
-        "https://cdn.jsdelivr.net/gh/freetiler/nasa-bluemarble-labeled@\
-         425bf60e567bfe3bcacf6764ed8c1420306c6c98/tiles/{z}/{x}/{y}.jpeg";
-        name = "Blue Marble Labeled", max_level = 8, backing = true,
-        credit = "FreeTiler.com | NASA | OSM Contributors"),
 )
 
 # What a session declares when the caller declares nothing: a sharp globe that repairs itself offline
@@ -147,7 +161,11 @@ const KNOWN_EARTH_BASEMAPS = (;
 # Two entries and no more. The set is also what the picker offers, and what widens the content
 # policy: every entry's tile directory reaches `img-src` and `connect-src`. A session that named no
 # basemap has agreed to no host beyond the one its default set names.
-const DEFAULT_EARTH_BASEMAPS = [KNOWN_EARTH_BASEMAPS.blue_marble_labeled,
+#
+# ASTER Colour Relief leads, and not the deeper EMODnet Baselayer, because every entry here must
+# sit on `gibs.earthdata.nasa.gov`. A session that names nothing then trusts one host and opens one
+# tile directory. The cost is a flat blue ocean with no sea-floor colour.
+const DEFAULT_EARTH_BASEMAPS = [KNOWN_EARTH_BASEMAPS.aster_colour_relief,
                                 KNOWN_EARTH_BASEMAPS.offline_natural_earth]
 
 # The levels of a tile pyramid: every subdirectory whose name is an integer.

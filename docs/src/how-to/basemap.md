@@ -3,11 +3,11 @@
 The globe wears a **basemap**. The server declares a **basemap set** (one basemap, or several), and
 the reader picks inside the set. `imagery` says what the set holds, once, at `start_server`.
 
-From 0.2.0 a session on Earth that says nothing declares two basemaps: Blue Marble with
-OpenStreetMap labels over the pyramid inside the viewer. Those tiles are served over jsDelivr, so a
-default session asks `cdn.jsdelivr.net` for tiles. This is the one change a reader meets on upgrade,
-and the release is 0.2.0 because of it. A session on another body still wears the bundled texture
-and declares nothing.
+From 0.2.0 a session on Earth that says nothing declares two basemaps: ASTER Colour Relief over
+the pyramid inside the viewer. Both come from NASA GIBS, so a default session asks
+`gibs.earthdata.nasa.gov` for tiles and no other host. This is the one change a reader meets on
+upgrade, and the release is 0.2.0 because of it. A session on another body still wears the bundled
+texture and declares nothing.
 
 ## Take the network out of it
 
@@ -28,9 +28,15 @@ attribution its source asks for, so a session that declares one also credits it.
 | Key | What the globe wears | Deepest level | Credit drawn |
 |:--|:--|:--|:--|
 | `offline_natural_earth` | the pyramid inside the viewer, which reaches no network | 2 | none, the texture is public domain |
+| `aster_colour_relief` | ASTER shaded relief from NASA GIBS, in colour | 12 | `NASA EOSDIS GIBS` |
+| `aster_grey_relief` | ASTER shaded relief from NASA GIBS, in grey | 12 | `NASA EOSDIS GIBS` |
+| `emodnet_baselayer` | EMODnet Bathymetry, with sea-floor relief | 15 | `EMODnet Bathymetry (CC BY 4.0)` |
 | `blue_marble` | Blue Marble from NASA GIBS, with sea-floor colour | 8 | `NASA EOSDIS GIBS` |
 | `blue_marble_relief` | Blue Marble from NASA GIBS, land relief only | 8 | `NASA EOSDIS GIBS` |
-| `blue_marble_labeled` | Blue Marble with OpenStreetMap place labels drawn over it | 8 | `FreeTiler.com \| NASA \| OSM Contributors` |
+
+The two ASTER reliefs draw the land only. Their ocean is one flat blue and carries no sea-floor
+colour. `emodnet_baselayer` draws the sea floor, and it is the one entry served from a host other
+than NASA GIBS.
 
 Every one of them is of Earth. None belongs in a session on another body.
 
@@ -38,27 +44,27 @@ Name the ones you want, in the order you want them:
 
 ```julia
 # the default set, stated by hand
-start_server(; imagery = [KNOWN_EARTH_BASEMAPS.blue_marble_labeled,
+start_server(; imagery = [KNOWN_EARTH_BASEMAPS.aster_colour_relief,
                           KNOWN_EARTH_BASEMAPS.offline_natural_earth])
 
-# all four
+# all six
 start_server(; imagery = collect(KNOWN_EARTH_BASEMAPS))
 ```
 
 Pick by field, as above. Do not filter the catalogue by its name strings. A source renamed in a
 later release matches nothing, and the filter hands you back a basemap you meant to drop.
 
-### All four, live
+### All six, live
 
-The scene below is a recording of a session that declares all four. No Julia process is running.
+The scene below is a recording of a session that declares all six. No Julia process is running.
 Open the basemap picker at the top right and pick each entry in turn.
 
 ```@raw html
-<!-- The three online basemaps come from NASA GIBS and from jsDelivr, which nothing here controls.
+<!-- The five online basemaps come from NASA GIBS and from EMODnet, which nothing here controls.
      A globe that stays flat and blurry after a pick means one of those hosts is unreachable: the
      basemap backing is drawing the bundled pyramid in place of the tiles that did not arrive. -->
 <iframe src="../viewer/player.html?rec=../recordings/orbit.jsonl&modules=modules"
-        title="A recorded session declaring all four known Earth basemaps"
+        title="A recorded session declaring all six known Earth basemaps"
         loading="lazy"
         style="width:100%;aspect-ratio:16/10;border:1px solid var(--vp-c-divider);border-radius:8px">
 </iframe>
@@ -79,7 +85,7 @@ basemaps. [Choose the on-screen furniture](furniture.md) turns it off by hand.
 
 **A basemap can name a basemap backing.** `backing = true` draws the bundled pyramid under that
 basemap. A source that returns no tiles leaves a globe instead of a hole, and the globe repairs
-itself when the source answers again. All three known online basemaps ask for one.
+itself when the source answers again. All five known online basemaps ask for one.
 
 A basemap backing belongs to one basemap, and the set never holds it as an entry. The reader cannot
 pick it, it carries no transparency, and it always sits below. The backing is always the bundled
@@ -200,7 +206,7 @@ template, and anything else means a TMS pyramid.
 
 ## Sources you may add yourself
 
-This package knows four basemaps. Any other tile source you can legally use is one `Imagery` away.
+This package knows six basemaps. Any other tile source you can legally use is one `Imagery` away.
 Read that source's terms yourself: the viewer draws the credit you give it, and it knows nothing else
 about your tiles.
 

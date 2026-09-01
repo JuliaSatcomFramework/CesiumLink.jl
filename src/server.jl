@@ -394,17 +394,17 @@ the camera may never travel that far.
 
 | value | the globe wears |
 |---|---|
-| `nothing`, the default | on Earth, Blue Marble with OpenStreetMap labels backed by the bundled pyramid; on another body, the viewer's bundled texture |
+| `nothing`, the default | on Earth, ASTER Colour Relief backed by the bundled pyramid; on another body, the viewer's bundled texture |
 | a path to a directory | the tile pyramid in it, served from this server under `/assets/imagery/` |
 | any other string, or an [`Imagery`](@ref) | the source it names, declared as it stands |
 | a list of any of those | that set, first entry worn at startup |
 | `:none` | nothing: no base layer, and a flat colour |
 
 A list is a basemap set: the reader picks within it, and the picker hides itself while the set holds
-one basemap. [`KNOWN_EARTH_BASEMAPS`](@ref) names the four basemaps this package ships ready-made,
+one basemap. [`KNOWN_EARTH_BASEMAPS`](@ref) names the six basemaps this package ships ready-made,
 and each carries the attribution its source asks for.
 
-So a session on Earth that names nothing asks `cdn.jsdelivr.net` for tiles. One bundled
+So a session on Earth that names nothing asks `gibs.earthdata.nasa.gov` for tiles. One bundled
 basemap is the whole opt-out: it removes the network, the picker, and its button:
 
 ```julia

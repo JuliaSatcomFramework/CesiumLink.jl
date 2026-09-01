@@ -178,3 +178,36 @@ could change under a reader with no release behind the change. The pinned URL al
 
 **The tileset is not vendored.** It is 421 MB, and ADR-0027 keeps the viewer artifact to bytes worth
 hosting forever.
+
+## Amendment: six basemaps, and ASTER Colour Relief is the default
+
+`blue_marble_labeled` leaves the catalogue and never reaches a release. Its place names are painted
+into the JPEG, so no other basemap can borrow them and no reader can turn them off. A separate
+annotation layer draws names that every basemap can wear, and it has its own record.
+
+The catalogue holds six. Three are new.
+
+| Name | Source | Levels | Credit |
+|---|---|---|---|
+| `aster_colour_relief` | GIBS `ASTER_GDEM_Color_Shaded_Relief` | 0-12 | `NASA EOSDIS GIBS` |
+| `aster_grey_relief` | GIBS `ASTER_GDEM_Greyscale_Shaded_Relief` | 0-12 | `NASA EOSDIS GIBS` |
+| `emodnet_baselayer` | EMODnet Bathymetry `2020/baselayer` | 0-15 | `EMODnet Bathymetry (CC BY 4.0)` |
+
+**The default set is `aster_colour_relief` backed by `offline_natural_earth`.** Every statement
+above that names `blue_marble` as the default now names `aster_colour_relief`, and so does every
+statement in the amendment before this one.
+
+**Every entry of the default set sits on `gibs.earthdata.nasa.gov`.** That is why the default is
+ASTER Colour Relief and not EMODnet Baselayer, which is the better map: it is global, it draws the
+sea floor, and it reaches level 15. EMODnet is served from `tiles.emodnet-bathymetry.eu`, so a
+default session would trust a second host. A session that names nothing now trusts one host, and
+the content policy opens one tile directory. An author who wants the better map names
+`emodnet_baselayer` and opens that host for their own session.
+
+**ASTER Colour Relief draws one flat blue for the ocean.** It is a relief map of the land and it
+carries no sea-floor colour. That is the known cost of the pick, and `blue_marble` and
+`emodnet_baselayer` both stay in the catalogue for a reader who wants the water.
+
+**The GIBS path order is `{z}/{y}/{x}` and EMODnet's is `{z}/{x}/{y}`.** A WMTS REST path names
+TileMatrix, TileRow, TileCol, which is level, row, column. A template reaches the browser as it
+stands, so a swapped pair draws a scrambled globe rather than an error.

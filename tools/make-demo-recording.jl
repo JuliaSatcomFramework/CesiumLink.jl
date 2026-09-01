@@ -24,9 +24,11 @@ const RADIUS = 6.378137e6 + 7.0e5
 const CMAP = ["#2b3a67", "#33e0ff", "#ffd166"]
 
 # Every basemap this package ships, in the order the picker draws them. Entry 1 is what the globe
-# wears at startup, so the sharp labelled one stays first and the bundled pyramid stays last. The
+# wears at startup, so the default basemap stays first and the bundled pyramid stays last. The
 # basemap guide plays this recording to show a picker holding the whole catalogue.
-const DEMO_IMAGERY = [KNOWN_EARTH_BASEMAPS.blue_marble_labeled,
+const DEMO_IMAGERY = [KNOWN_EARTH_BASEMAPS.aster_colour_relief,
+                      KNOWN_EARTH_BASEMAPS.aster_grey_relief,
+                      KNOWN_EARTH_BASEMAPS.emodnet_baselayer,
                       KNOWN_EARTH_BASEMAPS.blue_marble,
                       KNOWN_EARTH_BASEMAPS.blue_marble_relief,
                       KNOWN_EARTH_BASEMAPS.offline_natural_earth]
