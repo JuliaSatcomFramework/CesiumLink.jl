@@ -23,6 +23,14 @@ const N_SATS = 12
 const RADIUS = 6.378137e6 + 7.0e5
 const CMAP = ["#2b3a67", "#33e0ff", "#ffd166"]
 
+# Every basemap this package ships, in the order the picker draws them. Entry 1 is what the globe
+# wears at startup, so the sharp labelled one stays first and the bundled pyramid stays last. The
+# basemap guide plays this recording to show a picker holding the whole catalogue.
+const DEMO_IMAGERY = [KNOWN_EARTH_BASEMAPS.blue_marble_labeled,
+                      KNOWN_EARTH_BASEMAPS.blue_marble,
+                      KNOWN_EARTH_BASEMAPS.blue_marble_relief,
+                      KNOWN_EARTH_BASEMAPS.offline_natural_earth]
+
 const STATIONS = (
     lon = [12.50, -0.13, -74.01, 139.69, 151.21],
     lat = [41.90, 51.51, 40.71, 35.69, -33.87],
@@ -49,7 +57,8 @@ viewer, which the module set is named out of.
 """
 function make_demo_recording(out; dist_dir)
     # This scene belongs to the recorder, and to nobody's screen.
-    server = start_server(; dist_dir, host = "127.0.0.1", port = 0, open = false)
+    server = start_server(; dist_dir, host = "127.0.0.1", port = 0, open = false,
+                          imagery = DEMO_IMAGERY)
     try
         register_module!(server, vendored(:primitives; dist_dir))
         register_module!(server, vendored(:ui; dist_dir))

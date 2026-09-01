@@ -48,6 +48,29 @@ start_server(; imagery = collect(KNOWN_EARTH_BASEMAPS))
 Pick by field, as above. Do not filter the catalogue by its name strings. A source renamed in a
 later release matches nothing, and the filter hands you back a basemap you meant to drop.
 
+### All four, live
+
+The scene below is a recording of a session that declares all four. No Julia process is running.
+Open the basemap picker at the top right and pick each entry in turn.
+
+```@raw html
+<!-- The three online basemaps come from NASA GIBS and from jsDelivr, which nothing here controls.
+     A globe that stays flat and blurry after a pick means one of those hosts is unreachable: the
+     basemap backing is drawing the bundled pyramid in place of the tiles that did not arrive. -->
+<iframe src="../viewer/player.html?rec=../recordings/orbit.jsonl&modules=modules"
+        title="A recorded session declaring all four known Earth basemaps"
+        loading="lazy"
+        style="width:100%;aspect-ratio:16/10;border:1px solid var(--vp-c-divider);border-radius:8px">
+</iframe>
+```
+
+The picker lists the set in the order the server declared it, and the globe wears entry 1 at
+startup. The credit line at the bottom right names the basemap you picked, and the viewer rewrites
+it on every switch. Natural Earth is the bundled pyramid, so it draws no credit and asks for no
+tile.
+
+The recording carries the set and not the pick. Reload the page and the globe wears entry 1 again.
+
 ## What a set is, and what a backing is
 
 **Entry 1 is what the globe wears at startup.** The rest are what the reader can switch to. The
