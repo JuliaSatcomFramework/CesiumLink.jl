@@ -38,8 +38,8 @@ The layer also pages, for the reason the names do. Natural Earth's `MIN_ZOOM` sa
 the 581 lines belongs, and the generator writes that as the `minz` the names already carry. The
 viewer rebuilds the data source from the lines the camera's level reaches, and rebuilds it again
 only when the level crosses into another band, of which the file holds three. Hiding an entity is
-not enough here either: a hidden ground polyline is still a ground polyline, and ground polylines
-are the expensive half of drawing this.
+not enough here either: a hidden polyline is still a polyline, and the polylines are the expensive
+half of drawing this.
 
 **They carry no credit and open no origin.** Every file ships inside the viewer, so nothing reaches
 the network. The data is Natural Earth, which is public domain. ADR-0034's rule stands unamended:
@@ -96,9 +96,15 @@ half the view, which is far too coarse here. Going finer than 0.1 fires the same
 
 **A country polygon draws no outline on terrain.** Cesium disables entity geometry outlines there
 and says nothing about it: the data source loads, the entities exist, `polygon.outline` reads true,
-and the globe is bare. So the boundaries arrive as LineString features, which Cesium turns into
-ground polylines that do draw. The generator writes Natural Earth's boundary-lines file and not its
-countries file for this one reason.
+and the globe is bare. So the boundaries arrive as LineString features, which draw as polylines. The
+generator writes Natural Earth's boundary-lines file and not its countries file for this one reason.
+
+**And not as ground polylines.** A ground polyline is built in a worker that first fetches
+`Assets/approximateTerrainHeights.json` for itself, and the worker keeps a failed fetch for good:
+every later line fails with it, and the failure is a bare object the primitive throws from the
+render loop, which stops the globe. A VSCode webview answers that fetch with 408 when its resource
+pipe is slow. This globe has no terrain, so a plain polyline at height zero lies on the surface, and
+`depthTestAgainstTerrain` is off, so the globe never hides one.
 
 The boundary scale is the expensive half. Names cost little and lines cost the frame: 1:110m and
 1:50m boundaries are indistinguishable on frame time, and 1:10m roughly doubles it. So the pair is

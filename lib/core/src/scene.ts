@@ -357,6 +357,19 @@ export async function createScene(
     creditContainer: credits,
   });
   separateDrawingBuffer(widget);
+  // Cesium's own panel prints `name: message` and the stack, so a thrown value that is not an
+  // Error reads as `[object Object]` and `undefined`, which names nothing. This line names it: its
+  // class, its keys and its fields, before the panel goes up.
+  widget.scene.renderError.addEventListener((_scene: unknown, err: unknown) => {
+    let fields = "";
+    try {
+      fields = JSON.stringify(err);
+    } catch {
+      fields = "(not serialisable)";
+    }
+    const cls = (err as { constructor?: { name?: string } } | undefined)?.constructor?.name;
+    console.error("CesiumLink: the render loop stopped on", cls, Object.keys(err ?? {}), fields, err);
+  });
   if (layers === false) widget.scene.globe.baseColor = BARE_GLOBE_COLOR;
   // A backed basemap is two layers. The widget takes the bottom one, and the rest go above it in
   // the order the list states.

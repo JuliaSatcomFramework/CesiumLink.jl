@@ -412,14 +412,20 @@ export function addAnnotations(
   })();
 
   const lines = (async () => {
-    // The boundaries arrive as LineString features, which Cesium turns into ground polylines. A
-    // country polygon draws no outline on terrain: Cesium disables entity geometry outlines there
-    // and says nothing, so the data source loads, the entities exist, `polygon.outline` reads true
-    // and the globe is bare.
+    // The boundaries arrive as LineString features and draw as plain polylines on the ellipsoid,
+    // never as ground polylines. A ground polyline is built in a worker that first fetches
+    // `Assets/approximateTerrainHeights.json` for itself, and the worker keeps a fetch that failed
+    // for good: every later line fails with it, and the failure is a bare object the primitive
+    // throws from the render loop, which stops the globe. A VSCode webview answers that fetch with
+    // 408 when its resource pipe is slow. This globe has no terrain, so a line at height zero lies
+    // on the surface, and `depthTestAgainstTerrain` is off, so the globe never hides one.
+    //
+    // Lines, not polygon outlines: Cesium draws no outline for an entity polygon on the globe and
+    // says nothing, so the data source loads, the entities exist, `polygon.outline` reads true and
+    // the globe is bare.
     const source = await GeoJsonDataSource.load(base + "country-borders.geojson", {
       stroke: Color.WHITE,
       strokeWidth: 4,
-      clampToGround: true,
     });
     edgeLines(source, Color.WHITE);
     source.show = on.borders;
@@ -457,7 +463,6 @@ export function addAnnotations(
         // Thinner and dimmer than a country line, because a region is a smaller claim.
         stroke: REGION_LINE,
         strokeWidth: 3,
-        clampToGround: true,
       }).then((source) => {
         if (mine !== newest) return;
         edgeLines(source, REGION_LINE);

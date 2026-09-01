@@ -142,8 +142,9 @@ labels (that is the text a widget shows), place names.
 
 **Country borders**:
 The boundary lines between countries the **annotation layer** draws. They arrive as
-ground polylines and never as polygon outlines, because Cesium draws no entity
-outline on terrain. The server states them apart from the **named places**, because a
+polylines on the ellipsoid and never as polygon outlines, because Cesium draws no
+entity outline on terrain, and never as ground polylines, because those are built
+in a worker that can fail for good. The server states them apart from the **named places**, because a
 border is a political claim and a reader may want the names without one.
 _Avoid_: boundaries (that is the footprint outline an `Areas` value draws, which
 belongs to the `primitives` **payload vocabulary**).
