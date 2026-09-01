@@ -10,6 +10,7 @@ import {
   UrlTemplateImageryProvider,
   WebMercatorTilingScheme,
 } from "@cesium/engine";
+import { addAnnotations } from "./annotations";
 import type { Overlay } from "./overlay";
 
 /**
@@ -344,6 +345,9 @@ export async function createScene(
   // draws a blue wash over the whole disc, which lightens a dark basemap into grey and shifts every
   // colour drawn on the surface towards blue.
   widget.scene.globe.showGroundAtmosphere = false;
+  // Place names and country borders, above the base and owned by the session rather than by the
+  // pick. The picker removes only the base layers it counted, so these survive a switch (ADR-0036).
+  addAnnotations(widget, opts.baseUrl);
   // The sun's position comes from the clock, which the window playback drives, so the terminator
   // stands where the scene's own time puts it.
   if (opts.lighting) widget.scene.globe.enableLighting = true;
