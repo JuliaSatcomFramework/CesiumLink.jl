@@ -137,7 +137,8 @@ The session declaration. Sent once per connection, before anything else, and ret
       { "bundled": true, "name": "Natural Earth", "key": "offline_natural_earth" }
     ],
     "lighting": true,
-    "stars": true
+    "stars": true,
+    "namedPlaces": false
   }}
 ```
 
@@ -183,6 +184,13 @@ The session declaration. Sent once per connection, before anything else, and ret
   runs across it. **Optional; absent leaves the globe evenly lit.**
 - `stars` is a boolean. It draws the sky around the globe: the star field, the sun and the moon.
   **Optional; absent leaves black behind the globe.**
+- `namedPlaces` and `countryBorders` are booleans, and they are the two annotation layers the viewer
+  draws above whatever basemap the reader picked (ADR-0036). **Optional; absent draws the layer**,
+  so each appears only as `false` — the opposite way round to the two fields above. They are two
+  fields and not one because a border is a political claim, and a reader may want the names with no
+  line asserting a boundary. Neither layer is a basemap: the picker counts imagery layers and these
+  are not imagery, so a switch never reaches them. Both files ship inside the viewer, so neither
+  opens an origin nor adds a credit.
 - `apiVersion` is checked against the viewer's own **before** the import, so a mismatched module
   never executes. A mismatch is warned about and skipped; the rest of the list still loads.
 - `url` is same-origin and always `/modules/<id>/<basename of the registered file>`. The server

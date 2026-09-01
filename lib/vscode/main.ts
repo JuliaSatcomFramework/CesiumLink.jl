@@ -82,6 +82,8 @@ async function start(): Promise<void> {
     imagery: imagery ? rebaseImagery(imagery, imageryBase) : imagery,
     lighting: declaration?.lighting,
     stars: declaration?.stars,
+    namedPlaces: declaration?.namedPlaces,
+    countryBorders: declaration?.countryBorders,
     furniture: declaration?.furniture,
     importModule,
     assetBase: mountBase,

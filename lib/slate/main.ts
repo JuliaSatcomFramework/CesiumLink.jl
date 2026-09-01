@@ -66,6 +66,8 @@ export async function mount(container: HTMLElement, channel: string): Promise<()
       imagery: declaration?.imagery,
       lighting: declaration?.lighting,
       stars: declaration?.stars,
+      namedPlaces: declaration?.namedPlaces,
+      countryBorders: declaration?.countryBorders,
       furniture: declaration?.furniture,
       importModule,
       assetBase: mountBase,

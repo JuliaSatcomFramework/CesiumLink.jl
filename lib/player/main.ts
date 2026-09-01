@@ -69,6 +69,8 @@ async function start(): Promise<void> {
     imagery: scene.imagery,
     lighting: scene.lighting,
     stars: scene.stars,
+    namedPlaces: scene.namedPlaces,
+    countryBorders: scene.countryBorders,
     // Before the first paint, so the page never flashes the default set on its way to the recorded
     // one. The retained `core/furniture` command arrives behind it and says the same thing.
     furniture: scene.furniture,

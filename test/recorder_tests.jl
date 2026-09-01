@@ -93,7 +93,7 @@ end
         server = start_server(; dist_dir = nothing, host = "::1", port = 0,
                               ellipsoid = (a = 1737400.0, b = 1737400.0),
                               imagery = "https://tiles.invalid/{z}/{x}/{y}.png",
-                              lighting = true, stars = true)
+                              lighting = true, stars = true, named_places = false)
         try
             declare_furniture(server; timeline = false)
             record!(server, path)
@@ -107,6 +107,9 @@ end
         @test only(header["imagery"])["url"] == "https://tiles.invalid/{z}/{x}/{y}.png"
         @test header["lighting"] == true
         @test header["stars"] == true
+        # An annotation layer travels only when it is off, since on is what a player already does.
+        @test header["namedPlaces"] == false
+        @test !haskey(header, "countryBorders")
         # The furniture is here as well as in the retained command written under it, so the player
         # builds the declared set before it paints rather than flashing the default one first.
         @test header["furniture"]["items"]["timeline"] == false
@@ -131,6 +134,8 @@ end
         # Absent and `false` are two different declarations. A session that declares nothing must
         # state neither. A recorded `false` asks the player for a globe with no base layer at all.
         @test !any(haskey(header, k) for k in ("ellipsoid", "lighting", "stars", "furniture"))
+        # Both annotation layers are drawn by default, so a default session records neither.
+        @test !any(haskey(header, k) for k in ("namedPlaces", "countryBorders"))
     end
 end
 

@@ -180,6 +180,11 @@ mutable struct Server
     const lighting::Bool
     # Whether the sky around the globe is drawn. It cannot change mid-session, for the same reason.
     const stars::Bool
+    # Whether the place names are drawn above the basemap, and whether the country borders are. Two
+    # switches and not one: a border is a political claim, and a reader may want the names without
+    # it. Neither can change mid-session, for the reason the imagery cannot.
+    const named_places::Bool
+    const country_borders::Bool
     # The open session recording, or `nothing`, and the wall-clock instant it was opened at — every
     # broadcast frame is stamped with its offset from that. Guarded by `record_lock`, its own, so
     # that a slow disk holds up nothing but the next frame to be recorded.
@@ -327,7 +332,8 @@ end
 """
     start_server(; dist_dir=viewer_dist(), host="127.0.0.1", port=0, title=basename(pwd()),
                  ellipsoid=nothing, imagery=nothing, assets=nothing, trusted_origins=String[],
-                 lighting=false, stars=false, open=:auto, listen=!in_notebook()) -> Server
+                 lighting=false, stars=false, named_places=true, country_borders=true,
+                 open=:auto, listen=!in_notebook()) -> Server
 
 Start the one-port HTTP+WebSocket listener and return a running [`Server`](@ref). Static files are
 served from `dist_dir` (the built viewer); the WebSocket lives at `/ws`, same-origin with the page.
@@ -463,11 +469,20 @@ synthetic epoch and the terminator stands somewhere arbitrary.
 is off by default, because black behind the globe is what keeps the eye on the scene. The star field
 is Cesium's own, and Cesium draws it on a WGS84 globe only — a session on another body gets black
 whatever this says.
+
+`named_places` draws the place names over the globe — the continents, the oceans and seas, the
+countries and their larger cities — and `country_borders` draws the boundary lines between
+countries. Both are on by default, both ride above whatever basemap the reader picked, and each is
+switched on its own. They are two flags rather than one because a border is a political claim: a
+reader who needs the names without any line asserting a boundary turns the borders off and keeps
+them. The data ships inside the viewer, so neither reaches the network and neither adds a credit
+line.
 """
 function start_server(; dist_dir = viewer_dist(), host = "127.0.0.1", port = 0,
                       title = basename(pwd()), ellipsoid = nothing, imagery = nothing,
                       assets = nothing, trusted_origins = String[],
-                      lighting = false, stars = false, open = :auto, listen = !in_notebook())
+                      lighting = false, stars = false, named_places = true,
+                      country_borders = true, open = :auto, listen = !in_notebook())
     open === :auto || open === true || open === false ||
         throw(ArgumentError("`open` takes `:auto`, `true` or `false`, and got $(repr(open))"))
     declared_imagery, imagery_dir = resolve_imagery(imagery, ellipsoid)
@@ -491,7 +506,8 @@ function start_server(; dist_dir = viewer_dist(), host = "127.0.0.1", port = 0,
                     Dict{String,Channel{Any}}(),
                     dist_dir === nothing ? nothing : normpath(String(dist_dir)),
                     ellipsoid === nothing ? nothing : ellipsoid_radii(ellipsoid),
-                    declared_imagery, asset_dirs, origins, lighting, stars, nothing, 0.0,
+                    declared_imagery, asset_dirs, origins, lighting, stars, named_places,
+                    country_borders, nothing, 0.0,
                     ReentrantLock(), String(host), listen, nothing)
     # A server with no port has nothing to bind, nothing to publish and no page to open. The three
     # steps below are the port and what reaches it, and a notebook server skips all three.
@@ -680,7 +696,9 @@ function handle_msg(server::Server, client, frame)
             # declared set before its first paint, and the replayed command that follows says the
             # same thing, which the viewer applies as a no-op.
             modules_message(server.modules; server.ellipsoid, server.imagery, server.lighting,
-                            server.stars, furniture = declared_furniture(server),
+                            server.stars, named_places = server.named_places,
+                            country_borders = server.country_borders,
+                            furniture = declared_furniture(server),
                             assets = declared_assets(server)),
             retained_messages(server; skip = rebuild === nothing ? () : (CORE_WINDOW,)), rebuild
         end
@@ -814,7 +832,9 @@ function declare_modules(server::Server, id::AbstractString)
     decl, msgs = lock(server.clients_lock) do
         isempty(server.clients) && return nothing, Frame[]
         return modules_message(server.modules; server.ellipsoid, server.imagery, server.lighting,
-                               server.stars, furniture = declared_furniture(server),
+                               server.stars, named_places = server.named_places,
+                               country_borders = server.country_borders,
+                               furniture = declared_furniture(server),
                                assets = declared_assets(server)),
                Frame[f for (key, f) in server.retained if first(key) == id]
     end

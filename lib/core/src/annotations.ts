@@ -45,6 +45,12 @@ export interface Annotations {
   showBorders(on: boolean): void;
 }
 
+/** Which of the two layers the session asked for. Either absent is that layer drawn. */
+export interface AnnotationFlags {
+  places?: boolean;
+  borders?: boolean;
+}
+
 // The handle for a viewer, so that whatever puts the two flags on the wire can reach the layers
 // without every caller of `createScene` having to carry them.
 const attached = new WeakMap<CesiumWidget, Annotations>();
@@ -273,24 +279,36 @@ export function visibleNames(
 /**
  * Add the two annotation layers to a widget, and answer the handle that switches each on and off.
  *
+ * `show` is what the session declared. Both files are fetched either way, so a layer declared off
+ * can still be switched on later; what a layer that is off does not pay for is the paging pass,
+ * which is where the cost is.
+ *
  * The data is fetched in the background: the layers appear when it arrives, and a fetch that fails
  * leaves the globe as it was and says so once. Nothing here reaches the network — both files ship
  * inside the viewer — so this opens no origin and asks for no credit.
  */
-export function addAnnotations(widget: CesiumWidget, baseUrl: string): Annotations {
+export function addAnnotations(
+  widget: CesiumWidget,
+  baseUrl: string,
+  show: AnnotationFlags = {},
+): Annotations {
   const base = annotationBase(baseUrl);
-  let labels: LabelCollection | null = null;
   let borders: GeoJsonDataSource | null = null;
-  const on = { places: true, borders: true };
+  // Fills the label collection from the camera it is called under. It stays a no-op until the names
+  // arrive, and switching the layer back on calls it rather than waiting for the camera to move.
+  let repopulate = () => {};
+  const on = { places: show.places !== false, borders: show.borders !== false };
 
   const names = (async () => {
     const rows: NamedPlace[] = await (await fetch(base + "named-places.json")).json();
     const collection: LabelCollection = widget.scene.primitives.add(
       new LabelCollection({ scene: widget.scene }),
     );
-    collection.show = on.places;
-    labels = collection;
-    const repopulate = () => {
+    repopulate = () => {
+      collection.removeAll();
+      // A layer that is off holds no labels at all. `show = false` would hide them and still pay
+      // for every one, which is the whole reason this pass exists.
+      if (!on.places) return;
       const scene = widget.scene;
       const camera = scene.camera;
       const canvas = scene.canvas;
@@ -304,7 +322,6 @@ export function addAnnotations(widget: CesiumWidget, baseUrl: string): Annotatio
           return at;
         },
       };
-      collection.removeAll();
       const level = levelAt(camera.positionCartographic.height);
       for (const r of visibleNames(rows, level, camera.computeViewRectangle(), view)) {
         collection.add(labelFor(r));
@@ -341,13 +358,13 @@ export function addAnnotations(widget: CesiumWidget, baseUrl: string): Annotatio
   }
 
   const handle: Annotations = {
-    showPlaces(show) {
-      on.places = show;
-      if (labels) labels.show = show;
+    showPlaces(draw) {
+      on.places = draw;
+      repopulate();
     },
-    showBorders(show) {
-      on.borders = show;
-      if (borders) borders.show = show;
+    showBorders(draw) {
+      on.borders = draw;
+      if (borders) borders.show = draw;
     },
   };
   attached.set(widget, handle);

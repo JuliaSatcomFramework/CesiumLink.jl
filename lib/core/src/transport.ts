@@ -56,6 +56,13 @@ export interface Declaration {
   /** True draws the star field, the sun and the moon around the globe. Absent leaves black. */
   stars?: boolean;
   /**
+   * `false` takes the place names off the globe. Absent draws them, so this field carries only the
+   * departure from the default — the opposite way round to `lighting` and `stars`.
+   */
+  namedPlaces?: boolean;
+  /** `false` takes the country borders off the globe. Absent draws them. */
+  countryBorders?: boolean;
+  /**
    * The Core's own on-screen items. Absent means the Core builds its default set, which is what a
    * session that declares no furniture shows.
    */

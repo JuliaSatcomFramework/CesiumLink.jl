@@ -1062,6 +1062,15 @@ end
     # The sky around the globe rides the same declaration, and is off by the same default.
     @test !haskey(declared(), "stars")
     @test declared(; stars = true)["stars"] == true
+    # The two annotation layers ride the same declaration the other way round: both are drawn by
+    # default, so the wire carries one only when the session turns it off.
+    @test !haskey(declared(), "namedPlaces")
+    @test !haskey(declared(), "countryBorders")
+    @test declared(; named_places = false)["namedPlaces"] == false
+    # Each is switched on its own: a session without the names still draws the borders.
+    @test !haskey(declared(; named_places = false), "countryBorders")
+    @test declared(; country_borders = false)["countryBorders"] == false
+    @test !haskey(declared(; country_borders = false), "namedPlaces")
 end
 
 @testitem "core/stop stops the server, and no listener can refuse it" setup=[FreePort, WsOpen] begin

@@ -19,10 +19,11 @@ stands on its own: it opens with the scene as it is and continues with everythin
 
 The modules registered at this moment are named in the recording's header, since the module set is
 declared per connection and so is never itself broadcast. The header carries the scene they were
-declared into for the same reason: the globe's `ellipsoid`, the `furniture`, and `lighting` and
-`stars` when set, so the standalone player rebuilds the session rather than being told it again in
-its address bar (ADR-0024). A basemap joins them only when it is an absolute URL — a mounted directory is served by
-this server, and nothing answers for it once the recording travels. Recording again replaces the sink.
+declared into for the same reason: the globe's `ellipsoid`, the `furniture`, `lighting` and `stars`
+when set, and `named_places` and `country_borders` when off, so the standalone player rebuilds the
+session rather than being told it again in its address bar (ADR-0024). A basemap joins them only
+when it is an absolute URL — a mounted directory is served by this server, and nothing answers for
+it once the recording travels. Recording again replaces the sink.
 
 A [`replay`](@ref) through a Julia server does not read any of it. A server fixes its globe at
 `start_server`, so a recorded Moon session is replayed by `start_server(; ellipsoid, imagery)`.
@@ -72,6 +73,9 @@ function recorded_scene(server)
     im === nothing || (p = (; p..., imagery = im))
     server.lighting && (p = (; p..., lighting = true))
     server.stars && (p = (; p..., stars = true))
+    # Both annotation layers are on by default, so the header states one only when it is off.
+    server.named_places || (p = (; p..., namedPlaces = false))
+    server.country_borders || (p = (; p..., countryBorders = false))
     # The furniture rides the header as well as the retained command written under it, for the reason
     # it rides the live declaration: the viewer builds the declared set before it paints, and the
     # command that follows says the same thing, which the viewer applies as a no-op. The retention
