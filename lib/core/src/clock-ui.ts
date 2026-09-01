@@ -124,15 +124,21 @@ export interface Basemaps {
  * the wire carries. The label is never read: a label is the text a reader sees and an author may
  * change it, and a table read by label answers a renamed basemap with the wrong icon.
  *
+ * A category names what the reader sees rather than who serves it: `Relief` is a drawn map and
+ * `Imagery` is a photograph, which is why the EMODnet entry joins the two ASTER ones although a
+ * different host serves it.
+ *
  * A basemap with no key, or a key this table does not name — an author's own URL — draws the
  * offline icon and sits under `Imagery`, because `ProviderViewModel` throws with no `iconUrl` and
  * the picker groups its drop-down by category.
  */
 const KNOWN_BASEMAPS: Record<string, { icon: string; category: string }> = {
   offline_natural_earth: { icon: BASEMAP_ICONS.offline_natural_earth, category: "Offline" },
+  aster_colour_relief: { icon: BASEMAP_ICONS.aster_colour_relief, category: "Relief" },
+  aster_grey_relief: { icon: BASEMAP_ICONS.aster_grey_relief, category: "Relief" },
+  emodnet_baselayer: { icon: BASEMAP_ICONS.emodnet_baselayer, category: "Relief" },
   blue_marble: { icon: BASEMAP_ICONS.blue_marble, category: "Imagery" },
   blue_marble_relief: { icon: BASEMAP_ICONS.blue_marble_relief, category: "Imagery" },
-  blue_marble_labeled: { icon: BASEMAP_ICONS.blue_marble_labeled, category: "Imagery" },
 };
 
 const UNKNOWN_BASEMAP = { icon: BASEMAP_ICONS.offline_natural_earth, category: "Imagery" };
