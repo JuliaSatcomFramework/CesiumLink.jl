@@ -174,6 +174,7 @@ function basemapPicker(
   scene: Scene,
   basemaps: Basemaps,
   overlay: Overlay,
+  annotations: Annotations | undefined,
 ): { destroy(): void } {
   const models = basemaps.specs.map((spec, i) => {
     const name = spec.name ?? `Basemap ${i + 1}`;
@@ -215,7 +216,7 @@ function basemapPicker(
   for (let i = 0; i < onBase && scene.imageryLayers.length > 0; i++) {
     scene.imageryLayers.remove(scene.imageryLayers.get(0), false);
   }
-  return new BaseLayerPicker(el, {
+  const picker = new BaseLayerPicker(el, {
     globe: scene.globe,
     imageryProviderViewModels: models,
     selectedImageryProviderViewModel: models[0],
@@ -223,18 +224,63 @@ function basemapPicker(
     // offer a choice that changes nothing.
     terrainProviderViewModels: [],
   });
+  // The annotation boxes sit at the foot of the drop-down, under the basemaps, as one more section
+  // of what the globe wears. The drop-down is a plain element the widget appends to the cell, and
+  // Knockout binds only the nodes it wrote, so a section added after it is left alone and goes
+  // with the drop-down when the picker is destroyed.
+  if (annotations) {
+    const title = document.createElement("div");
+    title.className = "cesium-baseLayerPicker-sectionTitle";
+    title.textContent = "Annotations";
+    const section = document.createElement("div");
+    section.style.cssText = "display:flex;flex-direction:column;gap:4px;padding:0 4px 4px;" +
+      "color:#edffff;font-size:12px";
+    section.append(...annotationRows(annotations));
+    el.querySelector(".cesium-baseLayerPicker-dropDown")?.append(title, section);
+  }
+  return picker;
 }
 
 /**
- * The map-annotations cell: one button that opens three checkboxes, one per annotation layer.
- *
- * One cell and not three buttons. The place names, the country borders and the region borders are
- * three parts of one idea — what the globe wears above the basemap — although each switches on its
- * own, and the column is tall enough already.
+ * The three annotation boxes, one per layer.
  *
  * A box starts at what the session declared and writes straight to the layer. Nothing about a tick
  * travels upward: it is the reader's own view of a scene the server states, which is the rule the
  * basemap pick already follows (ADR-0017).
+ */
+function annotationRows(layers: Annotations): HTMLElement[] {
+  const rows: HTMLElement[] = [];
+  const row = (text: string, on: boolean, set: (draw: boolean) => void) => {
+    const label = document.createElement("label");
+    label.style.cssText = "display:flex;align-items:center;gap:6px;cursor:pointer";
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    box.checked = on;
+    box.style.cssText = "margin:0;cursor:pointer";
+    box.addEventListener("change", () => set(box.checked));
+    label.append(box, document.createTextNode(text));
+    rows.push(label);
+    return box;
+  };
+  row("Place names", layers.places, (draw) => layers.showPlaces(draw));
+  row("Country borders", layers.borders, (draw) => {
+    layers.showBorders(draw);
+    // A region line never draws while the country lines are off. The box says so by going dead,
+    // which is what a reader can see: a live box that changes nothing reads as a broken one.
+    regions.disabled = !draw;
+  });
+  const regions = row("Region borders", layers.regions, (draw) => layers.showRegions(draw));
+  regions.disabled = !layers.borders;
+  return rows;
+}
+
+/**
+ * The map-annotations cell: one button that opens the three annotation boxes.
+ *
+ * Only for a globe with no basemap picker. The boxes belong in the picker's drop-down, because the
+ * layers and the basemap are one idea — what the globe wears — and a button of their own is one
+ * more always-on control in a column that is tall enough already. A session that names fewer than
+ * two basemaps draws no picker, and this cell is where the boxes go then.
  *
  * The panel hangs out of the cell, so the cell is what it is positioned against, and it is
  * `display:none` while closed — which is what lets the group's rank observer read a shut cell as
@@ -254,27 +300,7 @@ function annotationsCell(el: HTMLElement, layers: Annotations): { destroy(): voi
   const panel = document.createElement("div");
   panel.style.cssText = PANEL +
     "position:absolute;top:34px;right:0;display:none;flex-direction:column;gap:4px";
-  const row = (text: string, on: boolean, set: (draw: boolean) => void) => {
-    const label = document.createElement("label");
-    label.style.cssText = "display:flex;align-items:center;gap:6px;cursor:pointer";
-    const box = document.createElement("input");
-    box.type = "checkbox";
-    box.checked = on;
-    box.style.cssText = "margin:0;cursor:pointer";
-    box.addEventListener("change", () => set(box.checked));
-    label.append(box, document.createTextNode(text));
-    panel.appendChild(label);
-    return box;
-  };
-  row("Place names", layers.places, (draw) => layers.showPlaces(draw));
-  row("Country borders", layers.borders, (draw) => {
-    layers.showBorders(draw);
-    // A region line never draws while the country lines are off. The box says so by going dead,
-    // which is what a reader can see: a live box that changes nothing reads as a broken one.
-    regions.disabled = !draw;
-  });
-  const regions = row("Region borders", layers.regions, (draw) => layers.showRegions(draw));
-  regions.disabled = !layers.borders;
+  panel.append(...annotationRows(layers));
   // Click to open, click to close, which is what the camera-follow item does. Not hover: hover has
   // no touch story and is hostile to a box the reader is aiming a pointer at.
   const toggle = () => {
@@ -388,7 +414,7 @@ export function buildFurniture(
     home: (el) => new HomeButton(el, scene),
     sceneMode: (el) => new SceneModePicker(el, scene),
     projection: (el) => new ProjectionPicker(el, scene),
-    basemap: (el) => basemapPicker(el, scene, basemaps!, overlay),
+    basemap: (el) => basemapPicker(el, scene, basemaps!, overlay, annotations),
     annotations: (el) => annotationsCell(el, annotations!),
     navHelp: (el) => new NavigationHelpButton({ container: el }),
     fullscreen: (el) =>
@@ -414,12 +440,14 @@ export function buildFurniture(
    *
    * The capture cell has the same shape: only a caller that handed one over can show it. So does
    * the basemap picker, which needs a set of two or more to pick within, and the annotations cell,
-   * which has nothing to switch on a globe built with no annotation layers.
+   * which has nothing to switch on a globe built with no annotation layers and nothing to add
+   * where the picker's drop-down already holds the boxes.
    */
+  const pickable = () => basemapPickable(basemaps?.specs.length ?? 0);
   const available = (id: GroupId): boolean => {
     if (id === "canvasCapture") return captureCell !== undefined;
-    if (id === "basemap") return basemapPickable(basemaps?.specs.length ?? 0);
-    if (id === "annotations") return annotations !== undefined;
+    if (id === "basemap") return pickable();
+    if (id === "annotations") return annotations !== undefined && !pickable();
     return id !== "fullscreen" || expand !== undefined || document.fullscreenEnabled;
   };
 
