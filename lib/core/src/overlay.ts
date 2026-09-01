@@ -9,6 +9,16 @@
 
 import DOMPurify from "dompurify";
 
+// What a credit may hold. A credit is one line of attribution: a link, and the light emphasis a
+// source asks for. On the browser and player hosts the string arrives in `?credit=` of the page
+// URL, so whoever hands a reader a link writes it, and the allow-list is what stands between that
+// and the page. `style` is the attribute that matters: with it, one anchor covers the viewport and
+// takes every click. The list therefore carries a link target and nothing that paints.
+const CREDIT_HTML = {
+  ALLOWED_TAGS: ["a", "b", "i", "em", "strong", "span", "sup", "br"],
+  ALLOWED_ATTR: ["href", "title", "target"],
+};
+
 /**
  * The overlay positions in use today. Every reader of a declared region name checks it against this
  * list. Add a new region when a real layout needs one (ADR-0004).
@@ -31,11 +41,11 @@ export interface Overlay extends OverlayControls {
    * Draw the attribution line for the basemap the globe wears now, or take it down when that
    * basemap asks for none.
    *
-   * A credit is HTML, because Stadia, OpenStreetMap and Esri all ask for a linked attribution. The
-   * string comes from whoever started the server, so the overlay sanitizes it with `DOMPurify`
-   * first — which is what Cesium's own `Credit` does before it sets `innerHTML`. Nothing but a link
-   * in it takes the pointer: the line lies over the globe, and a drag that starts on its text has
-   * to turn the globe rather than stop on a word.
+   * A credit is HTML, because Stadia, OpenStreetMap and Esri all ask for a linked attribution. It
+   * reaches this host from the server, or from `?credit=` in the page URL, so the overlay
+   * sanitizes it with `DOMPurify` against a narrow allow-list — a link and light emphasis, and no
+   * attribute that paints. Nothing but a link in it takes the pointer: the line lies over the
+   * globe, and a drag that starts on its text has to turn the globe rather than stop on a word.
    *
    * This is a setter and not an append, because the reader picks the basemap and the picker calls
    * it on every switch: one line at a time, naming the basemap that was picked and never the
@@ -145,10 +155,12 @@ export function createOverlay(container: HTMLElement): Overlay {
         // no pointer and `addControl` would hand it one.
         ensure("bottom-right").prepend(creditEl);
       }
-      creditEl.innerHTML = DOMPurify.sanitize(credit);
-      // The line itself is transparent to the pointer, so each link has to take it back.
+      creditEl.innerHTML = DOMPurify.sanitize(credit, CREDIT_HTML);
+      // The line itself is transparent to the pointer, so each link has to take it back. A link
+      // that opens a tab gets `noopener`, because the page it opens must not reach this one.
       creditEl.querySelectorAll("a").forEach((a) => {
         a.style.pointerEvents = "auto";
+        a.rel = "noopener noreferrer";
       });
     },
     setBottomInset(px) {

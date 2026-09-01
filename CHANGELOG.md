@@ -15,9 +15,6 @@ All notable changes to CesiumLink are in this file.
   picker button stands in the furniture group while the set holds two or more.
 - `Imagery` takes `backing`. A basemap marked that way draws the viewer's bundled pyramid underneath
   itself, so a source that stops serving leaves a globe instead of a black ball.
-- `Imagery` takes `credit`, one line of attribution drawn over the bottom right of the globe. The
-  string is HTML, so an attribution that must carry a link can. The viewer sanitizes it before it
-  draws it, and rewrites the line on every switch.
 - `declare_furniture` takes `basemap`. Set it to `false` to declare a set and show no picker over it.
 
 ### Changed
@@ -27,6 +24,13 @@ All notable changes to CesiumLink are in this file.
   asks `cdn.jsdelivr.net` for tiles. One line takes the network out again:
   `start_server(; imagery = KNOWN_EARTH_BASEMAPS.offline_natural_earth)`. A session on another body
   is unchanged: it still wears the bundled texture and reaches no network.
+- **Breaking behaviour.** A `credit` is HTML, where it used to be drawn as text. An attribution
+  that must carry a link now can, and one that holds a `<` no longer shows it. The viewer sanitizes
+  the string against a narrow allow-list before it draws it — a link and light emphasis, and no
+  attribute that paints — and rewrites the line on every switch.
+- `?imagery=`, `?tiling=`, `?maxlevel=` and `?credit=` in a page address reach the globe only where
+  no declaration states a basemap. A server on Earth now always declares one, so those parameters
+  are for a page with no server behind it, or for a session on another body.
 - A recording carries the whole declared set, not one basemap. A recording made with a keyed URL
   therefore holds that key in plain text.
 - The content policy of a VSCode panel opens for the origin of every basemap in the set.

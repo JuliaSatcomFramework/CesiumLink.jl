@@ -283,6 +283,11 @@ async function askForScene() {
 
 // --- the panel ----------------------------------------------------------------------------
 
+// The characters a CSP source may not carry. Whitespace splits the list, `;` and `,` split the
+// directives, and a quote or an angle bracket escapes the `<meta content>` attribute `pageHtml`
+// writes the joined list into. `CSP_UNSAFE` in `src/imagery.jl` is the same set.
+const CSP_UNSAFE = /[\s;,'"<>]/;
+
 // The policy source for a basemap the server declared as a URL. A CSP source carries a path as well
 // as an origin, and a path ending in `/` matches by prefix, so the page trusts the one tile
 // directory this scene reads and not everything else that host serves. The prefix runs to the last
@@ -295,8 +300,10 @@ function imageryCspSource(imagery) {
   if (!m) return null;
   const [, origin, path] = m;
   // The list joins with a space and the directives join with `;`, so a source carrying whitespace,
-  // `;` or `,` would not be one source any more.
-  if (/[\s;,]/.test(origin)) return null;
+  // `;` or `,` would not be one source any more. A quote or an angle bracket is refused for where
+  // the source lands: `pageHtml` writes the joined list into the `content` attribute of a `<meta>`
+  // element, and a quote there closes the attribute. `CSP_UNSAFE` in `src/imagery.jl` is this set.
+  if (CSP_UNSAFE.test(origin)) return null;
   // A placeholder in the host leaves no path to trust: a cut inside an authority would name a host
   // nobody declared.
   if (origin.includes('{')) return origin;
@@ -304,7 +311,7 @@ function imageryCspSource(imagery) {
   const cut = head.lastIndexOf('/');
   if (cut < 0) return origin;
   const prefix = head.slice(0, cut + 1);
-  return /[\s;,]/.test(prefix) ? origin : origin + prefix;
+  return CSP_UNSAFE.test(prefix) ? origin : origin + prefix;
 }
 
 // Every mount the panel can actually grant, as name to directory. A directory the extension host

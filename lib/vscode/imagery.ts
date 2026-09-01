@@ -34,6 +34,6 @@ export function rebaseImagery(
 // The bundled entry carries no URL: the page builds the one it answers on from `CESIUM_BASE_URL`,
 // so there is nothing here to rebase.
 function rebaseOne(spec: ImagerySpec, base: string): ImagerySpec {
-  if (spec.bundled || base === "" || /^[a-z][a-z0-9+.-]*:/i.test(spec.url)) return spec;
+  if (spec.url === undefined || base === "" || /^[a-z][a-z0-9+.-]*:/i.test(spec.url)) return spec;
   return { ...spec, url: base + spec.url.replace(MOUNT_PREFIX, "") };
 }

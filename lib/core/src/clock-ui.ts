@@ -111,6 +111,12 @@ export interface Basemaps {
   ellipsoid: Ellipsoid;
   /** CESIUM_BASE_URL, which is where the bundled Earth texture answers. */
   baseUrl: string;
+  /**
+   * The entry the globe wears now, which the Core sets to entry 0 and the picker rewrites on every
+   * switch. It outlives the picker on purpose: a declaration that turns this item off and on again
+   * builds a second picker, and that one has to know what the first one left on the globe.
+   */
+  onGlobe?: ImagerySpec;
 }
 
 /**
@@ -158,9 +164,6 @@ function basemapPicker(
   basemaps: Basemaps,
   overlay: Overlay,
 ): { destroy(): void } {
-  // The entry the picker last built for. A fallback is heard after the switch that started it, so
-  // the answer is only worth acting on while it is still the entry on the globe.
-  let picked: ImagerySpec | undefined;
   const models = basemaps.specs.map((spec, i) => {
     const name = spec.name ?? `Basemap ${i + 1}`;
     const look = (spec.key === undefined ? undefined : KNOWN_BASEMAPS[spec.key]) ?? UNKNOWN_BASEMAP;
@@ -176,19 +179,31 @@ function basemapPicker(
       creationFunction: (() => {
         // The credit follows the pick: it names the basemap the reader chose and never the backing
         // under it, and an entry that carries none takes the line down (ADR-0034).
-        picked = spec;
+        basemaps.onGlobe = spec;
         overlay.setCredit(spec.credit);
         // A source that will not build draws the bundled Earth texture, which the declared credit
-        // does not describe, so the line comes down with it (ADR-0020).
+        // does not describe, so the line comes down with it (ADR-0020). A fallback is heard after
+        // the switch that started it, so it is only worth acting on while this is still the entry
+        // on the globe.
         return basemapProviders(spec, basemaps.ellipsoid, basemaps.baseUrl, () => {
-          if (picked === spec) overlay.setCredit(undefined);
+          if (basemaps.onGlobe === spec) overlay.setCredit(undefined);
         });
       }) as unknown as ProviderViewModel.CreationFunction,
     });
   });
+  // The base comes off, and only the base. A module drapes rasters of its own over the globe
+  // through the same collection (the heatmap does), and it holds what it added: `removeAll` would
+  // take those with it and leave the module believing they are still on screen, so they would not
+  // come back until its data changed. The base is the bottom of the stack — Cesium inserts a
+  // picked basemap at index 0, and a module appends above it — and it is as many layers as the
+  // entry on the globe draws with: two for a backed entry, one for anything else.
+  //
   // Taken off, never destroyed: the globe's surface still holds the layers it is loading tiles for,
   // and a destroyed layer under it stops the render loop.
-  scene.imageryLayers.removeAll(false);
+  const onBase = basemaps.onGlobe === undefined ? 0 : basemaps.onGlobe.backing ? 2 : 1;
+  for (let i = 0; i < onBase && scene.imageryLayers.length > 0; i++) {
+    scene.imageryLayers.remove(scene.imageryLayers.get(0), false);
+  }
   return new BaseLayerPicker(el, {
     globe: scene.globe,
     imageryProviderViewModels: models,

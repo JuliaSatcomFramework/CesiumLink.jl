@@ -117,6 +117,10 @@ end
     @test CesiumLink.csp_source("https://cdn.example/a;b/{z}.png") == "https://cdn.example"
     @test CesiumLink.csp_source("https://cdn.example/a,b/{z}.png") == "https://cdn.example"
     @test CesiumLink.csp_source("https://cdn ex.ample/a/{z}.png") === nothing
+    # A quote would close the `content` attribute of the `<meta>` element a host writes the joined
+    # list into, and the rest of the URL would become markup in the page.
+    @test CesiumLink.csp_source("https://cdn.example/a\"x/{z}.png") == "https://cdn.example"
+    @test CesiumLink.csp_source("https://cdn.example/a<x/{z}.png") == "https://cdn.example"
     @test CesiumLink.csp_source("assets/imagery/") === nothing
 
     # A session that names a remote basemap and nothing else declares no `trusted_origins` of its

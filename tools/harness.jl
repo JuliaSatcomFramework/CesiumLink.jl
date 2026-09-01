@@ -159,7 +159,10 @@ function main(argv)
     # On the default port, which the operating system picks: nothing outside this run has to reach
     # the server, and two harness runs at once must not collide on one number.
     # This scene belongs to the headless browser below, and to nobody's screen.
-    server = start_server(; dist_dir = dist, title = "regression harness", open = false)
+    # The bundled pyramid, named rather than defaulted: the default set fetches tiles from a public
+    # CDN, and a draw-command count that waits on a network is not a baseline.
+    server = start_server(; dist_dir = dist, title = "regression harness", open = false,
+                          imagery = KNOWN_EARTH_BASEMAPS.offline_natural_earth)
     try
         # Every hover the viewer sends is answered here: this is what the browser half times the
         # round trip of. The subscription the viewer forwards against is derived from this

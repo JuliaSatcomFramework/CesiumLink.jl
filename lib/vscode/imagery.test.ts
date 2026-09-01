@@ -34,10 +34,11 @@ test("a recording made before the mount was named still rebases", () => {
 test("every entry of a set is rebased, and the bundled entry has no URL to rebase", () => {
   const set = [
     { url: "assets/imagery/{z}/{x}/{y}.png", layout: "xyz" as const },
-    { url: "", layout: "tms" as const, bundled: true, name: "Natural Earth" },
+    // What the server really writes for the bundled entry: a marker and a label, and no URL.
+    { bundled: true, name: "Natural Earth" },
   ];
   assert.deepEqual(rebaseImagery(set, BASE), [
     { url: `${BASE}{z}/{x}/{y}.png`, layout: "xyz" },
-    { url: "", layout: "tms", bundled: true, name: "Natural Earth" },
+    { bundled: true, name: "Natural Earth" },
   ]);
 });

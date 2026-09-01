@@ -113,6 +113,7 @@ export async function createViewer(
   // for the basemap it starts on, and the furniture contributes its button group to a region like
   // anything else.
   const overlay = createOverlay(container);
+  const specs = basemapSet(opts.imagery);
   const widget = await createScene(container, opts, overlay);
   const scene = widget.scene;
 
@@ -121,8 +122,10 @@ export async function createViewer(
   const furniture = buildFurniture(container, scene, widget.clock, overlay, opts.expand,
     (el) => captureCell(el, widget),
     // The declared basemap set, which the picker reads. `createScene` has already put entry 0 on
-    // the globe, and the picker takes that base over when it is built.
-    { specs: basemapSet(opts.imagery), ellipsoid: scene.ellipsoid, baseUrl: opts.baseUrl });
+    // the globe, so that is what `onGlobe` starts as, and the picker takes that base over when it
+    // is built. This object outlives every picker built from it, which is what lets a second one
+    // know which layers the first left behind.
+    { specs, ellipsoid: scene.ellipsoid, baseUrl: opts.baseUrl, onGlobe: specs[0] });
   const onResize = () => furniture.resize();
   window.addEventListener("resize", onResize);
 

@@ -85,6 +85,10 @@ test("only a basemap declared as a URL contributes a source, and it names one pa
   assert.equal(imageryCspSource("https://cdn.test/a;b/{z}.png"), "https://cdn.test");
   assert.equal(imageryCspSource("https://cdn.test/a,b/{z}.png"), "https://cdn.test");
   assert.equal(imageryCspSource("https://cdn te.st/a/{z}.png"), null);
+  // A quote would close the `content` attribute of the `<meta>` element `pageHtml` writes the
+  // joined list into, and the rest of the URL would become markup in the page.
+  assert.equal(imageryCspSource('https://cdn.test/a"x/{z}.png'), "https://cdn.test");
+  assert.equal(imageryCspSource("https://cdn.test/a<x/{z}.png"), "https://cdn.test");
   // A mounted pyramid is an entry in the assets map like any other, so it names no source.
   assert.equal(imageryCspSource("/data/moon_tiles"), null);
   assert.equal(imageryCspSource(undefined), null);

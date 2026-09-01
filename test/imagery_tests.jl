@@ -75,6 +75,13 @@ end
     @test_throws "may not ask for one on this ellipsoid" start_server(;
         dist_dir = nothing, listen = false, ellipsoid = moon,
         imagery = KNOWN_EARTH_BASEMAPS.blue_marble)
+    # The bundled pyramid is that same Earth texture, so naming it directly is refused too. Without
+    # this the picker would offer a Moon reader a row that draws Earth's coastlines.
+    @test_throws "may not stand on this ellipsoid" start_server(;
+        dist_dir = nothing, listen = false, ellipsoid = moon,
+        imagery = KNOWN_EARTH_BASEMAPS.offline_natural_earth)
+    @test_throws "may not stand on this ellipsoid" CesiumLink.resolve_imagery(
+        ["https://host/moon/{z}/{x}/{y}.png", KNOWN_EARTH_BASEMAPS.offline_natural_earth], moon)
     # A basemap of the body itself asks for no backing, so the server declares it.
     server = start_server(; dist_dir = nothing, listen = false, ellipsoid = moon,
                           imagery = "https://host/moon/{z}/{x}/{y}.png")

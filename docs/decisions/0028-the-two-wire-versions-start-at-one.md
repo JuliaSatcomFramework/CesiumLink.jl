@@ -33,6 +33,12 @@ manually entered server. That pair is what the handshake closes.
 `RECORDING_VERSION` stays 2, for the reason stated below. ADR-0034 widens the header field `imagery`
 from an object to an object-or-list, and a reader tells the two shapes apart with no number at all.
 
+A player released before ADR-0034 does not, and the number cannot warn it: it accepts the file,
+reads the list where it expects an object, and draws the bundled Earth texture with one console
+error. That is the fallback every unbuildable source takes (ADR-0020), so such a player shows a
+globe and the scene on it, with the wrong face. A number that refused the file instead would show
+nothing at all, which is worse, and it would refuse every older file as well.
+
 **The contract that can really drift has no number.** The extension reads the discovery file, and
 the two are versioned apart. Every key the extension reads is therefore additive-only, and a server
 must keep filling the keys an older extension knows. `trustedOrigins` is the one that matters for

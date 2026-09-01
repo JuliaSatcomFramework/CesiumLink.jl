@@ -18,10 +18,16 @@ import type { Overlay } from "./overlay";
  * from `tilemapresource.xml`, so `tiling` and `maxLevel` belong to an XYZ source only.
  */
 export interface ImagerySpec {
-  /** Where the tiles are: relative to the page, or absolute. */
-  url: string;
-  /** `"tms"` for a `tilemapresource.xml` pyramid, `"xyz"` for a `{z}/{x}/{y}` template. */
-  layout: "tms" | "xyz";
+  /**
+   * Where the tiles are: relative to the page, or absolute. The bundled entry carries none — the
+   * page builds the URL it answers on from `baseUrl`, and only the page knows that value.
+   */
+  url?: string;
+  /**
+   * `"tms"` for a `tilemapresource.xml` pyramid, `"xyz"` for a `{z}/{x}/{y}` template. Absent on
+   * the bundled entry, which names no URL to lay out.
+   */
+  layout?: "tms" | "xyz";
   /** XYZ only. `"mercator"` is what `{z}/{x}/{y}` means on the web, and is the default. */
   tiling?: "geographic" | "mercator";
   /** XYZ only. The deepest level the source holds. Absent means Cesium asks for any level. */
@@ -199,6 +205,12 @@ function buildProvider(
   spec: ImagerySpec,
   ellipsoid: Ellipsoid,
 ): ImageryProvider | Promise<ImageryProvider> {
+  // Only the bundled entry declares no URL, and `basemapProviders` answers that one before it gets
+  // here. A spec that reaches this line without one is a declaration the server should not have
+  // written, so it is thrown rather than built into a provider that asks for `undefined`.
+  if (spec.url === undefined) {
+    throw new Error("a declared basemap that is not the bundled one names where its tiles are");
+  }
   if (spec.layout === "tms") {
     // The pyramid states its own tiling scheme and depth in `tilemapresource.xml`.
     return TileMapServiceImageryProvider.fromUrl(spec.url, { ellipsoid });

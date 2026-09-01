@@ -169,8 +169,11 @@ and `?credit=`. Drag to turn it and scroll to zoom in. Deeper tiles arrive as yo
 
 `?imagery=` names one basemap and never a set. A URL can hold a comma, so a list in that parameter
 would be guesswork. A declaration from the server takes priority, so these parameters build the
-globe only where no declaration does. `?imagery=` also reads the layout off the URL: a `{z}` in it
-means an XYZ template, and anything else means a TMS pyramid.
+globe only where no declaration does. A server on Earth always declares a set, so they reach the
+globe on a page with no server behind it — the frame above is one — or against a session on another
+body, which declares no basemap unless you name one. The page says in its console which parameter a
+declaration overruled. `?imagery=` also reads the layout off the URL: a `{z}` in it means an XYZ
+template, and anything else means a TMS pyramid.
 
 ## Sources you may add yourself
 

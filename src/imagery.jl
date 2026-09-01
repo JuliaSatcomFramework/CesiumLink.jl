@@ -304,6 +304,14 @@ function resolve_imagery(imagery, ellipsoid = nothing)
     earth = is_earth(ellipsoid)
     declarations, dir = NamedTuple[], nothing
     for im in set
+        # The bundled pyramid is of Earth, and so is the one a backing draws underneath a URL.
+        # Neither may stand on another body: Earth's coastlines under a Moon scene are the picture
+        # ADR-0020 warns about.
+        if im.bundled && !earth
+            throw(ArgumentError("the bundled basemap is the pyramid inside the viewer, which is " *
+                                "of Earth, so it may not stand on this ellipsoid. Name a " *
+                                "basemap of this body."))
+        end
         if im.backing && !earth
             throw(ArgumentError("a backing draws the pyramid inside the viewer, which is of " *
                                 "Earth, so the basemap $(repr(something(im.name, im.url))) may " *
@@ -356,6 +364,11 @@ end
 declared_assets(server) =
     Dict(name => "assets/$name/" for name in keys(server.asset_dirs))
 
+# The characters a CSP source may not carry. Whitespace splits the list, `;` and `,` split the
+# directives, and a quote or an angle bracket escapes the `<meta content>` attribute a host writes
+# the joined list into. `imageryCspSource` in `extension/extension.js` refuses the same set.
+const CSP_UNSAFE = r"[\s;,'\"<>]"
+
 # The content-policy source expression for a declared URL, or `nothing` for anything that is not an
 # absolute URL. A CSP source takes a path as well as an origin, and a path ending in `/` matches by
 # prefix, so a declared basemap trusts one tile directory rather than every repository its CDN
@@ -367,7 +380,9 @@ function csp_source(url::AbstractString)
     origin, path = m.captures[1], m.captures[2]
     # The list joins with a space and the directives join with `;`, so a source carrying whitespace,
     # `;` or `,` would not be one source any more. An origin carrying one names nothing reachable.
-    occursin(r"[\s;,]", origin) && return nothing
+    # A quote or an angle bracket is refused for where the source lands: a host writes this list
+    # into the `content` attribute of a `<meta>` element, and a quote there closes the attribute.
+    occursin(CSP_UNSAFE, origin) && return nothing
     # A placeholder in the host leaves no path to trust: cutting inside an authority would name a
     # host nobody declared.
     occursin('{', origin) && return origin
@@ -376,7 +391,7 @@ function csp_source(url::AbstractString)
     j = findlast('/', head)
     j === nothing && return origin
     prefix = head[1:j]
-    # `;` and `,` are outside the path grammar of a CSP source, and whitespace would split the list.
-    occursin(r"[\s;,]", prefix) && return origin
+    # The same rule for the path: it is the half a declared URL controls most freely.
+    occursin(CSP_UNSAFE, prefix) && return origin
     return origin * prefix
 end
