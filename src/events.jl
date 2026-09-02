@@ -28,20 +28,30 @@ const CORE_REPLAY    = ("core", "replay")
 # back up as an event.
 const CORE_CAPTURE   = ("core", "capture")
 
+# The two pairs the `ui` module and the server both write: the crossings an addressed box raises,
+# and the list of crossings that are wanted. Every other `ui` pair belongs to `ui.jl`.
+const UI_POINTER   = ("ui", "pointer")
+const UI_SUBSCRIBE = ("ui", "subscribe")
+
+# What an addressed box raises. A box has edges, so entering it and leaving it happen once each.
+const UI_POINTER_TYPES = (:click, :enter, :leave)
+
 """
     EventListener
 
 One registered interest in the events the viewer sends: which `(module_id, topic)` pair it answers,
-and — for the Core's `pointer` topic — which events it wants forwarded at all. Create one with
-[`on_event`](@ref) or [`on_pointer`](@ref); the subscription declared to the viewer is derived from
-the registered set.
+and, for the two `pointer` topics, which events it wants forwarded at all. Create one with
+[`on_event`](@ref), [`on_pointer`](@ref) or [`on_ui_pointer`](@ref); the subscription declared to
+the viewer is derived from the registered set.
 """
 struct EventListener
     f::Any
     module_id::String
     topic::String
-    # `nothing` is "don't care" throughout: for `type` the entry matches either kind, and for each
-    # modifier it matches whether or not that key is held. `true` requires it, `false` forbids it.
+    # `nothing` is "don't care" throughout: for `id` the entry matches any addressed box, for `type`
+    # it matches every kind the topic raises, and for each modifier it matches whether or not that
+    # key is held. `true` requires it, `false` forbids it.
+    id::Union{String,Nothing}
     type::Union{Symbol,Nothing}
     alt::Union{Bool,Nothing}
     ctrl::Union{Bool,Nothing}
@@ -50,10 +60,10 @@ struct EventListener
     debounce_ms::Int
 end
 
-# A listener on any topic but `core/pointer`: no subscription narrows it, so every pointer field
-# takes the value that asks for nothing.
+# A listener on any topic but the two pointer ones: no subscription narrows it, so every pointer
+# field takes the value that asks for nothing.
 EventListener(f, module_id::AbstractString, topic::AbstractString) =
-    EventListener(f, String(module_id), String(topic), nothing, nothing, nothing, nothing,
+    EventListener(f, String(module_id), String(topic), nothing, nothing, nothing, nothing, nothing,
                   false, DEFAULT_DEBOUNCE_MS)
 
 # The modifiers, in the order the viewer reports a held set. Each is also the name of the
@@ -195,10 +205,46 @@ function on_pointer(f, server; type = nothing, alt = nothing, ctrl = nothing, sh
     type === nothing || Symbol(type) in POINTER_TYPES ||
         throw(ArgumentError("an event type is :hover or :click (got $(repr(type)))"))
     tri(x) = x === nothing ? nothing : Bool(x)
-    return register!(server, EventListener(f, CORE_POINTER...,
+    return register!(server, EventListener(f, CORE_POINTER..., nothing,
                                            type === nothing ? nothing : Symbol(type),
                                            tri(alt), tri(ctrl), tri(shift),
                                            Bool(coordinate), Int(debounce_ms)))
+end
+
+"""
+    on_ui_pointer(f, server::Server, id = nothing; type=nothing, alt=nothing, ctrl=nothing,
+                  shift=nothing)
+
+Register `f` to answer the pointer events an addressed box raises on `ui/pointer`. A box is
+addressed by the `id` its declaration carries, and `f` is called as `f(ev, reply)`, exactly as an
+[`on_event`](@ref) listener is.
+
+| Argument | Meaning |
+|---|---|
+| `id` | which box to answer, a `String` or a `Symbol`; `nothing` for every addressed box |
+| `type` | `:click`, `:enter` or `:leave`; `nothing` for all three |
+| `alt`, `ctrl`, `shift` | `true` requires that modifier held, `false` requires it not held, `nothing` does not care |
+
+The event carries `ev.type`, `ev.id`, `ev.mods` and `ev.screen`, the last measured against the
+viewer container. The union of every listener's interest is declared to the viewer as `ui/subscribe`
+and declared again whenever the set changes, so a crossing nobody asked for never leaves the browser.
+
+```julia
+on_ui_pointer(server, "run-title"; type = :click, alt = true) do ev, reply
+    @info "alt-clicked" ev.id ev.screen
+end
+```
+"""
+function on_ui_pointer(f, server, id = nothing; type = nothing, alt = nothing, ctrl = nothing,
+                       shift = nothing)
+    type === nothing || Symbol(type) in UI_POINTER_TYPES ||
+        throw(ArgumentError("a ui event type is :click, :enter or :leave (got $(repr(type)))"))
+    tri(x) = x === nothing ? nothing : Bool(x)
+    return register!(server, EventListener(f, UI_POINTER...,
+                                           id === nothing ? nothing : String(id),
+                                           type === nothing ? nothing : Symbol(type),
+                                           tri(alt), tri(ctrl), tri(shift),
+                                           false, DEFAULT_DEBOUNCE_MS))
 end
 
 """
@@ -273,13 +319,42 @@ function pointer_subscription(listeners)
               coordinate = coordinate[k], debounceMs = debounce[k]) for k in keys_in_order]
 end
 
-# Declare what the registered listeners add up to. Retained under ("core", "subscribe") like any
+"""
+    ui_subscription(listeners) -> Vector
+
+The `ui/subscribe` payload the registered `listeners` add up to: one entry per distinct
+`(id, type, mods)` interest, in registration order. A `nothing` in any of the three matches
+anything, so a listener that named no box asks for every addressed box. A listener that left some
+modifiers open contributes one entry per set it covers, since an entry can only name a set exactly.
+Listeners on other topics contribute nothing.
+"""
+function ui_subscription(listeners)
+    keys_in_order = Tuple{Union{String,Nothing},Union{Symbol,Nothing},
+                          Union{Vector{Symbol},Nothing}}[]
+    for l in listeners
+        (l.module_id, l.topic) == UI_POINTER || continue
+        for set in mod_sets(l)
+            key = (l.id, l.type, set)
+            key in keys_in_order || push!(keys_in_order, key)
+        end
+    end
+    return [(; id = k[1], type = k[2] === nothing ? nothing : String(k[2]),
+              mods = k[3] === nothing ? nothing : String.(k[3])) for k in keys_in_order]
+end
+
+# Declare what the registered listeners add up to. The globe's interests and the overlay's are two
+# lists on two topics, so a listener on one never rewrites the other. Both are retained like any
 # other declaration-shaped command, so a reconnecting viewer forwards the same events again.
 function declare_subscription!(server)
-    entries = lock(server.clients_lock) do
-        pointer_subscription(server.listeners)
+    core, ui = lock(server.clients_lock) do
+        (pointer_subscription(server.listeners), ui_subscription(server.listeners))
     end
-    return send_command(server, CORE_SUBSCRIBE..., entries)
+    send_command(server, CORE_SUBSCRIBE..., core)
+    # A session with no box listener has never asked for a crossing, and an empty list would tell
+    # the viewer what it already does. Once the list is out it is kept current, so taking the last
+    # box listener away declares the empty list that turns the crossings off.
+    isempty(ui) && retained(server, UI_SUBSCRIBE) === nothing && return nothing
+    return send_command(server, UI_SUBSCRIBE..., ui)
 end
 
 # Every value in a payload reachable by name: the viewer's JSON objects become named tuples, so a
@@ -316,7 +391,8 @@ The event a listener receives, from the `event` notification's `params`. Every e
 sequence number the answering batch echoes and where the clock was when it was raised — the
 **1-based** `frame` and the identity of the `window` on screen — so a listener answers against the
 scene the user was looking at. `core/pointer` adds the pick, the modifiers, the cursor and the
-coordinate; `core/need` adds the **1-based** `start_frame`, the frame `count` asked for and the
+coordinate; `ui/pointer` adds the crossing `type`, the box `id`, the modifiers and the cursor;
+`core/need` adds the **1-based** `start_frame`, the frame `count` asked for and the
 `mode` the window is wanted in; `core/clock` adds the signed `multiplier` and `playing`;
 `core/keyframe` adds the **1-based** `index` crossed into; everything else carries the module's own
 `payload`.
@@ -352,6 +428,15 @@ function build_event(params, region = UInt8[])
             frame = frame === nothing ? nothing : from_wire_index(Int(frame)),
             window = window === nothing ? nothing : Int(window))
     (module_id, topic) == CORE_POINTER && return (; base..., pointer_fields(payload)...)
+    if (module_id, topic) == UI_POINTER
+        # Flattened, like the pick above it, because `wants` reads `type` and `mods` at the top
+        # level. `screen` is already measured in container pixels and is carried through as it came.
+        screen = get(payload, "screen", Dict{String,Any}())
+        return (; base..., type = Symbol(get(payload, "type", "click")),
+                id = String(get(payload, "id", "")),
+                mods = Tuple(Symbol(m) for m in get(payload, "mods", String[])),
+                screen = (; x = get(screen, "x", 0), y = get(screen, "y", 0)))
+    end
     if (module_id, topic) == CORE_NEED
         return (; base..., start_frame = from_wire_index(Int(get(payload, "startFrame", 0))),
                 count = Int(get(payload, "count", 2)),
@@ -370,6 +455,7 @@ end
 # listener reaches every listener on the same topic; each one's own narrowing is applied here.
 function wants(l::EventListener, ev)
     haskey(ev, :type) || return true
+    l.id === nothing || l.id == ev.id || return false
     l.type === nothing || l.type === ev.type || return false
     for m in POINTER_MODS
         want = getfield(l, m)

@@ -1,9 +1,10 @@
 @testitem "the subscription is the union of what the listeners asked for" begin
     using CesiumLink: EventListener, pointer_subscription
 
-    l(; module_id = "core", topic = "pointer", type = nothing, alt = nothing, ctrl = nothing,
-      shift = nothing, coordinate = false, debounce_ms = 5) =
-        EventListener(identity, module_id, topic, type, alt, ctrl, shift, coordinate, debounce_ms)
+    l(; module_id = "core", topic = "pointer", id = nothing, type = nothing, alt = nothing,
+      ctrl = nothing, shift = nothing, coordinate = false, debounce_ms = 5) =
+        EventListener(identity, module_id, topic, id, type, alt, ctrl, shift, coordinate,
+                      debounce_ms)
 
     # One entry per distinct (type, mods) interest, in registration order.
     subs = pointer_subscription([l(; type = :hover),
@@ -514,6 +515,123 @@ end
         empty!(seen)
         answer_event(server, click())
         @test seen == ["second"]
+    finally
+        stop_server(server)
+    end
+end
+
+@testitem "the ui subscription names the box, the crossing and the modifier set" begin
+    using CesiumLink: EventListener, ui_subscription, pointer_subscription
+
+    l(; module_id = "ui", topic = "pointer", id = nothing, type = nothing, alt = nothing,
+      ctrl = nothing, shift = nothing, coordinate = false, debounce_ms = 5) =
+        EventListener(identity, module_id, topic, id, type, alt, ctrl, shift, coordinate,
+                      debounce_ms)
+
+    # Two listeners on one (id, type, mods) interest are one entry, not two.
+    @test only(ui_subscription([l(; id = "run-title", type = :click),
+                                l(; id = "run-title", type = :click)])) ==
+          (; id = "run-title", type = "click", mods = nothing)
+
+    # A listener that named one modifier and left the rest open is expanded the way a core one is:
+    # an entry names a set exactly, so it takes four of them to say "alt held, the rest as they come".
+    partial = ui_subscription([l(; id = "bar", type = :enter, alt = true)])
+    @test [e.mods for e in partial] ==
+          [["alt"], ["alt", "shift"], ["alt", "ctrl"], ["alt", "ctrl", "shift"]]
+    @test all(e -> e.id == "bar" && e.type == "enter", partial)
+
+    # Naming no box is the wire's "any addressed box", exactly as naming no type is any crossing.
+    @test only(ui_subscription([l()])) == (; id = nothing, type = nothing, mods = nothing)
+
+    # The two lists are derived from disjoint halves of the registry, so neither can pick up the
+    # other's listeners.
+    @test isempty(ui_subscription([l(; module_id = "core", type = :click)]))
+    @test isempty(pointer_subscription([l(; id = "bar", type = :click)]))
+    @test isempty(ui_subscription(EventListener[]))
+end
+
+@testitem "a crossing on a box is flattened onto the event, as a pick is" begin
+    using CesiumLink: build_event
+
+    ev = build_event(Dict("module" => "ui", "topic" => "pointer", "seq" => 3, "frame" => 4,
+                          "window" => 1,
+                          "payload" => Dict("type" => "enter", "id" => "sat-7-card",
+                                            "mods" => ["alt"],
+                                            "screen" => Dict("x" => 412, "y" => 88))))
+    @test ev.type === :enter                  # a Symbol, so the same filter serves both topics
+    @test ev.id == "sat-7-card"               # a name the scene author invented, so a String
+    @test ev.mods == (:alt,)
+    @test ev.screen == (; x = 412, y = 88)    # container pixels, carried through as they came
+    @test ev.frame == 5                       # the wire is 0-based, the Julia API 1-based
+end
+
+@testitem "a box listener answers only the box it named" begin
+    using CesiumLink: dispatch_event, on_ui_pointer
+
+    server = start_server(; host = "::1", port = 0)
+    try
+        seen = String[]
+        on_ui_pointer((ev, reply) -> push!(seen, ev.id), server, "run-title"; type = :click)
+        on_ui_pointer((ev, reply) -> push!(seen, "any:" * ev.id), server; type = :click)
+        # A Symbol names the same box: the id is recorded as the String both sides of the wire use.
+        on_ui_pointer((ev, reply) -> push!(seen, "sym"), server, :bar; type = :click)
+        crossing(id, type) = Dict("module" => "ui", "topic" => "pointer",
+                                  "payload" => Dict("type" => type, "id" => id, "mods" => [],
+                                                    "screen" => Dict("x" => 0, "y" => 0)))
+        dispatch_event(server, crossing("bar", "click"))
+        @test seen == ["any:bar", "sym"]
+
+        empty!(seen)
+        dispatch_event(server, crossing("run-title", "click"))
+        @test seen == ["run-title", "any:run-title"]
+
+        # The type narrows a box listener as it narrows a core one.
+        empty!(seen)
+        dispatch_event(server, crossing("run-title", "enter"))
+        @test isempty(seen)
+    finally
+        stop_server(server)
+    end
+end
+
+@testitem "the globe's subscription and the overlay's are declared apart" begin
+    using CesiumLink: on_ui_pointer, declared
+
+    server = start_server(; host = "::1", port = 0)
+    try
+        on_pointer(server; type = :click) do ev, reply; end
+        # Nothing has asked for a crossing yet, so nothing about crossings has been said.
+        @test declared(server, "ui", "subscribe") === nothing
+
+        box = on_ui_pointer(server, "run-title"; type = :enter) do ev, reply; end
+        @test only(declared(server, "core", "subscribe"))["type"] == "click"
+        entry = only(declared(server, "ui", "subscribe"))
+        @test entry["id"] == "run-title"
+        @test entry["type"] == "enter"
+        @test entry["mods"] === nothing        # a null matches any modifier state
+
+        # A listener added to either topic leaves the other list as it stood.
+        on_pointer(server; type = :hover) do ev, reply; end
+        @test length(declared(server, "core", "subscribe")) == 2
+        @test length(declared(server, "ui", "subscribe")) == 1
+
+        # The last box listener out declares the empty list that turns the crossings off.
+        @test off_event(server, box)
+        @test isempty(declared(server, "ui", "subscribe"))
+        @test length(declared(server, "core", "subscribe")) == 2
+    finally
+        stop_server(server)
+    end
+end
+
+@testitem "on_ui_pointer refuses a crossing a box could not raise" begin
+    using CesiumLink: on_ui_pointer
+
+    server = start_server(; host = "::1", port = 0)
+    try
+        @test_throws "a ui event type is :click, :enter or :leave" on_ui_pointer(identity, server;
+                                                                                type = :hover)
+        @test_throws "f(ev, reply)" on_ui_pointer(ev -> nothing, server; type = :click)
     finally
         stop_server(server)
     end
