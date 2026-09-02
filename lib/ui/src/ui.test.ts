@@ -81,6 +81,25 @@ class FakeEl {
     }
     this.parent = null;
   }
+  /** The listeners attached with `addEventListener`, per type, so a test can fire one. */
+  listeners: Record<string, ((e: unknown) => void)[]> = {};
+  addEventListener(type: string, cb: (e: unknown) => void): void {
+    (this.listeners[type] ??= []).push(cb);
+  }
+  removeEventListener(type: string, cb: (e: unknown) => void): void {
+    const on = this.listeners[type] ?? [];
+    const i = on.indexOf(cb);
+    if (i >= 0) on.splice(i, 1);
+  }
+  /** Raise one DOM event on this element alone: the fake DOM has no bubbling. */
+  fire(type: string, e: unknown = {}): void {
+    for (const cb of [...(this.listeners[type] ?? [])]) cb(e);
+  }
+  /** Where this element sits in the page, which a crossing is measured against. */
+  rect = { left: 0, top: 0 };
+  getBoundingClientRect(): { left: number; top: number } {
+    return this.rect;
+  }
   attributes: Record<string, string> = {};
   setAttribute(name: string, value: string): void {
     this.attributes[name] = value;
@@ -241,6 +260,7 @@ function fakeViewer(scene = fakeScene()) {
     teardown,
     declare: (list: unknown) => commands.get("declare")!(list, null),
     floating: (list: unknown) => commands.get("floating")!(list, null),
+    subscribe: (list: unknown) => commands.get("subscribe")!(list, null),
     /** The float boxes, which the module appends to the container itself, keyed by declared id. */
     floats: () => new Map(container.children.filter((c) => c.attributes["data-float"] != null)
                           .map((c) => [c.attributes["data-float"], c] as const)),
@@ -513,6 +533,132 @@ test("a group of unknown kinds is skipped, and a style reaches a lone control", 
   assert.equal(v.controls[0].el.style["font-size"], "16px");
   assert.equal(v.controls[0].el.style.opacity, "0.5");
   assert.match(v.controls[0].el.style.cssText, /background/, "a style adds to the chrome");
+});
+
+/** The fields of a `MouseEvent` an addressed box reads. */
+const mouseAt = (x: number, y: number,
+                 mods: { alt?: boolean; ctrl?: boolean; shift?: boolean } = {}) =>
+  ({ clientX: x, clientY: y, altKey: !!mods.alt, ctrlKey: !!mods.ctrl, shiftKey: !!mods.shift });
+
+interface Crossing {
+  type: string;
+  id: string;
+  mods: string[];
+  screen: { x: number; y: number };
+}
+
+/** Everything the module sent on the pointer topic, in order. */
+const crossings = (v: { sent: { topic: string; payload: unknown }[] }): Crossing[] =>
+  v.sent.filter((e) => e.topic === "pointer").map((e) => e.payload as Crossing);
+
+test("a click on an addressed row is sent once, with its id, type and modifier set", () => {
+  const v = fakeViewer();
+  v.ctx.container.rect = { left: 20, top: 10 };
+  v.subscribe([{ id: null, type: null, mods: null }]);
+  v.declare([TITLE, TOGGLE]);
+
+  v.controls[1].el.fire("click", mouseAt(140, 60, { alt: true, shift: true }));
+  assert.deepEqual(crossings(v), [{ type: "click", id: "isl", mods: ["alt", "shift"],
+                                    screen: { x: 120, y: 50 } }],
+                   "in container coordinates, and in the modifier order the Core reads too");
+
+  // A row carrying no id is addressed by nobody, so it wears no listener at all.
+  v.controls[0].el.fire("click", mouseAt(0, 0));
+  assert.equal(crossings(v).length, 1);
+  assert.equal(v.controls[0].el.listeners["click"], undefined);
+});
+
+test("a crossing no subscription entry names never leaves the browser", () => {
+  const v = fakeViewer();
+  v.declare([TOGGLE]);
+  const box = v.controls[0].el;
+  box.fire("mouseenter", mouseAt(0, 0));
+  assert.deepEqual(crossings(v), [], "nothing is subscribed to until a list says so");
+
+  v.subscribe([{ id: "other", type: null, mods: null }]);
+  box.fire("mouseenter", mouseAt(0, 0));
+  assert.deepEqual(crossings(v), [], "and another box's id is not this one");
+
+  v.subscribe([{ id: "isl", type: "click", mods: ["alt"] }]);
+  box.fire("mouseenter", mouseAt(0, 0));
+  box.fire("click", mouseAt(0, 0));
+  assert.deepEqual(crossings(v), [], "the type and the whole modifier set both have to match");
+  box.fire("click", mouseAt(0, 0, { alt: true }));
+  assert.equal(crossings(v).length, 1);
+
+  v.subscribe("everything");
+  box.fire("click", mouseAt(0, 0, { alt: true }));
+  assert.equal(crossings(v).length, 1, "and anything that is not a list asks for nothing");
+});
+
+test("a box removed under the pointer raises the leave the browser will not", () => {
+  const v = fakeViewer();
+  v.subscribe([{ id: null, type: null, mods: null }]);
+  v.declare([TOGGLE]);
+  v.controls[0].el.fire("mouseenter", mouseAt(40, 30, { ctrl: true }));
+  assert.deepEqual(crossings(v), [{ type: "enter", id: "isl", mods: ["ctrl"],
+                                    screen: { x: 40, y: 30 } }]);
+
+  // Declaring the set without it takes the element off the page, which fires no `mouseleave`.
+  v.declare([]);
+  assert.deepEqual(crossings(v), [crossings(v)[0],
+                                  { type: "leave", id: "isl", mods: ["ctrl"],
+                                    screen: { x: 40, y: 30 } }],
+                   "one leave for the one enter, carrying what the enter carried");
+});
+
+test("a box the pointer really left raises no second leave when it goes", () => {
+  const v = fakeViewer();
+  v.subscribe([{ id: null, type: null, mods: null }]);
+  v.declare([TOGGLE]);
+  const box = v.controls[0].el;
+  box.fire("mouseenter", mouseAt(40, 30));
+  box.fire("mouseleave", mouseAt(0, 90));
+  assert.deepEqual(crossings(v).map((c) => [c.type, c.screen.y]), [["enter", 30], ["leave", 90]]);
+
+  v.teardown();
+  assert.equal(crossings(v).length, 2, "the pointer is outside, so unloading answers nothing");
+});
+
+test("a group box and an addressed child inside it each raise their own crossing", () => {
+  const v = fakeViewer();
+  v.subscribe([{ id: null, type: null, mods: null }]);
+  v.declare([{ kind: "group", region: "top-left", id: "panel", controls: [TITLE, TOGGLE] }]);
+  const box = v.controls[0].el;
+
+  box.fire("mouseenter", mouseAt(10, 10));
+  box.children[1].fire("mouseenter", mouseAt(12, 12));
+  assert.deepEqual(crossings(v).map((c) => [c.type, c.id]), [["enter", "panel"], ["enter", "isl"]],
+                   "mouseenter does not bubble, so a child raises its own and not the box's");
+
+  box.children[0].fire("mouseenter", mouseAt(11, 11));
+  assert.equal(crossings(v).length, 2, "the child carrying no id raises nothing");
+
+  // The whole box goes, and every enter inside it is answered.
+  v.declare([]);
+  assert.deepEqual(crossings(v).slice(2).map((c) => [c.type, c.id]),
+                   [["leave", "panel"], ["leave", "isl"]]);
+});
+
+test("a re-declared row moves its listeners to the element that replaced it", () => {
+  const v = fakeViewer();
+  v.subscribe([{ id: null, type: null, mods: null }]);
+  const ROW = { kind: "title", region: "top-center", id: "run", text: "one" };
+  v.declare([ROW]);
+  const first = v.controls[0].el;
+  first.fire("mouseenter", mouseAt(5, 5));
+
+  v.declare([{ ...ROW, text: "two" }]);
+  const second = v.controls[0].el;
+  assert.notEqual(second, first, "the changed row is built again, so it is a new element");
+  assert.deepEqual(crossings(v).map((c) => c.type), ["enter", "leave"],
+                   "and the element that left answers the enter it saw");
+
+  first.fire("click", mouseAt(5, 5));
+  assert.equal(crossings(v).length, 2, "the element that left hears nothing more");
+  second.fire("click", mouseAt(5, 5));
+  assert.deepEqual(crossings(v).at(-1), { type: "click", id: "run", mods: [],
+                                          screen: { x: 5, y: 5 } });
 });
 
 test("each tooltip fragment is isolated, and no content leaves an empty box behind", () => {

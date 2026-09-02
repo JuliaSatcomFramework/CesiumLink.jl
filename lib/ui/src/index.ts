@@ -42,6 +42,29 @@ export type { Mount, MountFactory, MountSite } from "./floating.ts";
 // two legends side by side costs the one property `flex-direction` and no new widget kind.
 const GROUP = PANEL + ";display:flex;flex-direction:column;gap:6px";
 
+// Fixed order, so two modifier sets compare as lists. The Core reads its own the same way.
+const MOD_ORDER = ["alt", "ctrl", "shift"] as const;
+
+/** What an addressed box raises. A box has edges, so it is entered and left once each. */
+type PointerType = "click" | "enter" | "leave";
+
+/**
+ * One entry of the `ui/subscribe` list. A crossing is sent upward if it matches **any** entry, and
+ * a null in any field matches anything. The server derives the list from its registered listeners,
+ * so no author writes it by hand.
+ */
+interface PointerSubscription {
+  /** The addressed box; absent (or null) matches every one of them. */
+  id?: string | null;
+  type?: PointerType | null;
+  /** Exact match on the modifier set held. Absent → any state; `[]` → only when none are held. */
+  mods?: string[] | null;
+}
+
+/** Two modifier sets are the same set, whatever order they are written in. */
+const sameMods = (want: string[], held: string[]) =>
+  want.length === held.length && want.every((m) => held.includes(m));
+
 /** A mounted row: what it was declared as, what it put on screen, and how to take it back off. */
 interface Row {
   /** What makes this the same row across two declarations: its kind, its id and its region. */
@@ -67,6 +90,8 @@ interface Declared {
 interface Built {
   widget: Widget;
   tracks: Track[];
+  /** Drops the listeners of the addressed boxes inside this one: a group's children carry ids too. */
+  unwatch?: () => void;
 }
 
 /** What a window carries for the overlay: per addressed id, per field, one value per keyframe. */
@@ -132,6 +157,58 @@ function screenOf(ctx: ModuleContext, a: Anchor): { x: number; y: number } | nul
 
 export default {
   setup(ctx: ModuleContext): Disposable {
+    // Which crossings a listener upstream asked for. The check happens here, so a crossing nobody
+    // registered for never leaves the browser.
+    let subscription: PointerSubscription[] = [];
+
+    /**
+     * Raise the pointer events of one addressed box. `mouseenter` and `mouseleave` do not bubble,
+     * so a box raises one crossing whatever its children are, and a child carrying an id of its own
+     * raises its own beside it.
+     *
+     * The disposer drops the three listeners and raises the `leave` the browser will not: an
+     * element taken out of the document fires no `mouseleave`, so a box removed under the pointer
+     * would otherwise strand whoever saw its `enter`. That synthetic one carries what the `enter`
+     * carried, since the box is gone and no event says where the pointer is now.
+     */
+    const watch = (el: HTMLElement, id: string): (() => void) => {
+      let inside: { mods: string[]; screen: { x: number; y: number } } | null = null;
+      const raise = (type: PointerType, at: { mods: string[]; screen: { x: number; y: number } }) => {
+        const wanted = subscription.some(
+          (s) => (s.id == null || s.id === id) && (s.type == null || s.type === type) &&
+                 (s.mods == null || sameMods(s.mods, at.mods)),
+        );
+        if (wanted) ctx.notify("pointer", { type, id, mods: at.mods, screen: at.screen });
+      };
+      // The modifiers held at the crossing, and where it happened in container coordinates — the
+      // space a `screen` anchor places a float in.
+      const read = (e: MouseEvent) => {
+        const box = ctx.container.getBoundingClientRect();
+        return { mods: MOD_ORDER.filter((k) => e[`${k}Key` as const]),
+                 screen: { x: e.clientX - box.left, y: e.clientY - box.top } };
+      };
+      const click = (e: MouseEvent) => raise("click", read(e));
+      const enter = (e: MouseEvent) => {
+        inside = read(e);
+        raise("enter", inside);
+      };
+      const leave = (e: MouseEvent) => {
+        inside = null;
+        raise("leave", read(e));
+      };
+      el.addEventListener("click", click);
+      el.addEventListener("mouseenter", enter);
+      el.addEventListener("mouseleave", leave);
+      return () => {
+        el.removeEventListener("click", click);
+        el.removeEventListener("mouseenter", enter);
+        el.removeEventListener("mouseleave", leave);
+        const at = inside;
+        inside = null;
+        if (at) raise("leave", at);
+      };
+    };
+
     const tooltip = createTooltip(ctx.container);
     const floats = createFloats({
       container: ctx.container,
@@ -218,6 +295,9 @@ export default {
       const children = (Array.isArray(spec.controls) ? spec.controls : []) as WidgetSpec[];
       const built: Widget[] = [];
       const tracks: Track[] = [];
+      // One entry per built child, in the same order: its disposer, or null where the child carries
+      // no id and is watched by nobody.
+      const watched: ((() => void) | null)[] = [];
       for (const child of children) {
         // A copy each, for the same reason a row's spec is copied: a track writes the keyframe's
         // values into the spec its widget is rebuilt from.
@@ -226,6 +306,8 @@ export default {
         if (!widget) continue;
         const at = built.length;
         built.push(widget);
+        const id = own.id == null ? null : String(own.id);
+        watched.push(id === null ? null : watch(widget.el, id));
         // A tracked child is swapped inside the box on its own, so a crossing leaves its siblings —
         // and whatever live state they hold — untouched.
         const track = trackOf(own, (index) => {
@@ -233,6 +315,11 @@ export default {
           if (!next) return;   // a kind that stopped building: keep what is on screen
           built[at].el.replaceWith(next.el);
           built[at] = next;
+          // A swapped child is a new element, so its listeners go with the old one.
+          if (id !== null) {
+            watched[at]?.();
+            watched[at] = watch(next.el, id);
+          }
           next.onKeyframe?.(index);
         });
         if (track) tracks.push(track);
@@ -244,6 +331,7 @@ export default {
       return {
         widget: { el: box, onKeyframe: (i) => { for (const w of built) w.onKeyframe?.(i); } },
         tracks,
+        unwatch: () => { for (const drop of watched) drop?.(); },
       };
     };
 
@@ -254,24 +342,37 @@ export default {
       return widget === null ? null : { widget, tracks: [] };
     };
 
-    // Mount `widget` in `region`, either appended after what is already there or in place of the
-    // element `anchor`. A replacement goes through `addControl` first and is moved into place after,
-    // so the Core still owns mounting and the remover still closes over the element it removes.
-    const mount = (widget: Widget, region: OverlayRegion, index: number | null,
+    // Mount the built row in its declared region, either appended after what is already there or in
+    // place of the element `anchor`. A replacement goes through `addControl` first and is moved into
+    // place after, so the Core still owns mounting and the remover still closes over the element it
+    // removes.
+    const mount = (built: Built, r: Declared, index: number | null,
                    anchor: HTMLElement | null): Pick<Row, "el" | "dispose" | "onKeyframe"> => {
+      const widget = built.widget;
       // A title keyed by keyframe shows the frame the clock is already on rather than waiting for
       // the next crossing, which on a paused clock never comes.
       if (index !== null) widget.onKeyframe?.(index);
-      const dispose = ctx.overlay.addControl(region, widget.el);
+      const remove = ctx.overlay.addControl(r.region, widget.el);
       anchor?.replaceWith(widget.el);
-      return { el: widget.el, dispose, onKeyframe: widget.onKeyframe };
+      // A row carrying an id is an addressed box and raises its own pointer events; one carrying
+      // none costs no listener. For a group this watches the box, and `groupOf` its children.
+      const unwatch = r.spec.id == null ? null : watch(widget.el, String(r.spec.id));
+      return {
+        el: widget.el,
+        dispose: () => {
+          unwatch?.();
+          built.unwatch?.();
+          remove();
+        },
+        onKeyframe: widget.onKeyframe,
+      };
     };
 
     // One built row, mounted. The row object is what a track mutates in place when it rebuilds the
     // widget, so a tracker holds one reference for as long as its declaration is on screen.
     const rowOf = (r: Declared, built: Built, index: number | null,
                    anchor: HTMLElement | null): Row => {
-      const row: Row = { ...mount(built.widget, r.region, index, anchor),
+      const row: Row = { ...mount(built, r, index, anchor),
                          key: r.key, json: r.json, tracks: [] };
       row.tracks = tracksOf(row, r, built);
       return row;
@@ -283,7 +384,7 @@ export default {
       const built = buildRow(r.spec);
       if (!built) return;   // a kind that stopped building: keep what is on screen
       const dispose = row.dispose;
-      Object.assign(row, mount(built.widget, r.region, index, row.el));
+      Object.assign(row, mount(built, r, index, row.el));
       row.tracks = tracksOf(row, r, built);
       dispose?.();
     };
@@ -376,6 +477,10 @@ export default {
         applyNow();
       }),
       ctx.onCommand("tooltip", (payload) => tooltip.apply(onCanvas ? payload : { html: null })),
+      // Anything that is not a list subscribes to nothing, as the Core's own subscription does.
+      ctx.onCommand("subscribe", (payload) => {
+        subscription = Array.isArray(payload) ? (payload as PointerSubscription[]) : [];
+      }),
       ctx.onWindow((w, payload) => held.install((payload ?? {}) as OverlayWindow, w)),
       ctx.onKeyframe((index) => {
         for (const row of live) row.onKeyframe?.(index);
