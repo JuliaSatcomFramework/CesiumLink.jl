@@ -72,7 +72,7 @@ end
         end
 
         # Nothing was broadcast after recording began, so the whole file is the scene that was
-        # already standing — a session joined late still replays into something drawable.
+        # already standing: a session joined late still replays into something drawable.
         recorded = [JSON.parse(l) for l in readlines(path)[2:end]]
         # `msg` is an inline object, not a JSON string, so `jq '.msg.params'` reads a recording
         # without a `fromjson` first.
@@ -131,7 +131,7 @@ end
         header = JSON.parse(readline(path))
         # A default session declares the default set. Every entry of it has tiles a replaying
         # page can reach, so the whole set travels.
-        @test length(header["imagery"]) == 6
+        @test length(header["imagery"]) == 7
         # Absent and `false` are two different declarations. A session that declares nothing must
         # state neither. A recorded `false` asks the player for a globe with no base layer at all.
         @test !any(haskey(header, k) for k in ("ellipsoid", "lighting", "stars", "furniture"))
@@ -161,9 +161,9 @@ end
         tiles = pyramid(mkpath(joinpath(dir, "tiles")))
         server = start_server(; dist_dir = nothing, host = "::1", port = 0, imagery = tiles)
         try
-            # The tiles do not travel with the file, and the declared `assets/imagery/…` answers
-            # nothing once this server stops. A recorded URL that 404s draws a bare globe and one
-            # console error per tile, so the player is left to draw its bundled Earth texture.
+            # The tiles do not travel with the file, and the declared `assets/imagery/…` returns
+            # nothing once this server stops. A recorded URL that returns a 404 draws a bare globe
+            # and one console error per tile, so the player is left to draw its bundled Earth texture.
             header = @test_logs (:warn,) match_mode=:any read_header(server, path)
             @test !haskey(header, "imagery")
         finally
@@ -235,8 +235,8 @@ end
                 frames
             end
             # A sequence number is an event's, and it belongs to the connection that raised it. The
-            # recorded batch answered one there; here it answers nothing, so it names no number for
-            # a module to compare its own events against.
+            # recorded batch carried one there; here there is none, so a module has no number to
+            # compare its own events against.
             @test [m["method"] for m in got] == ["modules", "commands"]
             @test !haskey(got[2]["params"], "seq")
         finally

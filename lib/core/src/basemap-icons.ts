@@ -6,7 +6,7 @@
 // differently. A `data:` URI is identical in every host, and `img-src` already allows one.
 //
 // Each icon is 64 px, cut from that source's own level-2 tile over the same window — Europe, north
-// Africa and west Asia — so the six differ by what the source draws and by nothing else. GIBS
+// Africa and west Asia — so the seven differ by what the source draws and by nothing else. GIBS
 // spells a tile path `{z}/{y}/{x}` and EMODnet spells it `{z}/{x}/{y}`, so the two path forms below
 // name the same square of the Earth:
 //
@@ -16,11 +16,13 @@
 //   emodnet_baselayer      tiles.emodnet-bathymetry.eu, 2020/baselayer/web_mercator/2/2/1
 //   blue_marble            GIBS BlueMarble_ShadedRelief_Bathymetry, GoogleMapsCompatible_Level8/2/1/2
 //   blue_marble_relief     GIBS BlueMarble_ShadedRelief, GoogleMapsCompatible_Level8/2/1/2
+//   city_lights            GIBS VIIRS_CityLights_2012, GoogleMapsCompatible_Level8/2/1/2
 
 import asterColourRelief from "./icons/aster_colour_relief.icon.png";
 import asterGreyRelief from "./icons/aster_grey_relief.icon.png";
 import blueMarble from "./icons/blue_marble.icon.png";
 import blueMarbleRelief from "./icons/blue_marble_relief.icon.png";
+import cityLights from "./icons/city_lights.icon.png";
 import emodnetBaselayer from "./icons/emodnet_baselayer.icon.png";
 import offlineNaturalEarth from "./icons/offline_natural_earth.icon.png";
 
@@ -32,6 +34,7 @@ export const BASEMAP_ICONS = {
   emodnet_baselayer: emodnetBaselayer,
   blue_marble: blueMarble,
   blue_marble_relief: blueMarbleRelief,
+  city_lights: cityLights,
 } as const;
 
 /** A key of {@link BASEMAP_ICONS}. */

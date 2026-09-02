@@ -148,6 +148,8 @@ end
                 default/default/500m/",
                "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/BlueMarble_ShadedRelief/\
                 default/default/500m/",
+               "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/VIIRS_CityLights_2012/\
+                default/default/500m/",
                "https://tiles.emodnet-bathymetry.eu/2020/baselayer/inspire_quad/"]
     finally
         stop_server(server)
@@ -222,6 +224,9 @@ end
                             default/500m/",
                            "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/\
                             BlueMarble_ShadedRelief/default/\
+                            default/500m/",
+                           "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/\
+                            VIIRS_CityLights_2012/default/\
                             default/500m/",
                            "https://tiles.emodnet-bathymetry.eu/2020/baselayer/inspire_quad/"]
                 finally

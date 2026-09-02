@@ -64,7 +64,7 @@ end
     # Absent, no base layer, and a named set are three declarations. An absent one on Earth is the
     # default set, which the reader picks within. `:none` draws no base layer at all.
     d, dir = CesiumLink.resolve_imagery(nothing)
-    @test length(d) == 6
+    @test length(d) == 7
     @test dir === nothing
     # The default set is of Earth, so a session on another body declares nothing and keeps the
     # texture the viewer bundles. Earth's coastlines on a Moon globe are a picture that lies.
@@ -77,13 +77,14 @@ end
 end
 
 @testitem "the basemaps this package knows are ready to declare" begin
-    @test length(collect(KNOWN_EARTH_BASEMAPS)) == 6
+    @test length(collect(KNOWN_EARTH_BASEMAPS)) == 7
     # A name this package ships carries its attribution, so a source that asks for one has it.
     @test all(!isempty, (KNOWN_EARTH_BASEMAPS.aster_colour_relief.credit,
                          KNOWN_EARTH_BASEMAPS.aster_grey_relief.credit,
                          KNOWN_EARTH_BASEMAPS.emodnet_baselayer.credit,
                          KNOWN_EARTH_BASEMAPS.blue_marble.credit,
-                         KNOWN_EARTH_BASEMAPS.blue_marble_relief.credit))
+                         KNOWN_EARTH_BASEMAPS.blue_marble_relief.credit,
+                         KNOWN_EARTH_BASEMAPS.city_lights.credit))
     # EMODnet asks for its licence in the line. Carry it as the source states it.
     @test KNOWN_EARTH_BASEMAPS.emodnet_baselayer.credit == "EMODnet Bathymetry (CC BY 4.0)"
     # A WMTS REST path names the tile row before the tile column, and EMODnet names the column
@@ -91,16 +92,19 @@ end
     # rather than an error.
     @test all(endswith("{z}/{y}/{x}.jpeg"), (KNOWN_EARTH_BASEMAPS.aster_colour_relief.url,
                                              KNOWN_EARTH_BASEMAPS.aster_grey_relief.url))
-    # The four GIBS entries are on the EPSG:4326 endpoint, which reaches both poles, and each of
+    # The five GIBS entries are on the EPSG:4326 endpoint, which reaches both poles, and each of
     # them names the tile matrix set its layer is published on. The grid is NASA's own, so a
     # Cesium geographic scheme would place every tile wrong.
     gibs = (KNOWN_EARTH_BASEMAPS.aster_colour_relief, KNOWN_EARTH_BASEMAPS.aster_grey_relief,
-            KNOWN_EARTH_BASEMAPS.blue_marble, KNOWN_EARTH_BASEMAPS.blue_marble_relief)
+            KNOWN_EARTH_BASEMAPS.blue_marble, KNOWN_EARTH_BASEMAPS.blue_marble_relief,
+            KNOWN_EARTH_BASEMAPS.city_lights)
     @test all(im -> occursin("/wmts/epsg4326/best/", im.url), gibs)
     @test all(im -> im.tiling === :gibs_geographic, gibs)
-    @test [im.max_level for im in gibs] == [11, 11, 7, 7]
+    @test [im.max_level for im in gibs] == [11, 11, 7, 7, 7]
     @test occursin("/default/default/31.25m/", KNOWN_EARTH_BASEMAPS.aster_colour_relief.url)
     @test occursin("/default/default/500m/", KNOWN_EARTH_BASEMAPS.blue_marble.url)
+    @test occursin("/default/default/500m/", KNOWN_EARTH_BASEMAPS.city_lights.url)
+    @test occursin("/VIIRS_CityLights_2012/", KNOWN_EARTH_BASEMAPS.city_lights.url)
     # A backing answers a host that stopped answering. It stays on every online entry, and once
     # the caps are gone it never draws in normal use.
     @test all(im -> im.backing, gibs)
@@ -114,20 +118,22 @@ end
     offline = KNOWN_EARTH_BASEMAPS.offline_natural_earth
     @test offline.bundled && isempty(offline.url) && offline.credit === nothing
 
-    # The catalogue holds six, and an absent `imagery` declares all six. Entry 1 is what the
+    # The catalogue holds seven, and an absent `imagery` declares all seven. Entry 1 is what the
     # globe wears at startup, and the pyramid inside the viewer closes the set for the reader to
     # fall back on.
     d, _ = CesiumLink.resolve_imagery(nothing)
     @test [get(e, :name, nothing) for e in d] == ["ASTER Colour Relief", "ASTER Grey Relief",
                                                    "Blue Marble", "Blue Marble Relief",
-                                                   "EMODnet Baselayer", "Natural Earth"]
+                                                   "City Lights", "EMODnet Baselayer",
+                                                   "Natural Earth"]
     @test last(d) == (; bundled = true, key = "offline_natural_earth", name = "Natural Earth",
                       borderColor = "#3a3a3ab3", borderWidth = 2.0)
     @test first(d).backing == true
     # The viewer reads the icon and the drop-down category off `key`, so every catalogue basemap
     # carries one. A match by label would hand a renamed basemap the fallback icon instead.
     @test [e.key for e in d] == ["aster_colour_relief", "aster_grey_relief", "blue_marble",
-                                 "blue_marble_relief", "emodnet_baselayer", "offline_natural_earth"]
+                                 "blue_marble_relief", "city_lights", "emodnet_baselayer",
+                                 "offline_natural_earth"]
 end
 
 @testitem "a known basemap names the border colour that reads on it" begin
@@ -138,6 +144,7 @@ end
     by_key = Dict(e.key => e.borderColor for e in d)
     @test by_key["blue_marble"] == "#ffffff8c"
     @test by_key["blue_marble_relief"] == "#ffffff8c"
+    @test by_key["city_lights"] == "#ffffff8c"
     @test by_key["aster_grey_relief"] == "#0000008c"
 end
 

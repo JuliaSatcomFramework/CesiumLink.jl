@@ -141,8 +141,9 @@ of Earth, so none belongs in a session on another body.
 | `emodnet_baselayer` | EMODnet Bathymetry, with sea-floor relief | 15 | dark grey |
 | `blue_marble` | Blue Marble from NASA GIBS, with sea-floor colour | 7 | white |
 | `blue_marble_relief` | Blue Marble from NASA GIBS, land relief only | 7 | white |
+| `city_lights` | night-time city lights from NASA GIBS, VIIRS 2012 | 7 | white |
 
-Every online entry draws to both poles. The five are cut on a geographic grid, which covers the
+Every online entry draws to both poles. The six are cut on a geographic grid, which covers the
 whole globe, so the backing under them shows only while a host is unreachable.
 
 Pick the ones you want by name. This is a `NamedTuple` and not a list to filter, because a filter
@@ -163,7 +164,7 @@ Each value carries the attribution its source asks for.
 const KNOWN_EARTH_BASEMAPS = (;
     offline_natural_earth = Imagery(; name = "Natural Earth", bundled = true,
                                     border_color = "#3a3a3ab3"),
-    # The four GIBS entries are declared on the EPSG:4326 endpoint, on the `gibs_geographic` grid.
+    # The five GIBS entries are declared on the EPSG:4326 endpoint, on the `gibs_geographic` grid.
     # It draws to both poles, where the Web Mercator endpoint stops at 85.0511 degrees and leaves
     # the backing showing as a disc. It is also finer per level: ASTER is 30.5 metres per pixel at
     # level 11, against 38.2 at Mercator level 12.
@@ -204,6 +205,13 @@ const KNOWN_EARTH_BASEMAPS = (;
          default/default/500m/{z}/{y}/{x}.jpeg";
         name = "Blue Marble Relief", tiling = :gibs_geographic, max_level = 7, backing = true,
         credit = "NASA EOSDIS GIBS", border_color = "#ffffff8c"),
+    # Night-time lights, near black but for the cities on it, so it takes the same white border as
+    # the Blue Marbles.
+    city_lights = Imagery(
+        "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/VIIRS_CityLights_2012/\
+         default/default/500m/{z}/{y}/{x}.jpeg";
+        name = "City Lights", tiling = :gibs_geographic, max_level = 7, backing = true,
+        credit = "NASA EOSDIS GIBS", border_color = "#ffffff8c"),
 )
 
 # What a session declares when the caller declares nothing (ADR-0034): every basemap this package
@@ -221,6 +229,7 @@ const DEFAULT_EARTH_BASEMAPS = [KNOWN_EARTH_BASEMAPS.aster_colour_relief,
                                 KNOWN_EARTH_BASEMAPS.aster_grey_relief,
                                 KNOWN_EARTH_BASEMAPS.blue_marble,
                                 KNOWN_EARTH_BASEMAPS.blue_marble_relief,
+                                KNOWN_EARTH_BASEMAPS.city_lights,
                                 KNOWN_EARTH_BASEMAPS.emodnet_baselayer,
                                 KNOWN_EARTH_BASEMAPS.offline_natural_earth]
 

@@ -3,7 +3,7 @@
 The globe wears a **basemap**. The server declares a **basemap set** (one basemap, or several), and
 the reader picks inside the set. `imagery` says what the set holds, once, at `start_server`.
 
-From 0.2.0 a session on Earth that says nothing declares all six basemaps this package knows, ASTER
+From 0.2.0 a session on Earth that says nothing declares all seven basemaps this package knows, ASTER
 Colour Relief first and the offline pyramid last. An entry costs nothing until the reader picks it:
 the page builds a tile provider for the first entry alone, so the globe still opens by asking one
 host, `gibs.earthdata.nasa.gov`, for tiles. Place names and country borders draw over that globe,
@@ -39,12 +39,13 @@ attribution its source asks for, so a session that declares one also credits it.
 | `emodnet_baselayer` | EMODnet Bathymetry, with sea-floor relief | 15 | `EMODnet Bathymetry (CC BY 4.0)` | dark grey |
 | `blue_marble` | Blue Marble from NASA GIBS, with sea-floor colour | 7 | `NASA EOSDIS GIBS` | white |
 | `blue_marble_relief` | Blue Marble from NASA GIBS, land relief only | 7 | `NASA EOSDIS GIBS` | white |
+| `city_lights` | night-time city lights from NASA GIBS, VIIRS 2012 | 7 | `NASA EOSDIS GIBS` | white |
 
 The two ASTER reliefs draw the land only. Their ocean is one flat blue and carries no sea-floor
 colour. `emodnet_baselayer` draws the sea floor, and it is the one entry served from a host other
 than NASA GIBS.
 
-The five online entries are cut on a geographic grid, so each of them draws to both poles. Each
+The six online entries are cut on a geographic grid, so each of them draws to both poles. Each
 names a basemap backing as well, and the backing shows only while its host is unreachable.
 
 Every one of them is of Earth. None belongs in a session on another body.
@@ -57,10 +58,11 @@ start_server(; imagery = [KNOWN_EARTH_BASEMAPS.aster_colour_relief,
                           KNOWN_EARTH_BASEMAPS.aster_grey_relief,
                           KNOWN_EARTH_BASEMAPS.blue_marble,
                           KNOWN_EARTH_BASEMAPS.blue_marble_relief,
+                          KNOWN_EARTH_BASEMAPS.city_lights,
                           KNOWN_EARTH_BASEMAPS.emodnet_baselayer,
                           KNOWN_EARTH_BASEMAPS.offline_natural_earth])
 
-# the same six, in catalogue order
+# the same seven, in catalogue order
 start_server(; imagery = collect(KNOWN_EARTH_BASEMAPS))
 ```
 
@@ -111,7 +113,7 @@ basemaps. [Choose the on-screen furniture](furniture.md) turns it off by hand.
 
 **A basemap can name a basemap backing.** `backing = true` draws the bundled pyramid under that
 basemap. A source that returns no tiles leaves a globe instead of a hole, and the globe repairs
-itself when the source answers again. All five known online basemaps ask for one.
+itself when the source answers again. All six known online basemaps ask for one.
 
 A basemap backing belongs to one basemap, and the set never holds it as an entry. The reader cannot
 pick it, it carries no transparency, and it always sits below. The backing is always the bundled
@@ -296,7 +298,7 @@ template, and anything else means a TMS pyramid.
 
 ## Sources you may add yourself
 
-This package knows six basemaps. Any other tile source you can legally use is one `Imagery` away.
+This package knows seven basemaps. Any other tile source you can legally use is one `Imagery` away.
 Read that source's terms yourself: the viewer draws the credit you give it, and it knows nothing else
 about your tiles.
 
