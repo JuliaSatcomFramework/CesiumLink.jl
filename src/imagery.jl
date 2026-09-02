@@ -127,6 +127,9 @@ Imagery(url = ""; name = nothing, tiling = :mercator, max_level = nothing, credi
 # The easy case is one string, and it reaches every method that takes an `Imagery`.
 Base.convert(::Type{Imagery}, url::AbstractString) = Imagery(url)
 
+# The border colour each basemap names, picked from screenshots at 1,500 km and 20,000 km: a dark
+# line reads on a pale map, and a white line reads on a dark one. ASTER Grey Relief takes black
+# rather than dark grey, because its land is pale grey and a dark grey line all but disappears on it.
 """
     KNOWN_EARTH_BASEMAPS
 
@@ -158,9 +161,6 @@ start_server(; imagery = collect(KNOWN_EARTH_BASEMAPS))                # every o
 
 Each value carries the attribution its source asks for.
 """
-# The border colour each basemap names, picked from screenshots at 1,500 km and 20,000 km: a dark
-# line reads on a pale map, and a white line reads on a dark one. ASTER Grey Relief takes black
-# rather than dark grey, because its land is pale grey and a dark grey line all but disappears on it.
 const KNOWN_EARTH_BASEMAPS = (;
     offline_natural_earth = Imagery(; name = "Natural Earth", bundled = true,
                                     border_color = "#3a3a3ab3"),
