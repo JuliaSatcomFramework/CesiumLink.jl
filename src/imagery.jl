@@ -2,8 +2,16 @@
 # declaration, the tile-pyramid sniffing an on-disk source needs, and the assets mounts. None of it
 # touches the server's lock — it is read once, at `start_server`.
 
+# The border style a basemap wears when it names none: white at 0.55, two pixels wide. Strong enough
+# to read over a photograph and a drawn relief map alike, and faint enough that a whole-globe view is
+# a globe with borders rather than a net with a globe behind it. The viewer holds the same pair, for
+# a page that no server declared a basemap to.
+const DEFAULT_BORDER_COLOR = "#ffffff8c"
+const DEFAULT_BORDER_WIDTH = 2.0
+
 """
-    Imagery(url; name=nothing, tiling=:mercator, max_level=nothing, credit=nothing, backing=false)
+    Imagery(url; name=nothing, tiling=:mercator, max_level=nothing, credit=nothing, backing=false,
+            border_color="#ffffff8c", border_width=2.0)
 
 One basemap. A session declares a **basemap set** (one of these, or several), and the reader picks
 which of them the globe wears. `url` names one of two kinds, and the string itself decides which:
@@ -41,6 +49,12 @@ legally correct. The viewer only gives it somewhere to appear.
 tiles leaves a globe instead of a hole. The pyramid is of Earth, so `start_server` throws when
 a session on another body asks for one.
 
+`border_color` and `border_width` are the **border style**: the colour and the width the country
+borders wear while this basemap is on the globe. The right colour depends on what lies under the
+line, so each basemap names its own, and the viewer restyles the lines on every pick. The colour is
+a CSS colour string. The browser parses it; this server checks only that it is not empty, and a
+string the browser cannot read draws the default and says so once. The width is in pixels.
+
 Ready-made values are in [`KNOWN_EARTH_BASEMAPS`](@ref).
 
 ```julia
@@ -56,13 +70,16 @@ struct Imagery
     max_level::Union{Int,Nothing}
     credit::Union{String,Nothing}
     backing::Bool
+    border_color::String
+    border_width::Float64
     # The pyramid inside the viewer. It carries no URL. The page builds the one it answers on
     # from `CESIUM_BASE_URL`, and only the page knows that value. The wire therefore carries a
     # marker, and the viewer resolves it.
     bundled::Bool
     # An INNER constructor so validation runs for every call form: an unreadable tiling scheme would
     # otherwise be declared to the viewer and build a provider that draws nothing.
-    function Imagery(url, name, tiling, max_level, credit, backing, bundled)
+    function Imagery(url, name, tiling, max_level, credit, backing, border_color, border_width,
+                     bundled)
         t = Symbol(tiling)
         t in (:mercator, :geographic) ||
             throw(ArgumentError("`tiling` is `:mercator` or `:geographic` (got $(repr(tiling)))"))
@@ -80,15 +97,27 @@ struct Imagery
         bundled && backing &&
             throw(ArgumentError("the bundled basemap is what a backing draws, so it cannot ask " *
                                 "for one"))
+        # The browser parses the colour, so the only thing worth refusing here is a string that
+        # names nothing at all. Reading CSS in Julia would be a second parser to keep true to the
+        # first one.
+        bc = String(border_color)
+        isempty(bc) &&
+            throw(ArgumentError("`border_color` is the CSS colour the country borders are drawn " *
+                                "in, so it is not empty. The browser parses the string."))
+        border_width > 0 ||
+            throw(ArgumentError("`border_width` is the width of a country border in pixels, so " *
+                                "it is positive (got $(repr(border_width)))"))
         return new(u, name === nothing ? nothing : String(name), t,
                    max_level === nothing ? nothing : Int(max_level),
-                   credit === nothing ? nothing : String(credit), Bool(backing), Bool(bundled))
+                   credit === nothing ? nothing : String(credit), Bool(backing), bc,
+                   Float64(border_width), Bool(bundled))
     end
 end
 
 Imagery(url = ""; name = nothing, tiling = :mercator, max_level = nothing, credit = nothing,
-        backing = false, bundled = false) =
-    Imagery(url, name, tiling, max_level, credit, backing, bundled)
+        backing = false, border_color = DEFAULT_BORDER_COLOR,
+        border_width = DEFAULT_BORDER_WIDTH, bundled = false) =
+    Imagery(url, name, tiling, max_level, credit, backing, border_color, border_width, bundled)
 
 # The easy case is one string, and it reaches every method that takes an `Imagery`.
 Base.convert(::Type{Imagery}, url::AbstractString) = Imagery(url)
@@ -254,13 +283,17 @@ catalogue_key(im::Imagery) = findfirst(==(im), KNOWN_EARTH_BASEMAPS)
 # The fields every kind of basemap carries. `key` names the catalogue entry this is, and `name`
 # labels the entry in the picker. A set of one draws no picker, so a lone basemap without one
 # declares nothing here.
+#
+# The border style travels on every entry rather than only on the ones that ask for something of
+# their own. The viewer restyles the country borders on each pick, so it needs the whole style of
+# whatever entry the reader lands on, and an absent field would make it guess.
 function with_common(d, im::Imagery)
     k = catalogue_key(im)
     k === nothing || (d = (; d..., key = String(k)))
     im.name === nothing || (d = (; d..., name = im.name))
     im.credit === nothing || (d = (; d..., credit = im.credit))
     im.backing && (d = (; d..., backing = true))
-    return d
+    return (; d..., borderColor = im.border_color, borderWidth = im.border_width)
 end
 
 # The declaration for a directory of tiles, and the directory the mount serves it from. Read once,

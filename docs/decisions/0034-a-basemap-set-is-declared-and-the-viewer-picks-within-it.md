@@ -79,9 +79,10 @@ tiling scheme, a depth and an attribution line.
 | `blue_marble` | GIBS `BlueMarble_ShadedRelief_Bathymetry` | 0-8 |
 | `blue_marble_relief` | GIBS `BlueMarble_ShadedRelief` | 0-8 |
 
-The default *set* is two of them, `blue_marble` first. The picker offers the set, so those two are
-what a default session shows. `blue_marble_relief` is here to be named, not shipped to a session
-that names nothing.
+The default *set* is every basemap the catalogue holds, and the picker offers all of it. An entry
+costs nothing until the reader picks it: `buildBaseLayers` (`lib/core/src/scene.ts`) builds a tile
+provider for entry 0 and for no other entry, so a reader who never opens the picker never causes a
+later entry to fetch a tile or open a connection.
 
 The catalogue is keyed rather than a list to filter. A filter selects by name string, so a source
 renamed in a later release silently matches nothing and the author gets back a basemap they meant to
@@ -141,10 +142,11 @@ a session that did not use the default set, because a default set travels: both 
 tiles a replaying page can reach. Painting an online basemap onto exactly those files would show a
 sharper globe than was recorded, which is what ADR-0024 is against.
 
-**The default content policy widens by one origin.** A session that does not name its own set
-declares `blue_marble` over the pyramid inside the viewer, so `gibs.earthdata.nasa.gov` alone
-reaches `trusted_origins` and from there `img-src` and `connect-src`; the pyramid is in the viewer
-and needs no origin. Naming a set narrows the policy to whatever that set holds.
+**The content policy widens by tile directory, not by host.** `trusted_origins` reads the directory
+each entry's URL points at (`csp_source`), and not the host under it. The default set opens five
+tile directories, four on `gibs.earthdata.nasa.gov` and one on `tiles.emodnet-bathymetry.eu`, and
+from there `img-src` and `connect-src`; the pyramid inside the viewer names no directory at all.
+Naming a set narrows the policy to whatever that set holds.
 
 **`?imagery=` still names one basemap.** ADR-0019 says what the query string is for — looking at a
 pyramid you have just built, and publishing a globe that is a URL and nothing else — and neither
@@ -193,16 +195,17 @@ The catalogue holds six. Three are new.
 | `aster_grey_relief` | GIBS `ASTER_GDEM_Greyscale_Shaded_Relief` | 0-12 | `NASA EOSDIS GIBS` |
 | `emodnet_baselayer` | EMODnet Bathymetry `2020/baselayer` | 0-15 | `EMODnet Bathymetry (CC BY 4.0)` |
 
-**The default set is `aster_colour_relief` backed by `offline_natural_earth`.** Every statement
+**The default set is all six**, in this order: `aster_colour_relief`, `aster_grey_relief`,
+`blue_marble`, `blue_marble_relief`, `emodnet_baselayer`, `offline_natural_earth`. Every statement
 above that names `blue_marble` as the default now names `aster_colour_relief`, and so does every
 statement in the amendment before this one.
 
-**Every entry of the default set sits on `gibs.earthdata.nasa.gov`.** That is why the default is
-ASTER Colour Relief and not EMODnet Baselayer, which is the better map: it is global, it draws the
-sea floor, and it reaches level 15. EMODnet is served from `tiles.emodnet-bathymetry.eu`, so a
-default session would trust a second host. A session that names nothing now trusts one host, and
-the content policy opens one tile directory. An author who wants the better map names
-`emodnet_baselayer` and opens that host for their own session.
+**ASTER Colour Relief leads because entry 0 is the one entry a session opens a host for.** It is
+the sharpest map in the catalogue and it stands alone on `gibs.earthdata.nasa.gov`, so a reader who
+opens the page and picks nothing reaches that host and no other. EMODnet Baselayer is the better
+map — it is global, it draws the sea floor, and it reaches level 15 — and
+`tiles.emodnet-bathymetry.eu` serves it, so it sits fifth and one pick away. The offline pyramid
+sits last: the calm map that opens no host at all, there for the reader to fall back on.
 
 **ASTER Colour Relief draws one flat blue for the ocean.** It is a relief map of the land and it
 carries no sea-floor colour. That is the known cost of the pick, and `blue_marble` and
@@ -211,24 +214,3 @@ carries no sea-floor colour. That is the known cost of the pick, and `blue_marbl
 **The GIBS path order is `{z}/{y}/{x}` and EMODnet's is `{z}/{x}/{y}`.** A WMTS REST path names
 TileMatrix, TileRow, TileCol, which is level, row, column. A template reaches the browser as it
 stands, so a swapped pair draws a scrambled globe rather than an error.
-
-## Amendment: the default set is every known basemap
-
-`buildBaseLayers` (`lib/core/src/scene.ts`) builds a tile provider for entry 0 of the declared set
-and no other entry. A reader who never opens the picker never causes a later entry to fetch a tile
-or open a connection. An entry in the set costs nothing until the reader picks it.
-
-**The default set is now every basemap `KNOWN_EARTH_BASEMAPS` holds**, in this order:
-`aster_colour_relief`, `aster_grey_relief`, `blue_marble`, `blue_marble_relief`,
-`emodnet_baselayer`, `offline_natural_earth`. Read every count of two entries above as six.
-
-**The content policy widens by tile directory, not by host.** `trusted_origins` reads the directory
-each entry's URL points at (`csp_source`), not the host under it. So the earlier reasoning for a
-one-host default, and the "widens by one origin" claim under Consequences, no longer hold: six
-entries open five tile directories, four on `gibs.earthdata.nasa.gov` and one on
-`tiles.emodnet-bathymetry.eu`. Two hosts, and a directory list, not a wider trust in either one.
-
-**ASTER Colour Relief still leads.** It is the sharpest map in the catalogue and it still stands
-alone on `gibs.earthdata.nasa.gov`, so a session that opens the page and picks nothing still reaches
-one host at startup, the same host a two-entry default always reached first. The offline pyramid
-moves last: the calm map that opens no host at all, still there for the reader to fall back on.

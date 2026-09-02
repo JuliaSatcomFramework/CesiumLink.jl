@@ -148,6 +148,13 @@ border is a political claim and a reader may want the names without one.
 _Avoid_: boundaries (that is the footprint outline an `Areas` value draws, which
 belongs to the `primitives` **payload vocabulary**).
 
+**Border style**:
+The colour and the width a **basemap** asks the **country borders** to be drawn in.
+Each basemap carries its own, because the right colour depends on what lies under
+the line, and the viewer restyles the lines on every pick. A basemap that states
+neither draws the viewer's default.
+_Avoid_: stroke, line style.
+
 **Context object**:
 The single options-bag argument the Core passes into a module's `setup`
 (`{Cesium, viewer, scene, clock, onWindow, onFrame, pickId, onCommand, notify,

@@ -26,6 +26,36 @@
     @test_throws "needs a URL" Imagery()
 end
 
+@testitem "a basemap says what the country borders under it wear" begin
+    # The right colour depends on what lies under the line, so the style belongs to the basemap.
+    @test (Imagery("u").border_color, Imagery("u").border_width) == ("#ffffff8c", 2.0)
+    styled = Imagery("u"; border_color = "rgba(0,0,0,0.6)", border_width = 1.5)
+    @test (styled.border_color, styled.border_width) == ("rgba(0,0,0,0.6)", 1.5)
+    # An integer width is a width, and the field carries it as a float.
+    @test Imagery("u"; border_width = 3).border_width === 3.0
+
+    # The browser parses the colour, so the only string worth refusing here is one that names
+    # nothing at all.
+    @test_throws "not empty" Imagery("u"; border_color = "")
+    # A line of zero pixels is a line nobody sees, and a negative one is no width at all.
+    @test_throws "positive" Imagery("u"; border_width = 0)
+    @test_throws "positive" Imagery("u"; border_width = -1.0)
+end
+
+@testitem "the border style travels on every entry of the set" begin
+    # The viewer restyles the borders for whatever entry the reader picks, so it needs the whole
+    # style of each one. An absent field would leave it guessing.
+    d, _ = CesiumLink.resolve_imagery([Imagery("https://host/{z}/{x}/{y}.png";
+                                               border_color = "#0000008c", border_width = 3.0),
+                                       KNOWN_EARTH_BASEMAPS.offline_natural_earth])
+    @test [(e.borderColor, e.borderWidth) for e in d] == [("#0000008c", 3.0), ("#ffffff8c", 2.0)]
+    # The pyramid inside the viewer carries the style as every other entry does, although it
+    # carries no URL.
+    @test last(d).bundled == true
+    @test all(haskey(e, :borderColor) && haskey(e, :borderWidth)
+              for e in first(CesiumLink.resolve_imagery(nothing)))
+end
+
 @testitem "the three states of `imagery` are three different declarations" begin
     # Absent, no base layer, and a named set are three declarations. An absent one on Earth is the
     # default set, which the reader picks within. `:none` draws no base layer at all.
@@ -70,7 +100,8 @@ end
     @test [get(e, :name, nothing) for e in d] == ["ASTER Colour Relief", "ASTER Grey Relief",
                                                    "Blue Marble", "Blue Marble Relief",
                                                    "EMODnet Baselayer", "Natural Earth"]
-    @test last(d) == (; bundled = true, key = "offline_natural_earth", name = "Natural Earth")
+    @test last(d) == (; bundled = true, key = "offline_natural_earth", name = "Natural Earth",
+                      borderColor = "#ffffff8c", borderWidth = 2.0)
     @test first(d).backing == true
     # The viewer reads the icon and the drop-down category off `key`, so every catalogue basemap
     # carries one. A match by label would hand a renamed basemap the fallback icon instead.
@@ -119,12 +150,13 @@ end
     @test dir === nothing
     # One basemap is a set of one, so the wire shape does not change with the size of the set. A
     # basemap an author built is in no catalogue, so it declares no `key`.
-    @test d == [(; url = template, layout = "xyz", tiling = "mercator")]
+    @test d == [(; url = template, layout = "xyz", tiling = "mercator",
+                 borderColor = "#ffffff8c", borderWidth = 2.0)]
 
     d, _ = CesiumLink.resolve_imagery(Imagery(template; tiling = :geographic, max_level = 7,
                                               credit = "USGS"))
     @test only(d) == (; url = template, layout = "xyz", tiling = "geographic", maxLevel = 7,
-                      credit = "USGS")
+                      credit = "USGS", borderColor = "#ffffff8c", borderWidth = 2.0)
 
     # A set keeps the order the author gave it, because entry 1 is what the globe wears at startup.
     d, _ = CesiumLink.resolve_imagery([KNOWN_EARTH_BASEMAPS.blue_marble_relief,
@@ -140,12 +172,14 @@ end
         # The URL is relative, which is what makes the mount same-origin with the page: an absolute
         # one would need a CORS header from wherever it pointed.
         @test only(d) == (; url = "assets/imagery/{z}/{x}/{y}.png", layout = "xyz",
-                          tiling = "mercator", maxLevel = 2)
+                          tiling = "mercator", maxLevel = 2, borderColor = "#ffffff8c",
+                          borderWidth = 2.0)
 
         # The probe reads the deepest level on disk; a stated maximum wins over it.
         d, _ = CesiumLink.resolve_imagery(Imagery(dir; max_level = 1, tiling = :geographic))
         @test only(d) == (; url = "assets/imagery/{z}/{x}/{y}.png", layout = "xyz",
-                          tiling = "geographic", maxLevel = 1)
+                          tiling = "geographic", maxLevel = 1, borderColor = "#ffffff8c",
+                          borderWidth = 2.0)
 
         # A file whose name is not a number is not a level.
         write(joinpath(dir, "readme.txt"), "not a level")
@@ -189,7 +223,8 @@ end
         @test mounted == dir
         # `tilemapresource.xml` carries the scheme and the depth, and Cesium reads both out of it,
         # so neither travels on the declaration.
-        @test only(d) == (; url = "assets/imagery/", layout = "tms", credit = "USGS")
+        @test only(d) == (; url = "assets/imagery/", layout = "tms", credit = "USGS",
+                          borderColor = "#ffffff8c", borderWidth = 2.0)
 
         # Stating one anyway is a misunderstanding worth a line: the file decides, and the stated
         # scheme is dropped rather than declared.
@@ -255,7 +290,8 @@ end
             end
             @test got["params"]["imagery"] ==
                   [Dict("url" => "assets/imagery/{z}/{x}/{y}.png", "layout" => "xyz",
-                        "tiling" => "mercator", "maxLevel" => 2)]
+                        "tiling" => "mercator", "maxLevel" => 2,
+                        "borderColor" => "#ffffff8c", "borderWidth" => 2.0)]
         finally
             stop_server(server)
         end

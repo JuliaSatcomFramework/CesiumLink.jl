@@ -10,6 +10,8 @@ import {
   Cartesian3,
   type CesiumWidget,
   Color,
+  ColorMaterialProperty,
+  ConstantProperty,
   GeoJsonDataSource,
   HeightReference,
   HorizontalOrigin,
@@ -20,6 +22,7 @@ import {
   SceneTransforms,
   VerticalOrigin,
 } from "@cesium/engine";
+import { sayOnce } from "./once";
 
 /** One row of `named-places.json`, as the generator writes it. */
 export interface NamedPlace {
@@ -38,6 +41,18 @@ export interface NamedPlace {
   maxz: number;
 }
 
+/**
+ * How the country borders are drawn: the border style the basemap on the globe asks for.
+ *
+ * Either field may be absent, and an absent one takes the viewer's own default.
+ */
+export interface BorderStyle {
+  /** A CSS colour string. One the browser cannot read draws the default instead. */
+  color?: string;
+  /** Pixels. */
+  width?: number;
+}
+
 /** The two layers, each switchable. */
 export interface Annotations {
   /** Whether the place names are drawn: what the session declared, until something switches it. */
@@ -48,6 +63,11 @@ export interface Annotations {
   showPlaces(on: boolean): void;
   /** Draw the country borders, or take them off. */
   showBorders(on: boolean): void;
+  /**
+   * Draw the country borders in the style the basemap on the globe asks for. The Core calls this
+   * for the entry the globe opens on, and the picker calls it again on every pick.
+   */
+  styleBorders(style: BorderStyle): void;
 }
 
 /**
@@ -90,14 +110,15 @@ const CAMERA_STEP = 0.1;
 const LEVEL_HEIGHT = 4e7;
 
 /**
- * How a country line is drawn: white at just over half strength, two pixels wide.
+ * How a country line is drawn where the basemap on the globe asks for nothing: white at just over
+ * half strength, two pixels wide.
  *
  * Strong enough to read over a photograph and a drawn relief map alike, and faint enough that a
  * whole-globe view is a globe with borders rather than a net with a globe behind it. No dark edge:
  * an edge makes a line legible at any width by making it heavier, and heavier is the fault.
  */
-const COUNTRY_LINE = Color.WHITE.withAlpha(0.55);
-const COUNTRY_LINE_WIDTH = 2;
+const DEFAULT_BORDER_COLOR = "#ffffff8c";
+const DEFAULT_BORDER_WIDTH = 2;
 
 /** How each kind of name is drawn. A `dot` kind hangs its text to the right of its position. */
 const STYLE: Record<NamedPlace["kind"], { font: string; fill: string; dot: boolean }> = {
@@ -313,6 +334,20 @@ export function addAnnotations(
 ): Annotations {
   const base = annotationBase(baseUrl);
   let borders: GeoJsonDataSource | null = null;
+  let borderColor = Color.fromCssColorString(DEFAULT_BORDER_COLOR);
+  let borderWidth = DEFAULT_BORDER_WIDTH;
+  const sayBadColour = sayOnce((message) => console.warn(message));
+  // Writes the style onto the lines that are already on the globe. The entities are restyled in
+  // place rather than the file being loaded again: the file is the same file whatever the basemap,
+  // and a second load would take the lines off the globe for as long as the fetch runs.
+  const paintBorders = () => {
+    if (!borders) return;
+    for (const entity of borders.entities.values) {
+      if (!entity.polyline) continue;
+      entity.polyline.material = new ColorMaterialProperty(borderColor);
+      entity.polyline.width = new ConstantProperty(borderWidth);
+    }
+  };
   // Fills the label collection from the camera it is called under. It stays a no-op until the names
   // arrive, and switching the layer back on calls it rather than waiting for the camera to move.
   let repopulate = () => {};
@@ -380,12 +415,14 @@ export function addAnnotations(
     // says nothing, so the data source loads, the entities exist, `polygon.outline` reads true and
     // the globe is bare.
     const source = await GeoJsonDataSource.load(base + "country-borders.geojson", {
-      stroke: COUNTRY_LINE,
-      strokeWidth: COUNTRY_LINE_WIDTH,
+      stroke: borderColor,
+      strokeWidth: borderWidth,
     });
     source.show = on.borders;
     borders = source;
     widget.dataSources.add(source);
+    // The basemap may have named its style while the file was still on its way.
+    paintBorders();
   })();
 
   names.catch(warn("place names"));
@@ -407,6 +444,22 @@ export function addAnnotations(
     showBorders(draw) {
       on.borders = draw;
       if (borders) borders.show = draw;
+    },
+    styleBorders(style) {
+      // `fromCssColorString` answers `undefined` for a string it cannot read, and it says nothing
+      // about it. Left alone that draws lines of no colour at all, which is a globe with no
+      // borders on it and no reason given.
+      const named = style.color === undefined ? undefined : Color.fromCssColorString(style.color);
+      if (style.color !== undefined && named === undefined) {
+        sayBadColour(
+          style.color,
+          `CesiumLink: the basemap asks for country borders in "${style.color}", which is not a ` +
+            `CSS colour this browser reads. They are drawn in ${DEFAULT_BORDER_COLOR}.`,
+        );
+      }
+      borderColor = named ?? Color.fromCssColorString(DEFAULT_BORDER_COLOR);
+      borderWidth = style.width ?? DEFAULT_BORDER_WIDTH;
+      paintBorders();
     },
   };
   attached.set(widget, handle);

@@ -63,6 +63,14 @@ export interface ImagerySpec {
    * on is built from `baseUrl`, and only the page knows that.
    */
   bundled?: boolean;
+  /**
+   * The CSS colour the country borders wear while this basemap is on the globe. The right colour
+   * depends on what lies under the line, so the style belongs to the basemap and travels with the
+   * pick (ADR-0036). Absent, or a string this browser cannot read, draws the viewer's own default.
+   */
+  borderColor?: string;
+  /** How wide the country borders are, in pixels, while this basemap is on the globe. */
+  borderWidth?: number;
 }
 
 export interface SceneOptions {
@@ -374,7 +382,8 @@ export async function createScene(
   widget.scene.globe.showGroundAtmosphere = false;
   // Place names and country borders, above the base and owned by the session rather than by the
   // pick. The picker removes only the base layers it counted, so these survive a switch (ADR-0036).
-  addAnnotations(widget, opts.baseUrl, { places: opts.namedPlaces, borders: opts.countryBorders });
+  const annotations = addAnnotations(widget, opts.baseUrl,
+    { places: opts.namedPlaces, borders: opts.countryBorders });
   // The sun's position comes from the clock, which the window playback drives, so the terminator
   // stands where the scene's own time puts it.
   if (opts.lighting) widget.scene.globe.enableLighting = true;
@@ -384,6 +393,9 @@ export async function createScene(
   // does not cover, so there the line stays off.
   const startsOn = basemapSet(opts.imagery)[0];
   overlay.setCredit(declared ? startsOn?.credit : undefined);
+  // The country borders wear the style of the basemap under them, and entry 0 is what the globe
+  // opens on. The picker states the style again on every pick.
+  annotations.styleBorders({ color: startsOn?.borderColor, width: startsOn?.borderWidth });
   // `clock.canAnimate` belongs to the playback in `windows.ts`, which clears it to hold the clock over
   // frames the buffer does not reach. CesiumWidget otherwise rewrites that flag on every tick from
   // whether its DataSourceDisplay is up to date, which would erase the hold. The `models` module

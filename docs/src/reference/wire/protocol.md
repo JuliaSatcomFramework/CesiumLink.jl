@@ -133,8 +133,10 @@ The session declaration. Sent once per connection, before anything else, and ret
     "imagery": [
       { "url": "https://gibs.earthdata.nasa.gov/…/{z}/{y}/{x}.jpeg", "layout": "xyz",
         "tiling": "mercator", "maxLevel": 8, "name": "Blue Marble",
-        "key": "blue_marble", "credit": "NASA EOSDIS GIBS", "backing": true },
-      { "bundled": true, "name": "Natural Earth", "key": "offline_natural_earth" }
+        "key": "blue_marble", "credit": "NASA EOSDIS GIBS", "backing": true,
+        "borderColor": "#ffffff8c", "borderWidth": 2.0 },
+      { "bundled": true, "name": "Natural Earth", "key": "offline_natural_earth",
+        "borderColor": "#3a3a3ab3", "borderWidth": 2.0 }
     ],
     "lighting": true,
     "stars": true,
@@ -163,8 +165,8 @@ The session declaration. Sent once per connection, before anything else, and ret
   viewer draws no picker for either. The choice never travels back up: no event and no field reports
   which entry is on screen.
 - An entry of `imagery` names one source as `url`, `layout` (`"xyz"` or `"tms"`) and `tiling`, and
-  optionally `maxLevel`, `name`, `credit`, `key` and `backing`. A `bundled` entry names none of the
-  first three.
+  optionally `maxLevel`, `name`, `credit`, `key`, `backing`, `borderColor` and `borderWidth`. A
+  `bundled` entry names none of the first three.
   - `name` is the label the picker shows. `credit` is the attribution drawn over the globe while
     this entry is the one on screen. It is HTML, and the viewer sanitizes it before it draws it.
   - `key` names the catalogue basemap the entry is, such as `"blue_marble"`. The viewer draws its
@@ -173,6 +175,11 @@ The session declaration. Sent once per connection, before anything else, and ret
   - `backing` draws the viewer's own bundled Earth texture under this entry, so a source that
     returns no tiles leaves a globe instead of a hole. The backing belongs to one entry, and the set
     never holds it as an entry of its own. The reader cannot pick it, and it draws no credit.
+  - `borderColor` and `borderWidth` are the **border style**: the CSS colour string and the pixel
+    width the country borders wear while this entry is the one on screen. The viewer restyles the
+    lines it already has on every pick, and a colour it cannot read draws its own default. Every
+    entry carries both, because the viewer needs the whole style of whatever entry the reader lands
+    on.
   - `bundled` marks the entry that **is** the bundled Earth texture. Such an entry carries no `url`.
     The page builds the one it answers on from the viewer's own base URL. Only the page knows that
     URL. It is the one entry that needs neither a host nor a mount, so it travels into any

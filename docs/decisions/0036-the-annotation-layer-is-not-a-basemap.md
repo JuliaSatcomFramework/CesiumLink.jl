@@ -28,6 +28,17 @@ has to be remembered by whoever changes it next.
 reader who wants the borders without the names, or the names without the borders, gets both answers
 from two flags.
 
+**The border style belongs to the basemap, not to the layer.** Each entry of the set carries a
+`borderColor` and a `borderWidth`, and the viewer restyles the country borders for the entry the
+reader picked. The lines themselves belong to the session; how they are drawn cannot. The right
+colour depends on what lies under them: white at half strength reads over a satellite photograph and
+disappears over a pale relief map, and one set holds both kinds. So the pick carries the style, and
+the picker states it in the same creation function that rewrites the credit line. The viewer walks
+the entities of the data source it already holds and loads no file, so the borders never leave the
+globe for the length of a switch. A colour string the browser cannot read draws the viewer's own
+default and writes one line to the console: a line of no colour is a globe with no borders on it and
+no reason given.
+
 **They carry no credit and open no origin.** Every file ships inside the viewer, so nothing reaches
 the network. The data is Natural Earth, which is public domain. ADR-0034's rule stands unamended:
 the credit line names the basemap the reader picked, and these layers add nothing to it.

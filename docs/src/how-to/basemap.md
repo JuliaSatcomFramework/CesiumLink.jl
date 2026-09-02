@@ -154,6 +154,25 @@ continent therefore gives way to the countries in it, and a country to its citie
 only the names the camera can see, ranks them, and drops any whose text box lands on one already
 kept. See ADR-0036 for the whole decision, what it measured, and what it declines.
 
+### The colour a country border wears
+
+Each basemap says what colour and width the country borders wear while it is on the globe. The right
+colour depends on what lies under the line: white reads over a photograph and disappears over a pale
+relief map. `border_color` is a CSS colour string and `border_width` is a number of pixels:
+
+```julia
+start_server(; imagery = [Imagery(dark_url; name = "Night", border_color = "#ffffff8c"),
+                          Imagery(pale_url; name = "Relief", border_color = "#3a3a3ab3",
+                                  border_width = 1.5)])
+```
+
+Say neither and the borders are white at just over half strength, two pixels wide. The browser
+parses the colour, so the server checks only that the string is not empty. A string the browser
+cannot read draws the default and writes one line to the console.
+
+The viewer restyles the lines it already has when the reader picks another basemap. It fetches
+nothing, so the borders never leave the globe for the length of a switch.
+
 ## Point at a basemap on the web
 
 Give the URL template of a tile pyramid. `{z}`, `{x}` and `{y}` are the level, the column and the

@@ -193,6 +193,9 @@ function basemapPicker(
         // under it, and an entry that carries none takes the line down (ADR-0034).
         basemaps.onGlobe = spec;
         overlay.setCredit(spec.credit);
+        // The country borders follow the pick as the credit does. The right colour depends on what
+        // lies under the line, so the style belongs to the basemap (ADR-0036).
+        annotations?.styleBorders({ color: spec.borderColor, width: spec.borderWidth });
         // A source that will not build draws the bundled Earth texture, which the declared credit
         // does not describe, so the line comes down with it (ADR-0020). A fallback is heard after
         // the switch that started it, so it is only worth acting on while this is still the entry

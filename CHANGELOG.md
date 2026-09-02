@@ -21,8 +21,10 @@ All notable changes to CesiumLink are in this file.
 ### Changed
 
 - **Breaking behaviour.** An absent `imagery` on Earth no longer means the bundled texture alone. It
-  declares ASTER Colour Relief backed by the bundled pyramid, so a default session asks
-  `gibs.earthdata.nasa.gov` for tiles. One line takes the network out again:
+  declares the six ready-made basemaps, ASTER Colour Relief first and backed by the bundled pyramid,
+  so a default session offers all six in the picker. Entry 1 is the only one the page builds a tile
+  provider for, so the globe opens by asking `gibs.earthdata.nasa.gov` for tiles and reaches no
+  other host until the reader picks one. One line takes the network out again:
   `start_server(; imagery = KNOWN_EARTH_BASEMAPS.offline_natural_earth)`. A session on another body
   is unchanged: it still wears the bundled texture and reaches no network.
 - **Breaking behaviour.** A `credit` is HTML, where it used to be drawn as text. An attribution
