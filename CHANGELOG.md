@@ -6,57 +6,35 @@ All notable changes to CesiumLink are in this file.
 
 ## [0.2.0] - 2026-09-02
 
+Basemap picker, place names and country borders. See #40 for the whole story.
+
 ### Added
 
-- `KNOWN_EARTH_BASEMAPS` names seven ready-made `Imagery` values of Earth:
-  `offline_natural_earth`, `aster_colour_relief`, `aster_grey_relief`, `emodnet_baselayer`,
-  `blue_marble`, `blue_marble_relief` and `city_lights`. Each one carries the attribution its source asks for.
-  `Imagery` and `KNOWN_EARTH_BASEMAPS` are both exported.
-- `imagery` takes a list, so a server declares a basemap **set** and the reader picks inside it. A
-  picker button stands in the furniture group while the set holds two or more.
-- `Imagery` takes `backing`. A basemap marked that way draws the viewer's bundled pyramid underneath
-  itself, so a source that stops serving leaves a globe instead of a black ball.
-- `declare_furniture` takes `basemap`. Set it to `false` to declare a set and show no picker over it.
-- The viewer draws place names and country borders above whichever basemap is on screen, from
-  two Natural Earth files inside the viewer, so neither reaches the network. `start_server` takes
-  `named_places` and `country_borders`, both on by default and each its own flag. The names page
-  with the camera height, so a continent never competes with the cities inside it. See ADR-0036.
-- `declare_furniture` takes `annotations`, the cell beside the basemap picker with one checkbox
-  per layer. A tick is the reader's own view and never travels back to the server.
-- `Imagery` takes `border_color` and `border_width`, the style its country borders are drawn in,
-  because the right colour depends on what lies under the line. Every known basemap carries the
-  colour that reads on it. The viewer thins the width from 2,000 km out to half at 20,000 km.
-- `Imagery` accepts `tiling = :gibs_geographic`, NASA's EPSG:4326 grid, which is not Cesium's own.
+- `KNOWN_EARTH_BASEMAPS` names seven ready-made `Imagery` values of Earth, each with its
+  attribution and the border colour that reads on it. Both names are exported.
+- `imagery` takes a list: a server declares a basemap set and the reader picks inside it with a
+  button in the furniture group. `declare_furniture(; basemap = false)` hides the button.
+- `Imagery` takes `backing`, `border_color`, `border_width` and `tiling = :gibs_geographic`.
+- Place names and country borders draw above any basemap from files inside the viewer.
+  `start_server` takes `named_places` and `country_borders`, both on by default, and
+  `declare_furniture` takes `annotations`, the cell with one checkbox per layer. See ADR-0036.
 
 ### Changed
 
-- **Breaking behaviour.** An absent `imagery` on Earth no longer means the bundled texture alone. It
-  declares the seven ready-made basemaps, ASTER Colour Relief first and backed by the bundled pyramid,
-  so a default session offers all seven in the picker. Entry 1 is the only one the page builds a tile
-  provider for, so the globe opens by asking `gibs.earthdata.nasa.gov` for tiles and reaches no
-  other host until the reader picks one. One line takes the network out again:
-  `start_server(; imagery = KNOWN_EARTH_BASEMAPS.offline_natural_earth)`. A session on another body
-  is unchanged: it still wears the bundled texture and reaches no network.
-- **Breaking behaviour.** A `credit` is HTML, where it used to be drawn as text. An attribution
-  that must carry a link now can, and one that holds a `<` no longer shows it. The viewer sanitizes
-  the string against a narrow allow-list before it draws it — a link and light emphasis, and no
-  attribute that paints — and rewrites the line on every switch.
-- `?imagery=`, `?tiling=`, `?maxlevel=` and `?credit=` in a page address reach the globe only where
-  no declaration states a basemap. A server on Earth now always declares one, so those parameters
-  are for a page with no server behind it, or for a session on another body.
-- A recording carries the whole declared set, not one basemap. A recording made with a keyed URL
-  therefore holds that key in plain text.
-- The content policy of a VSCode panel opens for the tile directory of every basemap in the set,
-  not for its host.
-- Every known online basemap is geographic tiles that reach both poles. A Web Mercator source
-  stops at 85 degrees and wears the backing as a pale disc at each pole; none of the seven does.
-- The viewer builds against `@cesium/engine` `^26.2.0`. The exact `26.1.0` pin made npm install a
-  second engine below `@cesium/widgets`, and the bundle carried both. See #38.
+- **Breaking behaviour.** An absent `imagery` on Earth declares the seven ready-made basemaps,
+  ASTER Colour Relief first, so the globe opens by fetching tiles from `gibs.earthdata.nasa.gov`.
+  `start_server(; imagery = KNOWN_EARTH_BASEMAPS.offline_natural_earth)` takes the network out.
+- **Breaking behaviour.** A `credit` is HTML, sanitized to a link and light emphasis.
+- `?imagery=`, `?tiling=`, `?maxlevel=` and `?credit=` in a page address apply only where no
+  declaration states a basemap.
+- A recording carries the whole declared set, keyed URLs included, in plain text.
+- The content policy of a VSCode panel opens for each basemap's tile directory, not its host.
+- Every known online basemap is geographic tiles that reach both poles.
+- The viewer builds against `@cesium/engine` `^26.2.0`. See #38.
 
 ### Fixed
 
-- The release artifact no longer carries the Cesium worker files that nothing loads. `lib/dist` is
-  smaller than it was before the bump. See #38.
+- The release artifact no longer carries the Cesium worker files that nothing loads. See #38.
 
 ## [0.1.3] - 2026-08-27
 
