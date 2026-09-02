@@ -172,9 +172,14 @@ const KNOWN_EARTH_BASEMAPS = (;
     # entries are `{z}/{y}/{x}`: a WMTS REST path names the tile row before the tile column. A
     # template reaches the browser as it stands, so a swapped pair draws a scrambled globe rather
     # than an error.
+    #
+    # EMODnet publishes the same layer on five tile matrix sets, and `inspire_quad` is the
+    # EPSG:4326 one. It is Cesium's `GeographicTilingScheme` exactly: 256 pixel tiles, a level 0 of
+    # two columns by one row, and a doubling per level. A Web Mercator basemap stops at 85.0511
+    # degrees and leaves a disc at each pole. This one draws to the pole.
     emodnet_baselayer = Imagery(
-        "https://tiles.emodnet-bathymetry.eu/2020/baselayer/web_mercator/{z}/{x}/{y}.png";
-        name = "EMODnet Baselayer", max_level = 15, backing = true,
+        "https://tiles.emodnet-bathymetry.eu/2020/baselayer/inspire_quad/{z}/{x}/{y}.png";
+        name = "EMODnet Baselayer", tiling = :geographic, max_level = 15, backing = true,
         credit = "EMODnet Bathymetry (CC BY 4.0)", border_color = "#3a3a3ab3"),
     blue_marble = Imagery(
         "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_ShadedRelief_Bathymetry/\

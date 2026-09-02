@@ -88,6 +88,10 @@ end
     @test all(endswith("{z}/{y}/{x}.jpeg"), (KNOWN_EARTH_BASEMAPS.aster_colour_relief.url,
                                              KNOWN_EARTH_BASEMAPS.aster_grey_relief.url))
     @test endswith(KNOWN_EARTH_BASEMAPS.emodnet_baselayer.url, "{z}/{x}/{y}.png")
+    # EMODnet is declared on its EPSG:4326 tile matrix set, which reaches both poles. A Web
+    # Mercator set stops at 85.0511 degrees and leaves the backing showing as a disc there.
+    @test occursin("/inspire_quad/", KNOWN_EARTH_BASEMAPS.emodnet_baselayer.url)
+    @test KNOWN_EARTH_BASEMAPS.emodnet_baselayer.tiling === :geographic
     # The pyramid inside the viewer is the one entry with neither a URL nor a credit. It is
     # public domain, and the page builds the URL it answers on.
     offline = KNOWN_EARTH_BASEMAPS.offline_natural_earth

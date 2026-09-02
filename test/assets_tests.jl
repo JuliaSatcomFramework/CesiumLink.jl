@@ -148,7 +148,7 @@ end
                 default/GoogleMapsCompatible_Level8/",
                "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_ShadedRelief/\
                 default/GoogleMapsCompatible_Level8/",
-               "https://tiles.emodnet-bathymetry.eu/2020/baselayer/web_mercator/"]
+               "https://tiles.emodnet-bathymetry.eu/2020/baselayer/inspire_quad/"]
     finally
         stop_server(server)
     end
@@ -162,7 +162,7 @@ end
         @test server.trusted_origins ==
               ["https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/ASTER_GDEM_Color_Shaded_Relief/\
                 default/GoogleMapsCompatible_Level12/",
-               "https://tiles.emodnet-bathymetry.eu/2020/baselayer/web_mercator/"]
+               "https://tiles.emodnet-bathymetry.eu/2020/baselayer/inspire_quad/"]
     finally
         stop_server(server)
     end
@@ -223,7 +223,7 @@ end
                            "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/\
                             BlueMarble_ShadedRelief/default/\
                             GoogleMapsCompatible_Level8/",
-                           "https://tiles.emodnet-bathymetry.eu/2020/baselayer/web_mercator/"]
+                           "https://tiles.emodnet-bathymetry.eu/2020/baselayer/inspire_quad/"]
                 finally
                     stop_server(server)
                 end
