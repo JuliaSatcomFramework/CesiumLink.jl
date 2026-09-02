@@ -4,7 +4,7 @@
 # The wire contract this package speaks. Time-varying scene data travels as the Core-level `window`
 # message. A viewer announcing a different version is refused: every frame is binary, and a viewer
 # that expects JSON receives one, fails to parse it and reports nothing at all.
-const PROTOCOL_VERSION = 1
+const PROTOCOL_VERSION = 2
 
 # The module contract the viewer's Core implements. A declared module whose `api_version` differs is
 # skipped by the Core before its code is imported, so a stale bundle never half-runs.
@@ -34,7 +34,8 @@ dropped_message(n::Integer) = commands_message([Command(CORE_DROPPED..., (; n = 
 
 """
     modules_message(mods; ellipsoid=nothing, furniture=nothing, imagery=nothing,
-                    assets=nothing, lighting=false, stars=false) -> Frame
+                    assets=nothing, lighting=false, stars=false, named_places=true,
+                    country_borders=true) -> Frame
 
 The `modules` notification wire frame: the session declaration. `modules` is which ES
 modules the viewer is to load, in declaration order, each with the same-origin URL the server serves
@@ -62,11 +63,17 @@ omitted when `false`, which leaves the globe evenly lit.
 `stars` draws the sky around the globe: the star field, the sun and the moon. It is omitted when
 `false`, which leaves black behind the globe.
 
+`named_places` draws the place names over the globe and `country_borders` the boundary lines between
+countries, each above whatever basemap is on screen. Both are on by default, so each is omitted when
+`true` and carried as `false` when off — the opposite way round to the two fields above, because the
+wire states what departs from the default.
+
 Sent once per connection, on `ready`, before any state addressed to a module. The viewer builds its
 widget from what this carries, so nothing precedes it.
 """
 function modules_message(mods; ellipsoid = nothing, furniture = nothing, imagery = nothing,
-                         assets = nothing, lighting = false, stars = false)
+                         assets = nothing, lighting = false, stars = false, named_places = true,
+                         country_borders = true)
     params = (; modules = [(; m.id, url = module_url(m), apiVersion = m.api_version) for m in mods])
     ellipsoid === nothing || (params = (; params..., ellipsoid))
     furniture === nothing || (params = (; params..., furniture))
@@ -74,6 +81,8 @@ function modules_message(mods; ellipsoid = nothing, furniture = nothing, imagery
     assets === nothing || isempty(assets) || (params = (; params..., assets))
     lighting && (params = (; params..., lighting))
     stars && (params = (; params..., stars))
+    named_places || (params = (; params..., namedPlaces = false))
+    country_borders || (params = (; params..., countryBorders = false))
     # A declaration carries no arrays, so its region is empty.
     return Frame(JSON.json((; method = "modules", params)))
 end

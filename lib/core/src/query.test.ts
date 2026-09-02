@@ -17,6 +17,12 @@ test("a template URL is an XYZ source, and takes tiling and maxlevel", () => {
   assert.deepEqual(warnings, []);
 });
 
+test("gibs-geographic is a tiling scheme too", () => {
+  const { scene, warnings } = read("imagery=https://x.test/{z}/{y}/{x}.jpeg&tiling=gibs-geographic");
+  assert.equal(scene.imagery?.tiling, "gibs-geographic");
+  assert.deepEqual(warnings, []);
+});
+
 test("a URL with no template is the directory of a TMS pyramid", () => {
   const { scene } = read("imagery=/tiles/moon");
   assert.deepEqual(scene.imagery, { url: "/tiles/moon", layout: "tms" });

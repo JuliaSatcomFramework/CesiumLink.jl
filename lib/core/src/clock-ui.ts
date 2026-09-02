@@ -11,18 +11,21 @@
 // here; the only interaction Cesium leaves unwired is Timeline scrubbing, which merely dispatches a
 // `settime` event — so we set the clock time from it below.
 
-import { JulianDate, type Clock, type Scene } from "@cesium/engine";
+import { JulianDate, type Clock, type Ellipsoid, type Scene } from "@cesium/engine";
 import {
-  Animation, AnimationViewModel, CesiumInspector, ClockViewModel,
-  FullscreenButton, HomeButton, NavigationHelpButton, ProjectionPicker,
+  Animation, AnimationViewModel, BaseLayerPicker, CesiumInspector, ClockViewModel,
+  FullscreenButton, HomeButton, NavigationHelpButton, ProjectionPicker, ProviderViewModel,
   SceneModePicker, Timeline,
 } from "@cesium/widgets";
+import type { Annotations } from "./annotations";
+import { BASEMAP_ICONS } from "./basemap-icons";
 import type { CameraAuthority } from "./camera";
 import {
-  bandLayout, cameraFollowView, countdownText, FURNITURE_DEFAULTS,
+  bandLayout, basemapPickable, cameraFollowView, countdownText, FURNITURE_DEFAULTS,
   type FurnitureDeclaration, type FurnitureId, type StopRow,
 } from "./furniture";
 import type { Overlay, OverlayRegion } from "./overlay";
+import { basemapProviders, type ImagerySpec } from "./scene";
 
 /** The keyframe the readout names: the instant its values were computed for, and the move onto it. */
 interface KeyframeReadout {
@@ -53,12 +56,16 @@ const PILL = "height:22px;padding:0 8px;font:12px/22px sans-serif;color:#edffff;
 /** A button with no chrome of its own, so the pill that holds it still reads as one box. */
 const FLAT = "font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;";
 
+/** The box a group cell opens into. It wears the pill's colours and is sized by what it holds. */
+const PANEL = "font:12px/18px sans-serif;color:#edffff;background:rgba(38,38,38,0.92);" +
+  "border:1px solid #444;border-radius:3px;padding:6px 8px;white-space:nowrap;";
+
 /** Where the group sits when a declaration names no region. */
 const DEFAULT_REGION: OverlayRegion = "top-right";
 
 /** Top to bottom inside the group. The order is fixed here, not declared. */
-const GROUP_ORDER = ["home", "sceneMode", "projection", "navHelp", "fullscreen", "canvasCapture",
-  "inspector"] as const;
+const GROUP_ORDER = ["home", "sceneMode", "projection", "basemap", "annotations", "navHelp",
+  "fullscreen", "canvasCapture", "inspector"] as const;
 type GroupId = (typeof GROUP_ORDER)[number];
 
 // The group's own rule; a declared style merges over it. It carries `pointer-events:auto` because
@@ -101,6 +108,213 @@ function expandButton(el: HTMLElement, expand: () => void): { destroy(): void } 
   return { destroy: () => button.remove() };
 }
 
+/** What the basemap picker needs to build one entry of the declared set into a globe layer. */
+export interface Basemaps {
+  /** The declared set, in wire order. Entry 0 is what the globe wears at startup. */
+  specs: ImagerySpec[];
+  /** The shape the globe is built on, which every declared provider is tiled for. */
+  ellipsoid: Ellipsoid;
+  /** CESIUM_BASE_URL, which is where the bundled Earth texture answers. */
+  baseUrl: string;
+  /**
+   * The entry the globe wears now, which the Core sets to entry 0 and the picker rewrites on every
+   * switch. It outlives the picker on purpose: a declaration that turns this item off and on again
+   * builds a second picker, and that one has to know what the first one left on the globe.
+   */
+  onGlobe?: ImagerySpec;
+}
+
+/**
+ * How the picker draws each basemap that `KNOWN_EARTH_BASEMAPS` names, keyed by the catalogue key
+ * the wire carries. The label is never read: a label is the text a reader sees and an author may
+ * change it, and a table read by label answers a renamed basemap with the wrong icon.
+ *
+ * A category names what the reader sees rather than who serves it: `Relief` is a drawn map and
+ * `Imagery` is a photograph, which is why the EMODnet entry joins the two ASTER ones although a
+ * different host serves it.
+ *
+ * A basemap with no key, or a key this table does not name — an author's own URL — draws the
+ * offline icon and sits under `Imagery`, because `ProviderViewModel` throws with no `iconUrl` and
+ * the picker groups its drop-down by category.
+ */
+const KNOWN_BASEMAPS: Record<string, { icon: string; category: string }> = {
+  offline_natural_earth: { icon: BASEMAP_ICONS.offline_natural_earth, category: "Offline" },
+  aster_colour_relief: { icon: BASEMAP_ICONS.aster_colour_relief, category: "Relief" },
+  aster_grey_relief: { icon: BASEMAP_ICONS.aster_grey_relief, category: "Relief" },
+  emodnet_baselayer: { icon: BASEMAP_ICONS.emodnet_baselayer, category: "Relief" },
+  blue_marble: { icon: BASEMAP_ICONS.blue_marble, category: "Imagery" },
+  blue_marble_relief: { icon: BASEMAP_ICONS.blue_marble_relief, category: "Imagery" },
+  city_lights: { icon: BASEMAP_ICONS.city_lights, category: "Imagery" },
+};
+
+const UNKNOWN_BASEMAP = { icon: BASEMAP_ICONS.offline_natural_earth, category: "Imagery" };
+
+/**
+ * The basemap picker, which owns the globe's base layers from the moment it is built.
+ *
+ * `BaseLayerPickerViewModel` removes only the layers it added itself, so the layers the scene built
+ * come off first. Without that the picker stacks its own set over them, and the first switch takes
+ * only its own set away again. Entry 0 is selected here rather than left to the picker's default so
+ * that the choice is the declared one, and so that a backed entry is tracked as the two layers it
+ * is.
+ *
+ * The creation function hands `basemapProviders` on whole. The view model adds every provider of
+ * that list at index 0 in reverse and tracks the result as one unit, so a switch away from a backed
+ * entry replaces both of its layers together. A source that will not build falls back to the
+ * bundled Earth texture there, so a picked entry never leaves the reader a bare globe (ADR-0020).
+ *
+ * A declaration that turns this item off and on again rebuilds the picker on entry 0. The pick is
+ * the reader's and nothing on the wire states it, so there is nothing to restore it from.
+ *
+ * The overlay owns the credit line. It is rewritten inside the creation function rather than from a
+ * subscription, because that function is what the view model runs for every switch, including the
+ * one this constructor makes.
+ */
+function basemapPicker(
+  el: HTMLElement,
+  scene: Scene,
+  basemaps: Basemaps,
+  overlay: Overlay,
+  annotations: Annotations | undefined,
+): { destroy(): void } {
+  const models = basemaps.specs.map((spec, i) => {
+    const name = spec.name ?? `Basemap ${i + 1}`;
+    const look = (spec.key === undefined ? undefined : KNOWN_BASEMAPS[spec.key]) ?? UNKNOWN_BASEMAP;
+    return new ProviderViewModel({
+      name,
+      tooltip: name,
+      iconUrl: look.icon,
+      category: look.category,
+      // `CreationFunction` spells `Promise<ImageryProvider[]>` where the view model reads a list:
+      // it asks `Array.isArray` of what the function gives back, and builds each element through
+      // `ImageryLayer.fromProviderAsync`, which takes a promise. So a list of promises is what the
+      // view model handles, and a promise of a list is the one shape it mistakes for one provider.
+      creationFunction: (() => {
+        // The credit follows the pick: it names the basemap the reader chose and never the backing
+        // under it, and an entry that carries none takes the line down (ADR-0034).
+        basemaps.onGlobe = spec;
+        overlay.setCredit(spec.credit);
+        // The country borders follow the pick as the credit does. The right colour depends on what
+        // lies under the line, so the style belongs to the basemap (ADR-0036).
+        annotations?.styleBorders({ color: spec.borderColor, width: spec.borderWidth });
+        // A source that will not build draws the bundled Earth texture, which the declared credit
+        // does not describe, so the line comes down with it (ADR-0020). A fallback is heard after
+        // the switch that started it, so it is only worth acting on while this is still the entry
+        // on the globe.
+        return basemapProviders(spec, basemaps.ellipsoid, basemaps.baseUrl, () => {
+          if (basemaps.onGlobe === spec) overlay.setCredit(undefined);
+        });
+      }) as unknown as ProviderViewModel.CreationFunction,
+    });
+  });
+  // The base comes off, and only the base. A module drapes rasters of its own over the globe
+  // through the same collection (the heatmap does), and it holds what it added: `removeAll` would
+  // take those with it and leave the module believing they are still on screen, so they would not
+  // come back until its data changed. The base is the bottom of the stack — Cesium inserts a
+  // picked basemap at index 0, and a module appends above it — and it is as many layers as the
+  // entry on the globe draws with: two for a backed entry, one for anything else.
+  //
+  // Taken off, never destroyed: the globe's surface still holds the layers it is loading tiles for,
+  // and a destroyed layer under it stops the render loop.
+  const onBase = basemaps.onGlobe === undefined ? 0 : basemaps.onGlobe.backing ? 2 : 1;
+  for (let i = 0; i < onBase && scene.imageryLayers.length > 0; i++) {
+    scene.imageryLayers.remove(scene.imageryLayers.get(0), false);
+  }
+  const picker = new BaseLayerPicker(el, {
+    globe: scene.globe,
+    imageryProviderViewModels: models,
+    selectedImageryProviderViewModel: models[0],
+    // No terrain to pick: this viewer draws the ellipsoid, and a terrain row in the drop-down would
+    // offer a choice that changes nothing.
+    terrainProviderViewModels: [],
+  });
+  // The annotation boxes sit at the foot of the drop-down, under the basemaps, as one more section
+  // of what the globe wears. The drop-down is a plain element the widget appends to the cell, and
+  // Knockout binds only the nodes it wrote, so a section added after it is left alone and goes
+  // with the drop-down when the picker is destroyed.
+  if (annotations) {
+    const title = document.createElement("div");
+    title.className = "cesium-baseLayerPicker-sectionTitle";
+    title.textContent = "Annotations";
+    const section = document.createElement("div");
+    section.style.cssText = "display:flex;flex-direction:column;gap:4px;padding:0 4px 4px;" +
+      "color:#edffff;font-size:12px";
+    section.append(...annotationRows(annotations));
+    el.querySelector(".cesium-baseLayerPicker-dropDown")?.append(title, section);
+  }
+  return picker;
+}
+
+/**
+ * The two annotation boxes, one per layer.
+ *
+ * A box starts at what the session declared and writes straight to the layer. Nothing about a tick
+ * travels upward: it is the reader's own view of a scene the server states, which is the rule the
+ * basemap pick already follows (ADR-0017).
+ */
+function annotationRows(layers: Annotations): HTMLElement[] {
+  const rows: HTMLElement[] = [];
+  const row = (text: string, on: boolean, set: (draw: boolean) => void) => {
+    const label = document.createElement("label");
+    label.style.cssText = "display:flex;align-items:center;gap:6px;cursor:pointer";
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    box.checked = on;
+    box.style.cssText = "margin:0;cursor:pointer";
+    box.addEventListener("change", () => set(box.checked));
+    label.append(box, document.createTextNode(text));
+    rows.push(label);
+  };
+  row("Place names", layers.places, (draw) => layers.showPlaces(draw));
+  row("Country borders", layers.borders, (draw) => layers.showBorders(draw));
+  return rows;
+}
+
+/**
+ * The map-annotations cell: one button that opens the two annotation boxes.
+ *
+ * Only for a globe with no basemap picker. The boxes belong in the picker's drop-down, because the
+ * layers and the basemap are one idea — what the globe wears — and a button of their own is one
+ * more always-on control in a column that is tall enough already. A session that names fewer than
+ * two basemaps draws no picker, and this cell is where the boxes go then.
+ *
+ * The panel hangs out of the cell, so the cell is what it is positioned against, and it is
+ * `display:none` while closed — which is what lets the group's rank observer read a shut cell as
+ * reaching nothing below it.
+ */
+function annotationsCell(el: HTMLElement, layers: Annotations): { destroy(): void } {
+  el.style.position = "relative";
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "cesium-button";
+  button.title = "Place names and country borders";
+  button.textContent = "A";
+  button.style.cssText = "width:32px;height:32px;padding:0;font:16px/32px sans-serif";
+  button.setAttribute("aria-expanded", "false");
+  // Anchored to the cell's right edge, so the panel grows leftward and stays on the page in the
+  // top-right corner the group sits in by default.
+  const panel = document.createElement("div");
+  panel.style.cssText = PANEL +
+    "position:absolute;top:34px;right:0;display:none;flex-direction:column;gap:4px";
+  panel.append(...annotationRows(layers));
+  // Click to open, click to close, which is what the camera-follow item does. Not hover: hover has
+  // no touch story and is hostile to a box the reader is aiming a pointer at.
+  const toggle = () => {
+    const open = panel.style.display === "none";
+    panel.style.display = open ? "flex" : "none";
+    button.setAttribute("aria-expanded", String(open));
+  };
+  button.addEventListener("click", toggle);
+  el.append(button, panel);
+  return {
+    destroy() {
+      button.removeEventListener("click", toggle);
+      button.remove();
+      panel.remove();
+    },
+  };
+}
+
 export function buildFurniture(
   container: HTMLElement,
   scene: Scene,
@@ -108,6 +322,8 @@ export function buildFurniture(
   overlay: Overlay,
   expand?: () => void,
   captureCell?: (el: HTMLElement) => { destroy(): void },
+  basemaps?: Basemaps,
+  annotations?: Annotations,
 ): Furniture {
   // Bottom-left: analog clock + shuttle ring + play/pause.
   const animEl = document.createElement("div");
@@ -194,6 +410,8 @@ export function buildFurniture(
     home: (el) => new HomeButton(el, scene),
     sceneMode: (el) => new SceneModePicker(el, scene),
     projection: (el) => new ProjectionPicker(el, scene),
+    basemap: (el) => basemapPicker(el, scene, basemaps!, overlay, annotations),
+    annotations: (el) => annotationsCell(el, annotations!),
     navHelp: (el) => new NavigationHelpButton({ container: el }),
     fullscreen: (el) =>
       expand ? expandButton(el, expand) : new FullscreenButton(el, container),
@@ -216,10 +434,16 @@ export function buildFurniture(
    * the real capability, so the button cannot be forced on and a click on it does nothing. Such a
    * host supplies `expand` instead, and then the cell is a substitute button that calls it.
    *
-   * The capture cell has the same shape: only a caller that handed one over can show it.
+   * The capture cell has the same shape: only a caller that handed one over can show it. So does
+   * the basemap picker, which needs a set of two or more to pick within, and the annotations cell,
+   * which has nothing to switch on a globe built with no annotation layers and nothing to add
+   * where the picker's drop-down already holds the boxes.
    */
+  const pickable = () => basemapPickable(basemaps?.specs.length ?? 0);
   const available = (id: GroupId): boolean => {
     if (id === "canvasCapture") return captureCell !== undefined;
+    if (id === "basemap") return pickable();
+    if (id === "annotations") return annotations !== undefined && !pickable();
     return id !== "fullscreen" || expand !== undefined || document.fullscreenEnabled;
   };
 
@@ -306,7 +530,8 @@ export function buildFurniture(
   };
 
   // What is on screen now. It starts at the defaults, which is what a session that declares nothing
-  // sees: everything but the projection picker, the navigation help and the inspector.
+  // sees: everything but the projection picker, the navigation help and the inspector. The basemap
+  // picker is on among them, and it shows only where the declared set holds two entries or more.
   const items: Record<FurnitureId, boolean> = { ...FURNITURE_DEFAULTS };
   // The last declared range. A furniture declaration arrives independently of any range, so the
   // ruler needs the range held here to re-lay itself out whenever its box changes.

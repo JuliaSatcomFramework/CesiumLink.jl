@@ -98,11 +98,63 @@ coordinate upward, and a Julia listener reads the value back out of the grid it 
 So the module exercises coordinate-sample picking rather than entity-ownership picking.
 
 **Basemap**:
-The imagery the globe itself is textured with: one layer, declared once per session
-by the server, fixed for that session. A module's draped raster is a different thing:
-an overlay the module puts up and takes down, as the heatmap module does.
-_Avoid_: base layer (Cesium's own term, for a thing a picker switches, which this is
-not), texture, skin.
+What the globe itself is textured with. The server declares one or more, and the reader
+picks which one is on screen. A module's draped raster is a different thing: an overlay
+the module puts up and takes down, as the heatmap module does.
+_Avoid_: base layer (Cesium's own term for the same thing), texture, skin.
+
+**Basemap set**:
+Every basemap one session can wear, declared by the server as an ordered list. Entry 0
+is on the globe at startup. Each entry names one body, and every entry names the same
+body. A reader who picks another one never sees a globe that disagrees with the
+coordinates drawn on it. A set of one draws no picker.
+_Avoid_: layer stack, basemap list.
+
+**Basemap backing**:
+A second basemap drawn under a declared one, so that a source which returns no tiles
+leaves a globe instead of a hole. The backing belongs to one basemap, and the **basemap
+set** never holds it as an entry. It carries no transparency, the reader cannot pick it,
+and it always sits below. The backing is always the offline pyramid inside the viewer, so
+a session on another
+body cannot ask for one. Its credit never appears, because the credit line names the
+basemap the reader picked.
+_Avoid_: backing on its own (the codebase uses the word elsewhere for other things),
+fallback layer (the **fallback** is what a basemap that does not build gives you, which
+is a different mechanism), underlay, stack.
+
+**Annotation layer**:
+Place names and country borders drawn above the **basemap**. It belongs to the session
+and not to a basemap, so it survives a pick. The picker takes off the imagery layers it
+counted, and an annotation layer is not one of those. The server states each part at
+`start_server`, and the reader switches each part from the **furniture**. Both data
+files ship inside the viewer, so the layer reaches no network and draws no credit.
+_Avoid_: overlay (that is the HTML above the canvas, which carries the credit, the
+**furniture** and the **floats**), label layer.
+
+**Named places**:
+The oceans, seas, continents, countries, and cities the **annotation layer** writes.
+Each one states the band of camera heights that draws it, so a continent stops
+competing with the cities inside it. The viewer keeps only what the camera can see,
+ranks that, and drops a name whose text box lands on one already kept.
+_Avoid_: names (that is a **Name**, which is what the scene author calls a thing),
+labels (that is the text a widget shows), place names.
+
+**Country borders**:
+The boundary lines between countries the **annotation layer** draws. They arrive as
+polylines on the ellipsoid and never as polygon outlines, because Cesium draws no
+entity outline on terrain, and never as ground polylines, because those are built
+in a worker that can fail for good. The server states them apart from the **named places**, because a
+border is a political claim and a reader may want the names without one.
+_Avoid_: boundaries (that is the footprint outline an `Areas` value draws, which
+belongs to the `primitives` **payload vocabulary**).
+
+**Border style**:
+The colour and the width a **basemap** asks the **country borders** to be drawn in.
+Each basemap carries its own, because the right colour depends on what lies under
+the line, and the viewer restyles the lines on every pick. A basemap that states
+neither draws the viewer's default. The width is the width the reader sees zoomed
+in, and the viewer thins the line towards the whole-globe view.
+_Avoid_: stroke, line style.
 
 **Context object**:
 The single options-bag argument the Core passes into a module's `setup`

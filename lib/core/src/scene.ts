@@ -10,24 +10,72 @@ import {
   UrlTemplateImageryProvider,
   WebMercatorTilingScheme,
 } from "@cesium/engine";
+import { addAnnotations } from "./annotations";
+import { GIBS_TILE_PIXELS, GibsGeographicTilingScheme } from "./gibs-tiling";
+// The layers `createScene` adds are reached from the widget it answers with, so the lookup that
+// does it belongs beside the builder as well as in the package's own surface.
+export { annotationsOf } from "./annotations";
+import type { Overlay } from "./overlay";
 
 /**
- * One tile source for the globe's single base layer. A server that mounts a directory decides
- * `layout` by what the directory holds; a page told a URL in its own address reads it off the shape
- * of that URL. The scene itself sniffs nothing. A TMS source reads its own tiling scheme and depth
+ * One basemap of the declared set. A server that mounts a directory decides `layout` by what the
+ * directory holds; a page told a URL in its own address reads it off the shape of that URL. The scene itself sniffs nothing. A TMS source reads its own tiling scheme and depth
  * from `tilemapresource.xml`, so `tiling` and `maxLevel` belong to an XYZ source only.
  */
 export interface ImagerySpec {
-  /** Where the tiles are: relative to the page, or absolute. */
-  url: string;
-  /** `"tms"` for a `tilemapresource.xml` pyramid, `"xyz"` for a `{z}/{x}/{y}` template. */
-  layout: "tms" | "xyz";
-  /** XYZ only. `"mercator"` is what `{z}/{x}/{y}` means on the web, and is the default. */
-  tiling?: "geographic" | "mercator";
+  /**
+   * Where the tiles are: relative to the page, or absolute. The bundled entry carries none — the
+   * page builds the URL it answers on from `baseUrl`, and only the page knows that value.
+   */
+  url?: string;
+  /**
+   * `"tms"` for a `tilemapresource.xml` pyramid, `"xyz"` for a `{z}/{x}/{y}` template. Absent on
+   * the bundled entry, which names no URL to lay out.
+   */
+  layout?: "tms" | "xyz";
+  /**
+   * XYZ only. `"mercator"` is what `{z}/{x}/{y}` means on the web, and is the default.
+   * `"gibs-geographic"` is the EPSG:4326 grid NASA GIBS publishes, whose tile counts per level and
+   * 512 pixel tiles are its own (`GibsGeographicTilingScheme`).
+   */
+  tiling?: "geographic" | "gibs-geographic" | "mercator";
   /** XYZ only. The deepest level the source holds. Absent means Cesium asks for any level. */
   maxLevel?: number;
-  /** An attribution line. It is user text and the viewer renders it as text, never as markup. */
+  /**
+   * An attribution line. The string is HTML, because a linked attribution is what a tile source
+   * asks for, and the viewer draws it as markup. It comes from whoever started the server, so
+   * `overlay.setCredit` passes it through `DOMPurify.sanitize` first and draws only what comes
+   * back.
+   */
   credit?: string;
+  /** The label the picker draws for this basemap. A set of one draws no picker and needs no name. */
+  name?: string;
+  /**
+   * Which catalogue basemap this is, as the server's own key: `"blue_marble"`, `"blue_marble_relief"`. The picker
+   * draws its icon and its drop-down category from this, so renaming a label changes nothing. A
+   * basemap an author declared themselves carries none, and the picker falls back.
+   */
+  key?: string;
+  /**
+   * Draw the bundled Earth texture below this source. Cesium walks a tile that will not load up to
+   * a ready ancestor, finds none, and draws the layer below, so a source that stops answering
+   * leaves a globe rather than a hole. It is a property of this basemap and not a second basemap:
+   * it carries no alpha, no order and no name of its own.
+   */
+  backing?: boolean;
+  /**
+   * This entry is the bundled Earth texture itself. It carries no `url`, because the one it answers
+   * on is built from `baseUrl`, and only the page knows that.
+   */
+  bundled?: boolean;
+  /**
+   * The CSS colour the country borders wear while this basemap is on the globe. The right colour
+   * depends on what lies under the line, so the style belongs to the basemap and travels with the
+   * pick (ADR-0036). Absent, or a string this browser cannot read, draws the viewer's own default.
+   */
+  borderColor?: string;
+  /** How wide the country borders are, in pixels, while this basemap is on the globe. */
+  borderWidth?: number;
 }
 
 export interface SceneOptions {
@@ -44,8 +92,10 @@ export interface SceneOptions {
    * - absent — the bundled NaturalEarthII texture under `baseUrl`.
    * - `false` — no base layer at all: a globe of one flat colour.
    * - an object — that tile source, with the bundled texture as the fallback if it fails to build.
+   * - a list — that set of tile sources. Entry 0 is what the globe wears at startup, and the
+   *   reader picks within the set.
    */
-  imagery?: false | ImagerySpec;
+  imagery?: false | ImagerySpec | ImagerySpec[];
   /**
    * Light the globe from the sun at the clock's time, so a terminator runs across it and the night
    * side goes dark. Absent lights the globe evenly, which is what a scene whose colours carry the
@@ -58,6 +108,17 @@ export interface SceneOptions {
    * own stars only on a WGS84 globe, so a session on another body gets black whatever this says.
    */
   stars?: boolean;
+  /**
+   * Draw the place names over the globe — continents, oceans and seas, countries and their larger
+   * cities. Absent draws them, so this option states only the departure from the default.
+   */
+  namedPlaces?: boolean;
+  /**
+   * Draw the boundary lines between countries. Absent draws them. It is separate from
+   * `namedPlaces` because a border is a political claim, and a reader may want the names without
+   * one (ADR-0036).
+   */
+  countryBorders?: boolean;
 }
 
 // The imagery fetch, kept so it can be started before the globe's shape is known and awaited once
@@ -97,40 +158,101 @@ function useBaseUrl(baseUrl: string): string {
 }
 
 /**
- * The base layer the declaration asks for. A source that will not build gives the bundled texture
- * and a loud message: the scene is the point and the texture is decoration, so a globe wearing the
- * wrong face beats a page that draws nothing (ADR-0020).
+ * The declared basemaps, in the order the wire states them. One object is a set of one, and
+ * `false` or an absent declaration is a set of none.
+ */
+export function basemapSet(imagery: SceneOptions["imagery"]): ImagerySpec[] {
+  if (!imagery) return [];
+  return Array.isArray(imagery) ? imagery : [imagery];
+}
+
+/**
+ * The providers one basemap draws with, bottom first. A backed entry gives two: the bundled Earth
+ * texture below and the declared source above. Cesium walks a tile that will not load up to a ready
+ * ancestor, finds none, and draws the layer below, so a source that stops answering leaves a globe.
+ *
+ * The list is an array of promises and not a promise of an array, because the picker reads it
+ * synchronously: `ProviderViewModel` calls its creation function and asks `Array.isArray` of the
+ * answer, and a promise there is one layer built from a list. The list is handed on whole. The
+ * picker adds every provider of it at index 0 and tracks them as one unit, so a switch replaces
+ * both layers of a backed entry together.
+ *
+ * A source that will not build gives the bundled Earth texture in its place, and one loud message:
+ * the scene is the point and the texture is decoration, so a globe wearing the wrong face beats a
+ * page that draws nothing (ADR-0020). The fallback lives here rather than in the caller because the
+ * picker builds its own layers and must fall back the same way. `onFallback` is how a caller hears
+ * that it happened; it runs before the list settles, and a credit that names the declared source
+ * has to come down when it does. A backed entry then holds the bundled texture twice, which draws
+ * as one texture.
  *
  * Only `TileMapServiceImageryProvider.fromUrl` and the bundled fetch can reach the catch.
  * `UrlTemplateImageryProvider` constructs synchronously and never throws, so an XYZ source at a dead
  * host gives blank tiles and one console error per tile, and no fallback at all.
  */
-async function buildBaseLayer(
+export function basemapProviders(
+  spec: ImagerySpec,
+  ellipsoid: Ellipsoid,
+  baseUrl: string,
+  onFallback?: () => void,
+): Promise<ImageryProvider>[] {
+  if (spec.bundled) return [loadImagery(baseUrl)];
+  const built = (async () => buildProvider(spec, ellipsoid))();
+  const declared = built.catch((err) => {
+    console.error(
+      `CesiumLink: the declared basemap at ${spec.url} did not build (${err}). ` +
+        `The globe below wears the bundled Earth texture, which is not what this scene declared.`,
+    );
+    onFallback?.();
+    return loadImagery(baseUrl);
+  });
+  return spec.backing ? [loadImagery(baseUrl), declared] : [declared];
+}
+
+/**
+ * The base layers the declaration asks for, bottom first, and whether the globe wears what the
+ * scene declared. `declared` is false when a source fell back to the bundled texture, and false
+ * again when nothing was declared at all: either way the declared credit describes no layer here.
+ */
+async function buildBaseLayers(
   opts: SceneOptions,
   ellipsoid: Ellipsoid,
-): Promise<{ layer: ImageryLayer | false; declared: boolean }> {
-  if (opts.imagery === false) return { layer: false, declared: true };
-  if (opts.imagery) {
-    try {
-      const provider = await buildProvider(opts.imagery, ellipsoid);
-      return { layer: new ImageryLayer(provider), declared: true };
-    } catch (err) {
-      console.error(
-        `CesiumLink: the declared basemap at ${opts.imagery.url} did not build (${err}). ` +
-          `The globe below wears the bundled Earth texture, which is not what this scene declared.`,
-      );
-    }
+): Promise<{ layers: ImageryLayer[] | false; declared: boolean }> {
+  if (opts.imagery === false) return { layers: false, declared: true };
+  const [first] = basemapSet(opts.imagery);
+  if (!first) {
+    return { layers: [new ImageryLayer(await loadImagery(opts.baseUrl))], declared: false };
   }
-  return { layer: new ImageryLayer(await loadImagery(opts.baseUrl)), declared: false };
+  let declared = true;
+  const providers = basemapProviders(first, ellipsoid, opts.baseUrl, () => {
+    declared = false;
+  });
+  return { layers: (await Promise.all(providers)).map((p) => new ImageryLayer(p)), declared };
 }
 
 function buildProvider(
   spec: ImagerySpec,
   ellipsoid: Ellipsoid,
 ): ImageryProvider | Promise<ImageryProvider> {
+  // Only the bundled entry declares no URL, and `basemapProviders` answers that one before it gets
+  // here. A spec that reaches this line without one is a declaration the server should not have
+  // written, so it is thrown rather than built into a provider that asks for `undefined`.
+  if (spec.url === undefined) {
+    throw new Error("a declared basemap that is not the bundled one names where its tiles are");
+  }
   if (spec.layout === "tms") {
     // The pyramid states its own tiling scheme and depth in `tilemapresource.xml`.
     return TileMapServiceImageryProvider.fromUrl(spec.url, { ellipsoid });
+  }
+  // The GIBS grid states a tile size of its own, and a scheme carries no tile size. The other two
+  // schemes take Cesium's own 256 pixel default, which is what a `{z}/{x}/{y}` tile is on the web.
+  if (spec.tiling === "gibs-geographic") {
+    return new UrlTemplateImageryProvider({
+      url: spec.url,
+      tilingScheme: new GibsGeographicTilingScheme({ ellipsoid }),
+      tileWidth: GIBS_TILE_PIXELS,
+      tileHeight: GIBS_TILE_PIXELS,
+      maximumLevel: spec.maxLevel,
+    });
   }
   const tilingScheme = spec.tiling === "geographic"
     ? new GeographicTilingScheme({ ellipsoid })
@@ -171,7 +293,8 @@ const VIEWER_MARK = "data-cesiumlink-viewer";
  */
 function separateDrawingBuffer(widget: CesiumWidget): void {
   const taken = new Set(
-    [...document.querySelectorAll(`canvas[${VIEWER_MARK}]`)]
+    reachableDocuments()
+      .flatMap((doc) => [...doc.querySelectorAll(`canvas[${VIEWER_MARK}]`)])
       .map((c) => c.getAttribute(VIEWER_MARK)),
   );
   let slot = 0;
@@ -184,12 +307,42 @@ function separateDrawingBuffer(widget: CesiumWidget): void {
 }
 
 /**
+ * Every document whose marks this viewer may read: its own, and each same-origin document of the
+ * window tree around it.
+ *
+ * The pool that hands out those buffers belongs to the browser and not to a document, so two
+ * viewers in two iframes collide exactly as two viewers in one page do. A viewer that reads its own
+ * document alone finds no mark, so both take slot 0 and both draw at one size. A documentation page
+ * that embeds two players is where this happens.
+ *
+ * A frame of another origin throws on `.document`, and this steps over it. Two viewers on opposite
+ * sides of that boundary cannot see each other, and nothing here can repair it.
+ */
+function reachableDocuments(): Document[] {
+  const out: Document[] = [];
+  const visit = (w: Window): void => {
+    let doc: Document;
+    try {
+      doc = w.document;
+    } catch {
+      return;
+    }
+    out.push(doc);
+    for (let i = 0; i < w.frames.length; i++) visit(w.frames[i]);
+  };
+  visit(window.top ?? window);
+  if (!out.includes(document)) out.push(document);
+  return out;
+}
+
+/**
  * A trimmed CesiumWidget on the declared imagery, or the offline NaturalEarthII texture: no ion
  * token, no skybox/atmosphere, ellipsoid terrain (the default). Fully offline, strict-CSP friendly.
  */
 export async function createScene(
   container: HTMLElement,
   opts: SceneOptions,
+  overlay: Pick<Overlay, "setCredit">,
 ): Promise<CesiumWidget> {
   // Before anything is constructed: `Ellipsoid.default` is what every conversion helper that was
   // not handed an ellipsoid reads — `Cartesian3.fromDegrees` in a module decoding a payload above
@@ -203,14 +356,15 @@ export async function createScene(
   }
 
   useBaseUrl(opts.baseUrl);
-  const { layer: baseLayer, declared } = await buildBaseLayer(opts, ellipsoid ?? Ellipsoid.default);
+  const { layers, declared } = await buildBaseLayers(opts, ellipsoid ?? Ellipsoid.default);
 
-  // Detached container swallows the ion/Cesium credit chrome.
+  // Detached container swallows the ion/Cesium credit chrome. It stays hidden, because showing it
+  // brings the Cesium branding credit back with it; the basemap attribution is the overlay's line.
   const credits = document.createElement("div");
   credits.style.display = "none";
 
   const widget = new CesiumWidget(container, {
-    baseLayer,
+    baseLayer: layers === false ? false : layers[0],
     ellipsoid,
     // `undefined` is what asks for the default star field, and it brings the sun and the moon with
     // it. The blue limb glow is a separate thing and stays off, for the reason the ground
@@ -220,18 +374,44 @@ export async function createScene(
     creditContainer: credits,
   });
   separateDrawingBuffer(widget);
-  if (baseLayer === false) widget.scene.globe.baseColor = BARE_GLOBE_COLOR;
+  // Cesium's own panel prints `name: message` and the stack, so a thrown value that is not an
+  // Error reads as `[object Object]` and `undefined`, which names nothing. This line names it: its
+  // class, its keys and its fields, before the panel goes up.
+  widget.scene.renderError.addEventListener((_scene: unknown, err: unknown) => {
+    let fields = "";
+    try {
+      fields = JSON.stringify(err);
+    } catch {
+      fields = "(not serialisable)";
+    }
+    const cls = (err as { constructor?: { name?: string } } | undefined)?.constructor?.name;
+    console.error("CesiumLink: the render loop stopped on", cls, Object.keys(err ?? {}), fields, err);
+  });
+  if (layers === false) widget.scene.globe.baseColor = BARE_GLOBE_COLOR;
+  // A backed basemap is two layers. The widget takes the bottom one, and the rest go above it in
+  // the order the list states.
+  else for (const layer of layers.slice(1)) widget.scene.imageryLayers.add(layer);
   // No haze over the globe, for the reason there is no skybox and no sky atmosphere: what the
   // basemap and the scene are coloured is what the reader must see. Cesium's ground atmosphere
   // draws a blue wash over the whole disc, which lightens a dark basemap into grey and shifts every
   // colour drawn on the surface towards blue.
   widget.scene.globe.showGroundAtmosphere = false;
+  // Place names and country borders, above the base and owned by the session rather than by the
+  // pick. The picker removes only the base layers it counted, so these survive a switch (ADR-0036).
+  const annotations = addAnnotations(widget, opts.baseUrl,
+    { places: opts.namedPlaces, borders: opts.countryBorders });
   // The sun's position comes from the clock, which the window playback drives, so the terminator
   // stands where the scene's own time puts it.
   if (opts.lighting) widget.scene.globe.enableLighting = true;
-  // The credit describes the declared source. A fallback draws the bundled texture instead, which
-  // that credit does not cover, so it stays off.
-  if (declared && opts.imagery && opts.imagery.credit) addCredit(container, opts.imagery.credit);
+  // The credit describes the source the globe wears, so it names entry 0 and never the backing. The
+  // bundled texture is public domain, so a globe that shows it under a dead source is not
+  // under-credited. A fallback draws that texture in place of the source, which the declared credit
+  // does not cover, so there the line stays off.
+  const startsOn = basemapSet(opts.imagery)[0];
+  overlay.setCredit(declared ? startsOn?.credit : undefined);
+  // The country borders wear the style of the basemap under them, and entry 0 is what the globe
+  // opens on. The picker states the style again on every pick.
+  annotations.styleBorders({ color: startsOn?.borderColor, width: startsOn?.borderWidth });
   // `clock.canAnimate` belongs to the playback in `windows.ts`, which clears it to hold the clock over
   // frames the buffer does not reach. CesiumWidget otherwise rewrites that flag on every tick from
   // whether its DataSourceDisplay is up to date, which would erase the hold. The `models` module
@@ -242,23 +422,6 @@ export async function createScene(
   // Software-WebGL guard: a software rasterizer means single-digit FPS (see design notes).
   warnIfSoftwareRenderer(widget);
   return widget;
-}
-
-/**
- * The attribution line for a declared basemap: bottom right, and transparent to the pointer so it
- * never takes a click meant for the globe. Cesium's own credit container stays hidden, because
- * showing it brings the Cesium branding credit back with it.
- */
-function addCredit(container: HTMLElement, credit: string): void {
-  const el = document.createElement("div");
-  // `textContent`, never `innerHTML`: the string comes from whoever started the server.
-  el.textContent = credit;
-  // 34px up, which is the band the Core's clock readout and ruler hold along the bottom edge — the
-  // same inset the overlay's own bottom-right region starts at.
-  el.style.cssText =
-    "position:absolute;right:8px;bottom:34px;z-index:5;pointer-events:none;" +
-    "font:11px/1.4 sans-serif;color:#fff;text-shadow:0 0 3px #000";
-  container.appendChild(el);
 }
 
 function warnIfSoftwareRenderer(widget: CesiumWidget): void {

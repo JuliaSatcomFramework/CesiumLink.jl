@@ -30,7 +30,7 @@ Module._load = (req, parent, isMain) =>
 
 // Through the default export: for a CommonJS module that is `module.exports` itself, and the named
 // bindings Node's lexer offers are not reliable for an object literal built this way.
-const { imageryOrigin, readableMounts, sceneMounts, pageHtml, activate,
+const { imageryCspSource, readableMounts, sceneMounts, pageHtml, activate,
         discoveryDir, isRunning, answers, scene } =
   (await import("./extension.js")).default;
 // `log` is created in `activate`, and `readableMounts` writes to it when a directory is missing.
@@ -70,12 +70,28 @@ test("a module directory is a root of its own, under a name no assets mount can 
   assert.match(lines[before], /"modules\/gone" names .*nowhere, which is not on this filesystem/);
 });
 
-test("only a basemap declared as a URL contributes an origin", () => {
-  assert.equal(imageryOrigin("https://cdn.test/tiles/{z}/{x}/{y}.png"), "https://cdn.test");
-  assert.equal(imageryOrigin("https://cdn.test:8443/a"), "https://cdn.test:8443");
-  // A mounted pyramid is an entry in the assets map like any other, so it names no origin.
-  assert.equal(imageryOrigin("/data/moon_tiles"), null);
-  assert.equal(imageryOrigin(undefined), null);
+test("only a basemap declared as a URL contributes a source, and it names one path", () => {
+  // The whole point of this rule: a shared CDN keeps every other repository it mirrors out of the
+  // policy, because the source stops at the directory this scene reads.
+  assert.equal(imageryCspSource("https://cdn.test/gh/tiler/marble@a1b2/tiles/{z}/{x}/{y}.jpeg"),
+               "https://cdn.test/gh/tiler/marble@a1b2/tiles/");
+  assert.equal(imageryCspSource("https://cdn.test:8443/a/b"), "https://cdn.test:8443/a/");
+  // A TMS root names no placeholder at all, and a query is outside CSP path matching.
+  assert.equal(imageryCspSource("https://cdn.test/tiles/?v=2"), "https://cdn.test/tiles/");
+  // A placeholder in the host leaves no path to trust, and a cut into an authority would name a
+  // host nobody declared.
+  assert.equal(imageryCspSource("https://{s}.tile.test/{z}/{x}/{y}.png"), "https://{s}.tile.test");
+  // `;` and `,` are outside the path grammar, and a space would split the joined list in two.
+  assert.equal(imageryCspSource("https://cdn.test/a;b/{z}.png"), "https://cdn.test");
+  assert.equal(imageryCspSource("https://cdn.test/a,b/{z}.png"), "https://cdn.test");
+  assert.equal(imageryCspSource("https://cdn te.st/a/{z}.png"), null);
+  // A quote would close the `content` attribute of the `<meta>` element `pageHtml` writes the
+  // joined list into, and the rest of the URL would become markup in the page.
+  assert.equal(imageryCspSource('https://cdn.test/a"x/{z}.png'), "https://cdn.test");
+  assert.equal(imageryCspSource("https://cdn.test/a<x/{z}.png"), "https://cdn.test");
+  // A mounted pyramid is an entry in the assets map like any other, so it names no source.
+  assert.equal(imageryCspSource("/data/moon_tiles"), null);
+  assert.equal(imageryCspSource(undefined), null);
 });
 
 test("the page is told the base of every mount it may reach", () => {
@@ -135,7 +151,7 @@ test("a scene row is read out of the file rather than derived from the port", ()
   assert.deepEqual(Object.keys(s.modules), ["primitives"]);
   assert.deepEqual(s.trustedOrigins, ["https://tiles.example"]);
   // The three the panel needs before it exists all come from this one file.
-  assert.equal(imageryOrigin(s.imagery), "https://tiles.example");
+  assert.equal(imageryCspSource(s.imagery), "https://tiles.example/");
 });
 
 test("a file from a server older than the `ws` field still opens", () => {

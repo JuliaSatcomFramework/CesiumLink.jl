@@ -3,7 +3,21 @@
 // absolute-positions its own overlay. Controls stack in insertion order within a region, so two
 // modules' contributions (e.g. a scene's colorbar and a future heatmap colorbar) sit adjacent
 // rather than overlapping. Each addControl returns a Disposable, and the Core drains every region on
-// destroy, so a module cannot leak overlay DOM. Pure DOM — no Cesium, so it unit-tests without WebGL.
+// destroy, so a module cannot leak overlay DOM. The Core's own basemap attribution line is a
+// member of the `bottom-right` stack and not a thing beside it, so it rides that region's inset
+// and nothing there can land on top of it. Pure DOM — no Cesium, so it unit-tests without WebGL.
+
+import DOMPurify from "dompurify";
+
+// What a credit may hold. A credit is one line of attribution: a link, and the light emphasis a
+// source asks for. On the browser and player hosts the string arrives in `?credit=` of the page
+// URL, so whoever hands a reader a link writes it, and the allow-list is what stands between that
+// and the page. `style` is the attribute that matters: with it, one anchor covers the viewport and
+// takes every click. The list therefore carries a link target and nothing that paints.
+const CREDIT_HTML = {
+  ALLOWED_TAGS: ["a", "b", "i", "em", "strong", "span", "sup", "br"],
+  ALLOWED_ATTR: ["href", "title", "target"],
+};
 
 /**
  * The overlay positions in use today. Every reader of a declared region name checks it against this
@@ -23,6 +37,21 @@ export interface OverlayControls {
 export interface Overlay extends OverlayControls {
   /** Lift the `bottom-right` region clear of the band the Core's timeline furniture occupies. */
   setBottomInset(px: number): void;
+  /**
+   * Draw the attribution line for the basemap the globe wears now, or take it down when that
+   * basemap asks for none.
+   *
+   * A credit is HTML, because Stadia, OpenStreetMap and Esri all ask for a linked attribution. It
+   * reaches this host from the server, or from `?credit=` in the page URL, so the overlay
+   * sanitizes it with `DOMPurify` against a narrow allow-list — a link and light emphasis, and no
+   * attribute that paints. Nothing but a link in it takes the pointer: the line lies over the
+   * globe, and a drag that starts on its text has to turn the globe rather than stop on a word.
+   *
+   * This is a setter and not an append, because the reader picks the basemap and the picker calls
+   * it on every switch: one line at a time, naming the basemap that was picked and never the
+   * backing under it (ADR-0034).
+   */
+  setCredit(credit?: string): void;
   /**
    * State every region's declared style as one set: a region absent from `bags` returns to the
    * Core's default. The placement properties are refused and warned about (ADR-0004).
@@ -75,6 +104,8 @@ export function createOverlay(container: HTMLElement): Overlay {
   const regions = new Map<OverlayRegion, HTMLElement>();
   const declared = new Map<OverlayRegion, Record<string, string>>();
   let bottomInset = DEFAULT_BOTTOM_INSET;
+  // The one credit line, held so a switch rewrites it rather than adding a second.
+  let creditEl: HTMLElement | null = null;
 
   const base = (region: OverlayRegion): string => {
     const placement = region === "bottom-right"
@@ -107,6 +138,31 @@ export function createOverlay(container: HTMLElement): Overlay {
   };
 
   return {
+    setCredit(credit) {
+      if (!credit) {
+        creditEl?.remove();
+        creditEl = null;
+        return;
+      }
+      if (creditEl === null) {
+        creditEl = document.createElement("div");
+        // `pointer-events:none` and no placement of its own: the credit is a member of the
+        // `bottom-right` stack, so it rides that region's inset and cannot land on top of it.
+        creditEl.style.cssText =
+          "pointer-events:none;font:11px/1.4 sans-serif;color:#fff;text-shadow:0 0 3px #000";
+        // The region is `column-reverse`, so its first child draws at the bottom and every control
+        // added later stacks above the credit. `prepend`, not `addControl`, because the line takes
+        // no pointer and `addControl` would hand it one.
+        ensure("bottom-right").prepend(creditEl);
+      }
+      creditEl.innerHTML = DOMPurify.sanitize(credit, CREDIT_HTML);
+      // The line itself is transparent to the pointer, so each link has to take it back. A link
+      // that opens a tab gets `noopener`, because the page it opens must not reach this one.
+      creditEl.querySelectorAll("a").forEach((a) => {
+        a.style.pointerEvents = "auto";
+        a.rel = "noopener noreferrer";
+      });
+    },
     setBottomInset(px) {
       bottomInset = px;
       const host = regions.get("bottom-right");
@@ -128,6 +184,7 @@ export function createOverlay(container: HTMLElement): Overlay {
     destroy() {
       for (const host of regions.values()) host.remove();
       regions.clear();
+      creditEl = null;
     },
   };
 }

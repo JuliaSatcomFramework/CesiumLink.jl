@@ -98,18 +98,83 @@ end
     end
 end
 
-@testitem "a basemap URL declares its own origin, and a directory declares none" setup=[Pyramid, FreePort] begin
+@testitem "a basemap URL declares one path of one host, and a directory declares none" setup=[Pyramid, FreePort] begin
 
-    @test CesiumLink.url_origin("https://cdn.example/tiles/{z}/{x}/{y}.png") == "https://cdn.example"
-    @test CesiumLink.url_origin("https://cdn.example:8443/a/b") == "https://cdn.example:8443"
-    @test CesiumLink.url_origin("assets/imagery/") === nothing
+    # The prefix stops at the last `/` before the first placeholder, so a shared CDN keeps every
+    # other repository it mirrors out of the policy.
+    @test CesiumLink.csp_source("https://cdn.example/tiles/{z}/{x}/{y}.png") ==
+          "https://cdn.example/tiles/"
+    @test CesiumLink.csp_source("https://cdn.example:8443/a/b") == "https://cdn.example:8443/a/"
+    # A TMS root names no placeholder at all, and a query is outside CSP path matching.
+    @test CesiumLink.csp_source("https://cdn.example/tiles/?v=2") == "https://cdn.example/tiles/"
+    @test CesiumLink.csp_source("https://cdn.example") == "https://cdn.example"
+    # A placeholder in the host leaves no path to trust: a cut into an authority would name a host
+    # nobody declared.
+    @test CesiumLink.csp_source("https://{s}.tile.example/{z}/{x}/{y}.png") ==
+          "https://{s}.tile.example"
+    # `;` and `,` are outside the path grammar of a CSP source, and whitespace would split the
+    # joined list in two.
+    @test CesiumLink.csp_source("https://cdn.example/a;b/{z}.png") == "https://cdn.example"
+    @test CesiumLink.csp_source("https://cdn.example/a,b/{z}.png") == "https://cdn.example"
+    @test CesiumLink.csp_source("https://cdn ex.ample/a/{z}.png") === nothing
+    # A quote would close the `content` attribute of the `<meta>` element a host writes the joined
+    # list into, and the rest of the URL would become markup in the page.
+    @test CesiumLink.csp_source("https://cdn.example/a\"x/{z}.png") == "https://cdn.example"
+    @test CesiumLink.csp_source("https://cdn.example/a<x/{z}.png") == "https://cdn.example"
+    @test CesiumLink.csp_source("assets/imagery/") === nothing
 
     # A session that names a remote basemap and nothing else declares no `trusted_origins` of its
     # own, and still works. That is the whole point of the server adding this one.
     server = start_server(; dist_dir = nothing, host = "::1", port = freeport(),
                           imagery = "https://cdn.example/tiles/{z}/{x}/{y}.png")
     try
-        @test server.trusted_origins == ["https://cdn.example"]
+        @test server.trusted_origins == ["https://cdn.example/tiles/"]
+    finally
+        stop_server(server)
+    end
+
+    # A set has a source per entry, and the reader can pick any of them. A webview gets its policy
+    # once, at panel creation, so every source has to be in it from the start. The default set is
+    # every known basemap, and the pyramid inside the viewer needs no source. So a session that
+    # named nothing reaches one directory per online entry, on the two hosts those entries sit on.
+    server = start_server(; dist_dir = nothing, host = "::1", port = freeport())
+    try
+        @test server.trusted_origins ==
+              ["https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/ASTER_GDEM_Color_Shaded_Relief/\
+                default/default/31.25m/",
+               "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/ASTER_GDEM_Greyscale_Shaded_Relief/\
+                default/default/31.25m/",
+               "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/BlueMarble_ShadedRelief_Bathymetry/\
+                default/default/500m/",
+               "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/BlueMarble_ShadedRelief/\
+                default/default/500m/",
+               "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/VIIRS_CityLights_2012/\
+                default/default/500m/",
+               "https://tiles.emodnet-bathymetry.eu/2020/baselayer/inspire_quad/"]
+    finally
+        stop_server(server)
+    end
+
+    # An author who names EMODnet opens a second host for their own session, and one directory of
+    # it rather than the whole host.
+    server = start_server(; dist_dir = nothing, host = "::1", port = freeport(),
+                          imagery = [KNOWN_EARTH_BASEMAPS.aster_colour_relief,
+                                     KNOWN_EARTH_BASEMAPS.emodnet_baselayer])
+    try
+        @test server.trusted_origins ==
+              ["https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/ASTER_GDEM_Color_Shaded_Relief/\
+                default/default/31.25m/",
+               "https://tiles.emodnet-bathymetry.eu/2020/baselayer/inspire_quad/"]
+    finally
+        stop_server(server)
+    end
+
+    # When a session names a set, the policy narrows again. When it names the pyramid inside the
+    # viewer, the policy empties.
+    server = start_server(; dist_dir = nothing, host = "::1", port = freeport(),
+                          imagery = KNOWN_EARTH_BASEMAPS.offline_natural_earth)
+    try
+        @test isempty(server.trusted_origins)
     finally
         stop_server(server)
     end
@@ -143,7 +208,27 @@ end
                     # The extension reads both before it builds the page: a webview is given its
                     # resource roots and its policy when its panel is created.
                     @test entry["assets"] == Dict("glb" => dir)
-                    @test entry["trustedOrigins"] == ["https://cdn.example"]
+                    # What the author listed reaches the file exactly as written, and comes
+                    # first. The default basemap set adds the tile directory of each online entry
+                    # after it.
+                    @test entry["trustedOrigins"] ==
+                          ["https://cdn.example",
+                           "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/\
+                            ASTER_GDEM_Color_Shaded_Relief/default/\
+                            default/31.25m/",
+                           "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/\
+                            ASTER_GDEM_Greyscale_Shaded_Relief/default/\
+                            default/31.25m/",
+                           "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/\
+                            BlueMarble_ShadedRelief_Bathymetry/default/\
+                            default/500m/",
+                           "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/\
+                            BlueMarble_ShadedRelief/default/\
+                            default/500m/",
+                           "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/\
+                            VIIRS_CityLights_2012/default/\
+                            default/500m/",
+                           "https://tiles.emodnet-bathymetry.eu/2020/baselayer/inspire_quad/"]
                 finally
                     stop_server(server)
                 end

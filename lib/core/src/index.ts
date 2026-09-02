@@ -1,8 +1,9 @@
 import * as Cesium from "@cesium/engine";
 import { SceneMode, type CesiumWidget } from "@cesium/engine";
+import { annotationsOf } from "./annotations";
 import { buildFurniture } from "./clock-ui";
 import { FURNITURE_DEFAULTS, type FurnitureDeclaration } from "./furniture";
-import { createScene, type SceneOptions } from "./scene";
+import { basemapSet, createScene, type SceneOptions } from "./scene";
 import {
   createModuleHost,
   type ModuleCapabilities,
@@ -22,6 +23,8 @@ import type { Declaration, Transport } from "./transport";
 
 export { blockAt, decodeArrays, isNdArray } from "./codec";
 export type { Block, Dtype, NdArray, WireArray } from "./codec";
+export { annotationsOf } from "./annotations";
+export type { Annotations } from "./annotations";
 export { loadImagery } from "./scene";
 export type { ImagerySpec, SceneOptions } from "./scene";
 export type { AssetBase, AssetMounts } from "./assets";
@@ -108,17 +111,27 @@ export async function createViewer(
   container: HTMLElement,
   opts: ViewerOptions,
 ): Promise<ViewerHandle> {
-  const widget = await createScene(container, opts);
-  const scene = widget.scene;
-
-  // One overlay for all modules: the Core owns the positioned regions modules add controls to. It is
-  // built before the furniture, which contributes its button group to a region like anything else.
+  // One overlay for all modules: the Core owns the positioned regions modules add controls to. It
+  // takes the container and nothing else, so it is built first: the scene hands it the credit line
+  // for the basemap it starts on, and the furniture contributes its button group to a region like
+  // anything else.
   const overlay = createOverlay(container);
+  const specs = basemapSet(opts.imagery);
+  const widget = await createScene(container, opts, overlay);
+  const scene = widget.scene;
 
   // The Core's own on-screen items: created once, owned by the Core (single clock/timeline for all
   // modules), and persist across windows (like the scene).
   const furniture = buildFurniture(container, scene, widget.clock, overlay, opts.expand,
-    (el) => captureCell(el, widget));
+    (el) => captureCell(el, widget),
+    // The declared basemap set, which the picker reads. `createScene` has already put entry 0 on
+    // the globe, so that is what `onGlobe` starts as, and the picker takes that base over when it
+    // is built. This object outlives every picker built from it, which is what lets a second one
+    // know which layers the first left behind.
+    { specs, ellipsoid: scene.ellipsoid, baseUrl: opts.baseUrl, onGlobe: specs[0] },
+    // The two annotation layers `createScene` added, which the map-annotations cell switches. The
+    // cell reads its two boxes off this handle, so what it shows is what the session declared.
+    annotationsOf(widget));
   const onResize = () => furniture.resize();
   window.addEventListener("resize", onResize);
 

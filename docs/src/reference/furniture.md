@@ -26,6 +26,8 @@ its ruler as a bottom bar. The **group** travels whole into the region the decla
 | `fullscreen` | group | `true` | the fullscreen toggle |
 | `home` | group | `true` | the home button |
 | `projection` | group | `false` | the projection toggle |
+| `basemap` | group | `true` | the picker the reader chooses a **basemap** with |
+| `annotations` | group | `true` | the cell that switches the place names and the country borders |
 | `nav_help` | group | `false` | the navigation help |
 | `inspector` | group | `false` | the inspector |
 | `canvas_capture` | group | `false` | the button that copies or downloads a **canvas capture** |

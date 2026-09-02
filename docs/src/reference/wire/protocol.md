@@ -1,4 +1,4 @@
-# CesiumLink wire protocol — version 1
+# CesiumLink wire protocol — version 2
 
 Normative contract between the viewer (`lib/`) and a driving server (the Julia package here, or an
 implementation of your own). A server must obey this document byte-for-byte.
@@ -52,6 +52,10 @@ Unknown methods are ignored.
 
 The viewer *announces* on `ready`; the server *decides*. **On a version it does not support the
 server closes the socket with a reason.** The number bumps only on breaking changes.
+
+Version 2 widened `imagery` from one object to an object or a list of them. A version 1 viewer reads
+a list as one source with no `url` and draws a wrong globe with no message. The handshake refuses
+the pair instead.
 
 A viewer built against a different framing drops the frame it cannot read and reports nothing, so
 the handshake is the only place to name a disagreement.
@@ -126,10 +130,17 @@ The session declaration. Sent once per connection, before anything else, and ret
       "region": "top-right"
     },
     "assets": { "models": "assets/models/", "imagery": "assets/imagery/" },
-    "imagery": { "url": "assets/imagery/{z}/{x}/{y}.png", "layout": "xyz",
-                 "tiling": "mercator", "maxLevel": 5 },
+    "imagery": [
+      { "url": "https://gibs.earthdata.nasa.gov/…/{z}/{y}/{x}.jpeg", "layout": "xyz",
+        "tiling": "gibs-geographic", "maxLevel": 7, "name": "Blue Marble",
+        "key": "blue_marble", "credit": "NASA EOSDIS GIBS", "backing": true,
+        "borderColor": "#ffffff8c", "borderWidth": 2.0 },
+      { "bundled": true, "name": "Natural Earth", "key": "offline_natural_earth",
+        "borderColor": "#3a3a3ab3", "borderWidth": 2.0 }
+    ],
     "lighting": true,
-    "stars": true
+    "stars": true,
+    "namedPlaces": false
   }}
 ```
 
@@ -147,15 +158,55 @@ The session declaration. Sent once per connection, before anything else, and ret
   points at a file by that path, `assets/models/sat.glb`, and a module resolves it through
   `ctx.assetUrl`. **Optional; absent means the server serves no directory of its own.** A browser
   host needs the map for nothing; a host on another origin builds its own URL per mount out of it.
-- `imagery` is what the globe is textured with: one source as `url`, `layout` (`"xyz"` or `"tms"`),
-  `tiling`, and optionally `maxLevel` and `credit`. It has **three** states. Absent means the viewer
-  keeps its bundled Earth texture. `false` means no base layer at all. An object means that tile
-  source. A directory of tiles this server serves is the reserved `imagery` mount, so its `url` is a
-  path into the `assets` map above (ADR-0021).
+- `imagery` is what the globe is textured with. It has **three** states. Absent means the viewer
+  keeps its bundled Earth texture. `false` means no base layer at all. An object, or a list of them,
+  means those tile sources: the **basemap set** the reader picks inside (ADR-0034). **Entry 0 is
+  what the globe wears at startup.** A one-entry list and a bare object mean the same thing, and the
+  viewer draws no picker for either. The choice never travels back up: no event and no field reports
+  which entry is on screen.
+- An entry of `imagery` names one source as `url`, `layout` (`"xyz"` or `"tms"`) and `tiling`, and
+  optionally `maxLevel`, `name`, `credit`, `key`, `backing`, `borderColor` and `borderWidth`. A
+  `bundled` entry names none of the first three.
+  - `tiling` is the grid an XYZ pyramid is cut on: `"mercator"`, `"geographic"` or
+    `"gibs-geographic"`. `"mercator"` is what `{z}/{x}/{y}` means on the web, and it is what an
+    absent field means. `"geographic"` is 256 pixel tiles on a level 0 of two columns by one row,
+    doubling per level. `"gibs-geographic"` is the EPSG:4326 grid NASA GIBS publishes: 512 pixel
+    tiles, a level 0 of two columns by one row, then 3 by 2, 5 by 3, 10 by 5, and a doubling per
+    level below that. A `"tms"` entry states its grid in `tilemapresource.xml`, so it carries no
+    `tiling`.
+  - `name` is the label the picker shows. `credit` is the attribution drawn over the globe while
+    this entry is the one on screen. It is HTML, and the viewer sanitizes it before it draws it.
+  - `key` names the catalogue basemap the entry is, such as `"blue_marble"`. The viewer draws its
+    picker icon from that and never from the label. A basemap an author declared themselves carries
+    no `key`.
+  - `backing` draws the viewer's own bundled Earth texture under this entry, so a source that
+    returns no tiles leaves a globe instead of a hole. The backing belongs to one entry, and the set
+    never holds it as an entry of its own. The reader cannot pick it, and it draws no credit.
+  - `borderColor` and `borderWidth` are the **border style**: the CSS colour string and the pixel
+    width the country borders wear while this entry is the one on screen. The viewer restyles the
+    lines it already has on every pick, and a colour it cannot read draws its own default. The
+    width is the width at 2,000 km and below; the viewer draws half of it at 20,000 km and above,
+    and falls between the two with the log of the camera height. Every
+    entry carries both, because the viewer needs the whole style of whatever entry the reader lands
+    on.
+  - `bundled` marks the entry that **is** the bundled Earth texture. Such an entry carries no `url`.
+    The page builds the one it answers on from the viewer's own base URL. Only the page knows that
+    URL. It is the one entry that needs neither a host nor a mount, so it travels into any
+    recording.
+  - A directory of tiles this server serves is the reserved `imagery` mount, so its `url` is a path
+    into the `assets` map above (ADR-0021). One server serves one such mount, so at most one entry
+    is a path.
 - `lighting` is a boolean. It lights the globe from the sun at the clock's time, so a terminator
   runs across it. **Optional; absent leaves the globe evenly lit.**
 - `stars` is a boolean. It draws the sky around the globe: the star field, the sun and the moon.
   **Optional; absent leaves black behind the globe.**
+- `namedPlaces` and `countryBorders` are booleans, and they are the two annotation layers the viewer
+  draws above whatever basemap the reader picked (ADR-0036). **Optional; absent draws the layer**,
+  so each appears only as `false` — the opposite way round to the two fields above. They are two
+  fields and not one because a border is a political claim, and a reader may want the names with no
+  line asserting a boundary. Neither layer is a basemap: the picker counts imagery layers and these
+  are not imagery, so a switch never reaches them. Both files ship inside the viewer, so neither
+  opens an origin nor adds a credit.
 - `apiVersion` is checked against the viewer's own **before** the import, so a mismatched module
   never executes. A mismatch is warned about and skipped; the rest of the list still loads.
 - `url` is same-origin and always `/modules/<id>/<basename of the registered file>`. The server
@@ -317,8 +368,8 @@ command states the whole set.
   "payload": {
     "items": { "timeline": true, "animation": true, "keyframe": true, "cameraFollow": true,
                "sceneMode": true, "fullscreen": true, "home": true,
-               "projection": false, "navHelp": false, "inspector": false,
-               "canvasCapture": false },
+               "projection": false, "basemap": true, "annotations": true,
+               "navHelp": false, "inspector": false, "canvasCapture": false },
     "region": "top-right",
     "style": { "gap": "4px" } }}
 ```
@@ -333,6 +384,8 @@ command states the whole set.
 | `fullscreen` | on | The fullscreen toggle |
 | `home` | on | Fly the camera back to the default view |
 | `projection` | **off** | The perspective / orthographic picker |
+| `basemap` | on | The picker the reader chooses a basemap with. It shows nothing while the session declares fewer than two |
+| `annotations` | on | The cell that opens onto the two annotation layers, a checkbox each: the place names and the country borders. A tick writes to the layer and never travels back to the server |
 | `navHelp` | **off** | The navigation instructions |
 | `inspector` | **off** | The Cesium inspector panel |
 | `canvasCapture` | **off** | The button that copies a **canvas capture** to the clipboard, or downloads it. A right click opens its popup |
@@ -344,7 +397,7 @@ The same payload rides the session declaration (§ ↓ `modules`), which builds 
 command states the set at any time after that.
 
 `items` carries the whole set. The first four are the **band**, fixed to the bottom edge. The other
-seven are one **group**, a column of buttons that travels whole into the region `region` names — one of
+nine are one **group**, a column of buttons that travels whole into the region `region` names — one of
 the four overlay regions, default `top-right`. An unknown name warns and falls back to `top-right`.
 `style` is CSS merged over the group's own rule, in the spelling the browser reads
 (`flex-direction`, not `flex_direction`).
@@ -549,7 +602,7 @@ This command is never retained and never recorded: it describes one connection a
 ## ↑ `ready`
 
 ```json
-{ "method": "ready", "params": { "protocol": 1 } }
+{ "method": "ready", "params": { "protocol": 2 } }
 ```
 
 The viewer sends this once the socket opens. A version mismatch closes the socket with a reason

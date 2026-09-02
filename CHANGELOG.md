@@ -4,15 +4,37 @@ All notable changes to CesiumLink are in this file.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-02
+
+Basemap picker, place names and country borders. See #40 for the whole story.
+
+### Added
+
+- `KNOWN_EARTH_BASEMAPS` names seven ready-made `Imagery` values of Earth, each with its
+  attribution and the border colour that reads on it. Both names are exported.
+- `imagery` takes a list: a server declares a basemap set and the reader picks inside it with a
+  button in the furniture group. `declare_furniture(; basemap = false)` hides the button.
+- `Imagery` takes `backing`, `border_color`, `border_width` and `tiling = :gibs_geographic`.
+- Place names and country borders draw above any basemap from files inside the viewer.
+  `start_server` takes `named_places` and `country_borders`, both on by default, and
+  `declare_furniture` takes `annotations`, the cell with one checkbox per layer. See ADR-0036.
+
 ### Changed
 
-- The viewer builds against `@cesium/engine` `^26.2.0`. The exact `26.1.0` pin made npm install a
-  second engine below `@cesium/widgets`, and the bundle carried both. See #38.
+- **Breaking behaviour.** An absent `imagery` on Earth declares the seven ready-made basemaps,
+  ASTER Colour Relief first, so the globe opens by fetching tiles from `gibs.earthdata.nasa.gov`.
+  `start_server(; imagery = KNOWN_EARTH_BASEMAPS.offline_natural_earth)` takes the network out.
+- **Breaking behaviour.** A `credit` is HTML, sanitized to a link and light emphasis.
+- `?imagery=`, `?tiling=`, `?maxlevel=` and `?credit=` in a page address apply only where no
+  declaration states a basemap.
+- A recording carries the whole declared set, keyed URLs included, in plain text.
+- The content policy of a VSCode panel opens for each basemap's tile directory, not its host.
+- Every known online basemap is geographic tiles that reach both poles.
+- The viewer builds against `@cesium/engine` `^26.2.0`. See #38.
 
 ### Fixed
 
-- The release artifact no longer carries the Cesium worker files that nothing loads. `lib/dist` is
-  smaller than it was before the bump. See #38.
+- The release artifact no longer carries the Cesium worker files that nothing loads. See #38.
 
 ## [0.1.3] - 2026-08-27
 

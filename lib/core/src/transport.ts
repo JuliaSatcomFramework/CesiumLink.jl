@@ -30,7 +30,7 @@ export const NO_BYTES = new Uint8Array(0);
  * closes the socket with a reason: every frame is binary, so a viewer built against a different
  * framing parses none of them and reports nothing at all (the wire protocol reference).
  */
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 
 /** What the server declares once per connection, in its `modules` message. */
 export interface Declaration {
@@ -39,11 +39,12 @@ export interface Declaration {
   /** The shape the scene's coordinates are on, in metres. Absent means WGS84. */
   ellipsoid?: { a: number; b: number };
   /**
-   * What the globe is textured with, fixed for the session. Absent and `false` are different
-   * declarations: absent means the bundled Earth texture, `false` means no base layer at all and a
-   * globe of one flat colour. An object names a tile source.
+   * The basemap set, fixed for the session. Absent and `false` are different declarations: absent
+   * means the bundled Earth texture, `false` means no base layer at all and a globe of one flat
+   * colour. An object names one tile source, and a list names the set the reader picks within,
+   * whose entry 0 is what the globe wears at startup.
    */
-  imagery?: false | ImagerySpec;
+  imagery?: false | ImagerySpec | ImagerySpec[];
   /**
    * Every directory the server serves, as mount name to the same-origin base it answers. A payload
    * names an asset by that path, and `ctx.assetUrl` resolves it for this host. Absent means the
@@ -54,6 +55,13 @@ export interface Declaration {
   lighting?: boolean;
   /** True draws the star field, the sun and the moon around the globe. Absent leaves black. */
   stars?: boolean;
+  /**
+   * `false` takes the place names off the globe. Absent draws them, so this field carries only the
+   * departure from the default — the opposite way round to `lighting` and `stars`.
+   */
+  namedPlaces?: boolean;
+  /** `false` takes the country borders off the globe. Absent draws them. */
+  countryBorders?: boolean;
   /**
    * The Core's own on-screen items. Absent means the Core builds its default set, which is what a
    * session that declares no furniture shows.

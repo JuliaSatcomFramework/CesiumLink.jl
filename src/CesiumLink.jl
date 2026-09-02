@@ -61,7 +61,7 @@ using .UI: kind, payload, watch_float_rects!
 # only the namespace is exported. `Ellipsoids.MOON` says the name is a body; a bare `MOON` does not.
 export Ellipsoids
 export start_server, stop_server, ModuleEntry, register_module!, ecef, geodetic
-export Imagery
+export Imagery, KNOWN_EARTH_BASEMAPS
 export viewer_url, bound_port, discovery_dir
 export send_command, send_reply, push_window
 export declare_furniture, declare_regions

@@ -68,6 +68,8 @@ async function start(): Promise<void> {
     imagery: declaration?.imagery ?? asked.imagery,
     lighting: declaration?.lighting,
     stars: declaration?.stars,
+    namedPlaces: declaration?.namedPlaces,
+    countryBorders: declaration?.countryBorders,
     furniture: declaration?.furniture,
   });
   publish(handle);

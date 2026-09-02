@@ -1,6 +1,7 @@
 // The scene a page reads out of its own address bar:
 //
-//   ?imagery=<url>[&tiling=geographic|mercator][&maxlevel=<n>][&credit=<text>][&ellipsoid=<a>,<b>]
+//   ?imagery=<url>[&tiling=geographic|gibs-geographic|mercator][&maxlevel=<n>][&credit=<text>]
+//            [&ellipsoid=<a>,<b>]
 //
 // `index.html` and `player.html` both take these; the VSCode host has no address bar and takes the
 // basemap from the declaration alone. Which of the two wins depends on whether anyone is behind the
@@ -58,8 +59,9 @@ function imageryFrom(
 
   const tiling = q.get("tiling");
   if (tiling !== null) {
-    if (tiling !== "geographic" && tiling !== "mercator") {
-      warn(`CesiumLink: ignoring ?tiling=${tiling}, which is neither "geographic" nor "mercator"`);
+    if (tiling !== "geographic" && tiling !== "mercator" && tiling !== "gibs-geographic") {
+      warn(`CesiumLink: ignoring ?tiling=${tiling}, which is none of "geographic", ` +
+        `"gibs-geographic" or "mercator"`);
     } else if (layout === "tms") {
       warn(`CesiumLink: ignoring ?tiling=${tiling}; the pyramid at ${url} states its own ` +
         `tiling scheme in tilemapresource.xml`);

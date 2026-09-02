@@ -31,7 +31,7 @@ declare_furniture!() = declare_furniture(server;
 
 ## The items
 
-The first four are the **band** along the bottom edge. The other seven are one **group** of buttons
+The first four are the **band** along the bottom edge. The other nine are one **group** of buttons
 that travels whole into one region.
 
 | Keyword | Default | What it is |
@@ -44,6 +44,8 @@ that travels whole into one region.
 | `fullscreen` | on | The fullscreen toggle |
 | `home` | on | Fly the camera back to the default view |
 | `projection` | **off** | The perspective / orthographic picker |
+| `basemap` | on | The basemap picker. It hides itself while the session declares fewer than two basemaps. See [Choose what the globe is textured with](basemap.md) |
+| `annotations` | on | The cell that switches the place names and the country borders, one checkbox each. See [Choose what the globe is textured with](basemap.md) |
 | `nav_help` | **off** | The navigation instructions |
 | `inspector` | **off** | The Cesium inspector panel |
 | `canvas_capture` | **off** | The button that copies a **canvas capture** to the clipboard, or downloads it. A right click opens its popup |

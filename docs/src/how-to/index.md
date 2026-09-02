@@ -29,8 +29,8 @@ cannot, read the [tutorials](../tutorials/index.md) first. For the whole surface
 - [Choose the on-screen furniture](furniture.md) — which of the Core's own items are on screen, and
   where the buttons sit.
 - [Show a scene with no clock](static-scene.md) — one keyframe, and no time controls beside it.
-- [Choose what the globe is textured with](basemap.md) — a basemap from the web or from a directory
-  of your own tiles, and how to put satellites around the Moon.
+- [Choose what the globe is textured with](basemap.md): the basemap set the reader picks inside,
+  how to take the network out of it, and how to put satellites around the Moon.
 - [Give a recording a tour](camera-tour.md) — declare where the camera looks, and when it goes
   there.
 

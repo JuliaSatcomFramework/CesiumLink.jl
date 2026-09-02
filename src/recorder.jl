@@ -19,10 +19,11 @@ stands on its own: it opens with the scene as it is and continues with everythin
 
 The modules registered at this moment are named in the recording's header, since the module set is
 declared per connection and so is never itself broadcast. The header carries the scene they were
-declared into for the same reason: the globe's `ellipsoid`, the `furniture`, and `lighting` and
-`stars` when set, so the standalone player rebuilds the session rather than being told it again in
-its address bar (ADR-0024). A basemap joins them only when it is an absolute URL — a mounted directory is served by
-this server, and nothing answers for it once the recording travels. Recording again replaces the sink.
+declared into for the same reason: the globe's `ellipsoid`, the `furniture`, `lighting` and `stars`
+when set, and `named_places` and `country_borders` when off, so the standalone
+player rebuilds the session rather than being told it again in its address bar (ADR-0024). A
+basemap joins them only when it is an absolute URL — a mounted directory is served by this server,
+and nothing answers for it once the recording travels. Recording again replaces the sink.
 
 A [`replay`](@ref) through a Julia server does not read any of it. A server fixes its globe at
 `start_server`, so a recorded Moon session is replayed by `start_server(; ellipsoid, imagery)`.
@@ -66,12 +67,16 @@ function recorded_scene(server)
     server.ellipsoid === nothing || (p = (; p..., ellipsoid = server.ellipsoid))
     im = recorded_imagery(server.imagery)
     im === nothing && server.imagery !== nothing &&
-        @warn "this basemap is a directory this server mounts, so it does not travel with the \
-            recording — the player draws its bundled Earth texture unless it is given \
-            `?imagery=` for wherever the tiles are copied to" url = server.imagery.url
+        @warn "every basemap this session declared is a directory this server mounts, so none of \
+            them travels with the recording — the player draws its bundled Earth texture unless \
+            it is given `?imagery=` for wherever the tiles are copied to"
     im === nothing || (p = (; p..., imagery = im))
     server.lighting && (p = (; p..., lighting = true))
     server.stars && (p = (; p..., stars = true))
+    # The names and the country borders are on by default, so the header states one only when it is
+    # off.
+    server.named_places || (p = (; p..., namedPlaces = false))
+    server.country_borders || (p = (; p..., countryBorders = false))
     # The furniture rides the header as well as the retained command written under it, for the reason
     # it rides the live declaration: the viewer builds the declared set before it paints, and the
     # command that follows says the same thing, which the viewer applies as a no-op. The retention
@@ -81,13 +86,23 @@ function recorded_scene(server)
     return p
 end
 
-# A basemap travels only when its tiles do: an absolute URL is reachable from anywhere, and `false`
-# — a globe with no base layer — names no tiles at all. Anything else is the relative URL of a mount,
-# which answers 404 off this server; an XYZ template that fails draws a bare globe and one console
-# error per tile, with no fallback, so recording it is worse than recording nothing.
-recorded_imagery(imagery) =
-    imagery === false || (imagery isa NamedTuple && url_origin(imagery.url) !== nothing) ?
-        imagery : nothing
+# A basemap travels only when its tiles do, and the recorder filters a set one entry at a time
+# (ADR-0024, ADR-0034). An absolute URL is reachable from anywhere. The bundled pyramid is in every
+# viewer, so it travels wherever the file goes. Anything else is the relative URL of a mount, which
+# returns 404 off this server. A record of it is worse than no record at all.
+#
+# When the first entry drops, the next survivor takes its place, because entry 0 is what the globe
+# wears at startup. When every entry drops, the file records no basemap at all, and the player keeps
+# its bundled texture.
+function recorded_imagery(imagery)
+    imagery === false && return false
+    imagery isa AbstractVector || return nothing
+    kept = filter(d -> get(d, :bundled, false) || csp_source(get(d, :url, "")) !== nothing, imagery)
+    length(kept) == length(imagery) ||
+        @warn "a basemap served from this server cannot be reached once the server stops, so it \
+            is left out of the recording" left_out = length(imagery) - length(kept)
+    return isempty(kept) ? nothing : kept
+end
 
 """
     stop_recording!(server::Server) -> Server
