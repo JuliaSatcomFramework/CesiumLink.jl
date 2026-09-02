@@ -152,7 +152,8 @@ belongs to the `primitives` **payload vocabulary**).
 The colour and the width a **basemap** asks the **country borders** to be drawn in.
 Each basemap carries its own, because the right colour depends on what lies under
 the line, and the viewer restyles the lines on every pick. A basemap that states
-neither draws the viewer's default.
+neither draws the viewer's default. The width is the width the reader sees zoomed
+in, and the viewer thins the line towards the whole-globe view.
 _Avoid_: stroke, line style.
 
 **Context object**:

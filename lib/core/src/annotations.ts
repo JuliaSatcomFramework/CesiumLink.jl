@@ -120,6 +120,41 @@ const LEVEL_HEIGHT = 4e7;
 const DEFAULT_BORDER_COLOR = "#ffffff8c";
 const DEFAULT_BORDER_WIDTH = 2;
 
+/**
+ * The camera heights, in metres, between which a country line thins, and how thin it goes.
+ *
+ * The declared width is the width the reader sees zoomed in, where a line follows a coast and a
+ * river and has to be read against them. The same width at whole-globe range draws a net over the
+ * disc, because the whole world's borders are in view at once and each one is as heavy as it was
+ * over one country.
+ */
+const BORDER_FULL_HEIGHT = 2e6;
+const BORDER_THIN_HEIGHT = 2e7;
+const BORDER_THIN_FACTOR = 0.5;
+
+/**
+ * How coarsely the factor is rounded: to a twentieth, which is 0.05.
+ *
+ * The step is what keeps the walk over the entities rare. Without one, every camera report writes a
+ * new width onto every line for a difference no reader can see.
+ */
+const FACTOR_STEPS = 20;
+
+/**
+ * What the declared width of a country line is multiplied by at a camera height, in metres.
+ *
+ * 1 at or below 2,000 km, 0.5 at or above 20,000 km, and linear in the log of the height between
+ * the two. The log is what the camera height reads as everywhere else in this module (`levelAt`):
+ * each step down halves the height, so a factor linear in the log falls evenly per step.
+ */
+export function borderWidthFactor(height: number): number {
+  const climbed = Math.log10(height / BORDER_FULL_HEIGHT) /
+    Math.log10(BORDER_THIN_HEIGHT / BORDER_FULL_HEIGHT);
+  const between = Math.min(1, Math.max(0, climbed));
+  const factor = 1 - between * (1 - BORDER_THIN_FACTOR);
+  return Math.round(factor * FACTOR_STEPS) / FACTOR_STEPS;
+}
+
 /** How each kind of name is drawn. A `dot` kind hangs its text to the right of its position. */
 const STYLE: Record<NamedPlace["kind"], { font: string; fill: string; dot: boolean }> = {
   ocean: { font: "italic bold 15px sans-serif", fill: "#d7ebff", dot: false },
@@ -335,7 +370,8 @@ export function addAnnotations(
   const base = annotationBase(baseUrl);
   let borders: GeoJsonDataSource | null = null;
   let borderColor = Color.fromCssColorString(DEFAULT_BORDER_COLOR);
-  let borderWidth = DEFAULT_BORDER_WIDTH;
+  let declaredWidth = DEFAULT_BORDER_WIDTH;
+  let widthFactor = borderWidthFactor(widget.camera.positionCartographic.height);
   const sayBadColour = sayOnce((message) => console.warn(message));
   // Writes the style onto the lines that are already on the globe. The entities are restyled in
   // place rather than the file being loaded again: the file is the same file whatever the basemap,
@@ -345,8 +381,19 @@ export function addAnnotations(
     for (const entity of borders.entities.values) {
       if (!entity.polyline) continue;
       entity.polyline.material = new ColorMaterialProperty(borderColor);
-      entity.polyline.width = new ConstantProperty(borderWidth);
+      // A constant property, never a `CallbackProperty`: the polyline batch re-evaluates a property
+      // that is not constant on every frame, for every line it holds.
+      entity.polyline.width = new ConstantProperty(declaredWidth * widthFactor);
     }
+  };
+  // The camera height decides how much of the declared width a line is drawn at. The walk over the
+  // entities runs only where the rounded factor alters, which is a few times over a flight in from
+  // globe range.
+  const thinBorders = () => {
+    const factor = borderWidthFactor(widget.camera.positionCartographic.height);
+    if (factor === widthFactor) return;
+    widthFactor = factor;
+    paintBorders();
   };
   // Fills the label collection from the camera it is called under. It stays a no-op until the names
   // arrive, and switching the layer back on calls it rather than waiting for the camera to move.
@@ -363,6 +410,7 @@ export function addAnnotations(
   // has altered by `percentageChanged`.
   const onCamera = () => {
     repopulate();
+    thinBorders();
   };
   widget.camera.percentageChanged = CAMERA_STEP;
   widget.camera.changed.addEventListener(onCamera);
@@ -416,7 +464,7 @@ export function addAnnotations(
     // the globe is bare.
     const source = await GeoJsonDataSource.load(base + "country-borders.geojson", {
       stroke: borderColor,
-      strokeWidth: borderWidth,
+      strokeWidth: declaredWidth * widthFactor,
     });
     source.show = on.borders;
     borders = source;
@@ -458,7 +506,7 @@ export function addAnnotations(
         );
       }
       borderColor = named ?? Color.fromCssColorString(DEFAULT_BORDER_COLOR);
-      borderWidth = style.width ?? DEFAULT_BORDER_WIDTH;
+      declaredWidth = style.width ?? DEFAULT_BORDER_WIDTH;
       paintBorders();
     },
   };

@@ -53,7 +53,8 @@ a session on another body asks for one.
 borders wear while this basemap is on the globe. The right colour depends on what lies under the
 line, so each basemap names its own, and the viewer restyles the lines on every pick. The colour is
 a CSS colour string. The browser parses it; this server checks only that it is not empty, and a
-string the browser cannot read draws the default and says so once. The width is in pixels.
+string the browser cannot read draws the default and says so once. The width is in pixels, and it
+is the width the reader sees zoomed in: the viewer thins the line towards the whole-globe view.
 
 Ready-made values are in [`KNOWN_EARTH_BASEMAPS`](@ref).
 

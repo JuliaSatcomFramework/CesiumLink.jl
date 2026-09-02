@@ -177,7 +177,9 @@ The session declaration. Sent once per connection, before anything else, and ret
     never holds it as an entry of its own. The reader cannot pick it, and it draws no credit.
   - `borderColor` and `borderWidth` are the **border style**: the CSS colour string and the pixel
     width the country borders wear while this entry is the one on screen. The viewer restyles the
-    lines it already has on every pick, and a colour it cannot read draws its own default. Every
+    lines it already has on every pick, and a colour it cannot read draws its own default. The
+    width is the width at 2,000 km and below; the viewer draws half of it at 20,000 km and above,
+    and falls between the two with the log of the camera height. Every
     entry carries both, because the viewer needs the whole style of whatever entry the reader lands
     on.
   - `bundled` marks the entry that **is** the bundled Earth texture. Such an entry carries no `url`.

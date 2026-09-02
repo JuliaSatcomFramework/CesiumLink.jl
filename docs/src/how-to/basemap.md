@@ -170,6 +170,10 @@ Say neither and the borders are white at just over half strength, two pixels wid
 parses the colour, so the server checks only that the string is not empty. A string the browser
 cannot read draws the default and writes one line to the console.
 
+The width is the width the reader sees zoomed in. The viewer thins the line towards the whole-globe
+view, where the whole world's borders are in view at once: full width at 2,000 km and below, half of
+it at 20,000 km and above, and between the two it falls with the log of the camera height.
+
 The viewer restyles the lines it already has when the reader picks another basemap. It fetches
 nothing, so the borders never leave the globe for the length of a switch.
 
