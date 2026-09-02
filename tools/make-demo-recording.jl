@@ -31,6 +31,7 @@ const DEMO_IMAGERY = [KNOWN_EARTH_BASEMAPS.aster_colour_relief,
                       KNOWN_EARTH_BASEMAPS.emodnet_baselayer,
                       KNOWN_EARTH_BASEMAPS.blue_marble,
                       KNOWN_EARTH_BASEMAPS.blue_marble_relief,
+                      KNOWN_EARTH_BASEMAPS.city_lights,
                       KNOWN_EARTH_BASEMAPS.offline_natural_earth]
 
 const STATIONS = (

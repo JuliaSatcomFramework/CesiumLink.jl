@@ -69,17 +69,17 @@ start_server(; imagery = collect(KNOWN_EARTH_BASEMAPS))
 Pick by field, as above. Do not filter the catalogue by its name strings. A source renamed in a
 later release matches nothing, and the filter hands you back a basemap you meant to drop.
 
-### All six, live
+### All seven, live
 
-The scene below is a recording of a session that declares all six. No Julia process is running.
+The scene below is a recording of a session that declares all seven. No Julia process is running.
 Open the basemap picker at the top right and pick each entry in turn.
 
 ```@raw html
-<!-- The five online basemaps come from NASA GIBS and from EMODnet, which nothing here controls.
+<!-- The six online basemaps come from NASA GIBS and from EMODnet, which nothing here controls.
      A globe that stays flat and blurry after a pick means one of those hosts is unreachable: the
      basemap backing is drawing the bundled pyramid in place of the tiles that did not arrive. -->
 <iframe src="../viewer/player.html?rec=../recordings/orbit.jsonl&modules=modules"
-        title="A recorded session declaring all six known Earth basemaps"
+        title="A recorded session declaring all seven known Earth basemaps"
         loading="lazy"
         style="width:100%;aspect-ratio:16/10;border:1px solid var(--vp-c-divider);border-radius:8px">
 </iframe>
