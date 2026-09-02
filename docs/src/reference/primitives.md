@@ -21,6 +21,12 @@ Edges
 Areas
 ```
 
+## Node labels
+
+```@docs
+Label
+```
+
 ## The payload
 
 ```@docs

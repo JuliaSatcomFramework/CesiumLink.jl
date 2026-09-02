@@ -83,8 +83,20 @@ sent(; kw...) = NamedTuple(k => v for (k, v) in kw if v !== nothing)
 
 # `scale_by_distance` stays a tuple: the module reads four plain numbers there, not an encoded array.
 lower(f::Nodes) = (; f.kind, position = f.position, marker = f.marker,
-                   sent(; f.color, f.size, f.show, f.label,
+                   sent(; f.color, f.size, f.show, label = lower_label(f.label),
                         scaleByDistance = f.scale_by_distance)...)
+
+# A family that named no style sends the plain string array, which is what the module has always
+# read there. A family that named one sends an object: the texts under `text`, and the style beside
+# them under the names the viewer's label options carry.
+lower_label(::Nothing) = nothing
+lower_label(v::Vector{String}) = v
+lower_label(l::Label) =
+    (; text = l.text, align = (String(l.align[1]), String(l.align[2])), offset = l.offset,
+       font = l.font,
+       sent(; color = l.color, background = l.background,
+            scaleByDistance = l.scale_by_distance, fadeByDistance = l.fade_by_distance,
+            showBetween = l.show_between)...)
 
 lower(f::Edges) = (; f.kind, f.from, f.to, pairs = f.pairs,
                    sent(; f.color, f.style, styles = f.styles, f.width, f.show,

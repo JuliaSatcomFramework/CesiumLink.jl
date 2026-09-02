@@ -138,6 +138,26 @@ you pass.
 
 The default `color` is white, which scales nothing and leaves the image as you drew it.
 
+## Style a node's label
+
+`label` on [`Nodes`](@ref) takes a plain array of strings, or a [`Label`](@ref), which also sets how
+the text looks. The default style hangs the text up and to the right of the node. Centre it over the
+node instead:
+
+```julia
+Nodes(:city; position = pos, label = Label(names; align = (:center, :bottom), offset = (0, -18)))
+```
+
+`align` names the point on the text that lands on the node: `(:center, :bottom)` is the bottom middle,
+so the text sits centred above it. `offset` moves that point away from the node in pixels, `x` to the
+right and `y` down.
+
+`show_between` hides a label outside a range of camera distances, in metres:
+
+```julia
+Nodes(:gw; position = gw, label = Label(names; color = "#ffd166", show_between = (0, 5.0e6)))
+```
+
 ## Hide entities instead of dropping them
 
 A family's membership is fixed for the life of a window. To vary the drawn set within one window,

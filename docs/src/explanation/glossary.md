@@ -64,6 +64,19 @@ pick reports a **kind** and an index. A window states each family whole: `primit
 draws three of them — nodes, edges and areas — and `models` draws one.
 _Avoid_: layer, collection (that is the Cesium primitive a family draws through), group.
 
+**Node label**:
+The text a node family draws beside each of its entities. The node gives the position,
+so a label has none of its own and adds no family. A **label style** says how the text
+sits on that point and how it is drawn, once per family. A plain vector of strings is
+the default style.
+_Avoid_: caption, annotation (that is the **annotation layer**), place name (that is a
+**named place**, which the viewer picks and declutters and the scene author never sends).
+
+**Label style**:
+The alignment, pixel offset, font, colours and distance rules of a **node label**. It is
+a style and not a primitive: it holds text and looks, never a position.
+_Avoid_: label primitive, label family.
+
 **Anchor**:
 The entity a module draws something onto, owned by another module. The owner
 publishes what an anchored primitive needs as read-only exports — where the entity
