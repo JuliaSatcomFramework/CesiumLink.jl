@@ -187,7 +187,13 @@ export default {
         return { mods: MOD_ORDER.filter((k) => e[`${k}Key` as const]),
                  screen: { x: e.clientX - box.left, y: e.clientY - box.top } };
       };
-      const click = (e: MouseEvent) => raise("click", read(e));
+      // A toggle or a select is a label wrapping its control, and a click on the label text is
+      // relayed to the control as a second click that bubbles back here. The relay carries no
+      // button count, so it is dropped and one gesture raises one crossing.
+      const click = (e: MouseEvent) => {
+        if (e.detail === 0 && e.target !== el) return;
+        raise("click", read(e));
+      };
       const enter = (e: MouseEvent) => {
         inside = read(e);
         raise("enter", inside);
@@ -318,7 +324,7 @@ export default {
           built[at] = next;
           // A swapped child is a new element, so its listeners go with the old one.
           if (id !== null) {
-            watched[at]?.();
+            watched[at]!();
             watched[at] = watch(next.el, id);
           }
           next.onKeyframe?.(index);

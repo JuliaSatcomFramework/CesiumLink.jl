@@ -730,7 +730,7 @@ They implement this contract and nothing more:
   mounted module the way any module reaches another. So one module can both feed `ui` — a float
   `mount`, a `positionOf` an anchor names — and extend it with a widget kind, from a single
   declaration entry, on either side of `ui`. A box that carries an `id` is an **addressed box**, and
-  raises `:click`, `:enter` and `:leave` on the `ui/pointer` topic.
+  raises `click`, `enter` and `leave` on the `ui/pointer` topic.
 - **`heatmap`** drapes a continuous field over the globe as imagery. It is told a box of degrees and
   a grid of RGBA bytes per raster, in the order the rasters stack, and it copies those bytes onto a
   canvas. It holds no colormap, no legend and no value: the server bakes the colour, which keeps a

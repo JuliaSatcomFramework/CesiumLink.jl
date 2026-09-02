@@ -562,6 +562,11 @@ test("a click on an addressed row is sent once, with its id, type and modifier s
                                     screen: { x: 120, y: 50 } }],
                    "in container coordinates, and in the modifier order the Core reads too");
 
+  // The click a label relays to the control it wraps bubbles back with no button count, and is
+  // not a second gesture.
+  v.controls[1].el.fire("click", { ...mouseAt(140, 60), detail: 0, target: {} });
+  assert.equal(crossings(v).length, 1);
+
   // A row carrying no id is addressed by nobody, so it wears no listener at all.
   v.controls[0].el.fire("click", mouseAt(0, 0));
   assert.equal(crossings(v).length, 1);
