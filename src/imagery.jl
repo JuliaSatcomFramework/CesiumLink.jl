@@ -129,14 +129,14 @@ Base.convert(::Type{Imagery}, url::AbstractString) = Imagery(url)
 The basemaps this package knows about, as ready-made [`Imagery`](@ref) values. Every one of them is
 of Earth, so none belongs in a session on another body.
 
-| Key | What the globe wears | Deepest level |
-|---|---|---|
-| `offline_natural_earth` | the pyramid inside the viewer, which reaches no network | 2 |
-| `aster_colour_relief` | ASTER shaded relief from NASA GIBS, in colour | 12 |
-| `aster_grey_relief` | ASTER shaded relief from NASA GIBS, in grey | 12 |
-| `emodnet_baselayer` | EMODnet Bathymetry, with sea-floor relief | 15 |
-| `blue_marble` | Blue Marble from NASA GIBS, with sea-floor colour | 8 |
-| `blue_marble_relief` | Blue Marble from NASA GIBS, land relief only | 8 |
+| Key | What the globe wears | Deepest level | Border |
+|---|---|---|---|
+| `offline_natural_earth` | the pyramid inside the viewer, which reaches no network | 2 | dark grey |
+| `aster_colour_relief` | ASTER shaded relief from NASA GIBS, in colour | 12 | dark grey |
+| `aster_grey_relief` | ASTER shaded relief from NASA GIBS, in grey | 12 | black |
+| `emodnet_baselayer` | EMODnet Bathymetry, with sea-floor relief | 15 | dark grey |
+| `blue_marble` | Blue Marble from NASA GIBS, with sea-floor colour | 8 | white |
+| `blue_marble_relief` | Blue Marble from NASA GIBS, land relief only | 8 | white |
 
 Pick the ones you want by name. This is a `NamedTuple` and not a list to filter, because a filter
 selects by name string. Rename a basemap in a later release, and the filter matches nothing and
@@ -150,20 +150,24 @@ start_server(; imagery = collect(KNOWN_EARTH_BASEMAPS))                # every o
 
 Each value carries the attribution its source asks for.
 """
+# The border colour each basemap names, picked from screenshots at 1,500 km and 20,000 km: a dark
+# line reads on a pale map, and a white line reads on a dark one. ASTER Grey Relief takes black
+# rather than dark grey, because its land is pale grey and a dark grey line all but disappears on it.
 const KNOWN_EARTH_BASEMAPS = (;
-    offline_natural_earth = Imagery(; name = "Natural Earth", bundled = true),
+    offline_natural_earth = Imagery(; name = "Natural Earth", bundled = true,
+                                    border_color = "#3a3a3ab3"),
     # The two ASTER reliefs are drawn maps of the land and reach level 12, deeper than any
     # photograph GIBS serves. Neither carries sea-floor colour: the ocean is one flat blue.
     aster_colour_relief = Imagery(
         "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/ASTER_GDEM_Color_Shaded_Relief/\
          default/GoogleMapsCompatible_Level12/{z}/{y}/{x}.jpeg";
         name = "ASTER Colour Relief", max_level = 12, backing = true,
-        credit = "NASA EOSDIS GIBS"),
+        credit = "NASA EOSDIS GIBS", border_color = "#3a3a3ab3"),
     aster_grey_relief = Imagery(
         "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/ASTER_GDEM_Greyscale_Shaded_Relief/\
          default/GoogleMapsCompatible_Level12/{z}/{y}/{x}.jpeg";
         name = "ASTER Grey Relief", max_level = 12, backing = true,
-        credit = "NASA EOSDIS GIBS"),
+        credit = "NASA EOSDIS GIBS", border_color = "#0000008c"),
     # The one entry on a host other than GIBS. Its path order is `{z}/{x}/{y}`, where the GIBS
     # entries are `{z}/{y}/{x}`: a WMTS REST path names the tile row before the tile column. A
     # template reaches the browser as it stands, so a swapped pair draws a scrambled globe rather
@@ -171,17 +175,17 @@ const KNOWN_EARTH_BASEMAPS = (;
     emodnet_baselayer = Imagery(
         "https://tiles.emodnet-bathymetry.eu/2020/baselayer/web_mercator/{z}/{x}/{y}.png";
         name = "EMODnet Baselayer", max_level = 15, backing = true,
-        credit = "EMODnet Bathymetry (CC BY 4.0)"),
+        credit = "EMODnet Bathymetry (CC BY 4.0)", border_color = "#3a3a3ab3"),
     blue_marble = Imagery(
         "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_ShadedRelief_Bathymetry/\
          default/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpeg";
         name = "Blue Marble", max_level = 8, backing = true,
-        credit = "NASA EOSDIS GIBS"),
+        credit = "NASA EOSDIS GIBS", border_color = "#ffffff8c"),
     blue_marble_relief = Imagery(
         "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_ShadedRelief/\
          default/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpeg";
         name = "Blue Marble Relief", max_level = 8, backing = true,
-        credit = "NASA EOSDIS GIBS"),
+        credit = "NASA EOSDIS GIBS", border_color = "#ffffff8c"),
 )
 
 # What a session declares when the caller declares nothing (ADR-0034): every basemap this package

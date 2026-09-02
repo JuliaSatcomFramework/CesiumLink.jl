@@ -59,8 +59,8 @@ follows `cameraFollow`'s stated rule — the item hides itself while there is no
 author has to think about it. Naming one basemap is therefore the whole opt-out: it removes the
 network, the picker and the button in one line.
 
-**An absent `imagery` is the default set**, `blue_marble` backed by `offline_natural_earth`. This is
-the one behaviour change a reader will notice on upgrade, and it is why the release is 0.2.0.
+**An absent `imagery` is the default set**, all six known basemaps with `aster_colour_relief` first.
+This is the one behaviour change a reader will notice on upgrade, and it is why the release is 0.2.0.
 
 **An absent `imagery` on a body that is not Earth declares nothing.** The default set is Earth's,
 so a session on another ellipsoid keeps the bundled texture it wears today. It does not gain the
@@ -71,18 +71,39 @@ accepts GRS 80.
 ## What ships as a known basemap
 
 `KNOWN_EARTH_BASEMAPS` holds ready-made values so that an author writes a name rather than a URL, a
-tiling scheme, a depth and an attribution line.
+tiling scheme, a depth and an attribution line. The catalogue holds six.
 
 | Name | Source | Levels |
 |---|---|---|
 | `offline_natural_earth` | the pyramid inside the viewer | 0-2 |
+| `aster_colour_relief` | GIBS `ASTER_GDEM_Color_Shaded_Relief` | 0-12 |
+| `aster_grey_relief` | GIBS `ASTER_GDEM_Greyscale_Shaded_Relief` | 0-12 |
 | `blue_marble` | GIBS `BlueMarble_ShadedRelief_Bathymetry` | 0-8 |
 | `blue_marble_relief` | GIBS `BlueMarble_ShadedRelief` | 0-8 |
+| `emodnet_baselayer` | EMODnet Bathymetry `2020/baselayer` | 0-15 |
 
 The default *set* is every basemap the catalogue holds, and the picker offers all of it. An entry
 costs nothing until the reader picks it: `buildBaseLayers` (`lib/core/src/scene.ts`) builds a tile
 provider for entry 0 and for no other entry, so a reader who never opens the picker never causes a
 later entry to fetch a tile or open a connection.
+
+**The default set is all six, in this order:** `aster_colour_relief`, `aster_grey_relief`,
+`blue_marble`, `blue_marble_relief`, `emodnet_baselayer`, `offline_natural_earth`.
+
+**ASTER Colour Relief leads because entry 0 is the one entry a session opens a host for.** It is the
+sharpest map in the catalogue and it stands alone on `gibs.earthdata.nasa.gov`, so a reader who opens
+the page and picks nothing reaches that host and no other. EMODnet Baselayer is the better map (it is
+global, it draws the sea floor, and it reaches level 15), and `tiles.emodnet-bathymetry.eu` serves
+it, so it sits fifth and one pick away. The offline pyramid sits last: the calm map that opens no
+host at all, there for the reader to fall back on.
+
+ASTER Colour Relief draws one flat blue for the ocean, because it is a relief map of the land and
+carries no sea-floor colour. That is the known cost of the pick, and `blue_marble` and
+`emodnet_baselayer` both stay in the catalogue for a reader who wants the water.
+
+The GIBS path order is `{z}/{y}/{x}`, and EMODnet's is `{z}/{x}/{y}`. A WMTS REST path names
+TileMatrix, TileRow, TileCol, which is level, row, column. A template reaches the browser as it
+stands, so a swapped pair draws a scrambled globe rather than an error.
 
 The catalogue is keyed rather than a list to filter. A filter selects by name string, so a source
 renamed in a later release silently matches nothing and the author gets back a basemap they meant to
@@ -98,6 +119,9 @@ cloudless is the case: every year still served is CC BY-NC-SA, and no string the
 enforce "not commercially". Shipping that name would put a licence breach one keystroke from
 somebody who never opens a licence file, and their employer would pay for it. It is documented
 instead.
+
+A fourth basemap, Blue Marble with place names painted into the tile, reached the catalogue and left
+it again; ADR-0036 explains why.
 
 ## Alternatives declined
 
@@ -138,8 +162,8 @@ an object, so a reader tells the two shapes apart with no number at all. Bumping
 every recording already on disk.
 
 **The player does not take the online default.** A header with no `imagery` now only ever comes from
-a session that did not use the default set, because a default set travels: both of its entries have
-tiles a replaying page can reach. Painting an online basemap onto exactly those files would show a
+a session that did not use the default set, because a default set travels: every entry has tiles a
+replaying page can reach. Painting an online basemap onto exactly those files would show a
 sharper globe than was recorded, which is what ADR-0024 is against.
 
 **The content policy widens by tile directory, not by host.** `trusted_origins` reads the directory
@@ -151,66 +175,3 @@ Naming a set narrows the policy to whatever that set holds.
 **`?imagery=` still names one basemap.** ADR-0019 says what the query string is for — looking at a
 pyramid you have just built, and publishing a globe that is a URL and nothing else — and neither
 wants a set. A URL may legally hold a comma, so a list in that parameter would be guesswork.
-
-## Amendment: a fourth basemap, and it is the default
-
-The catalogue holds four. `blue_marble_labeled` is NASA Blue Marble with OpenStreetMap place labels
-drawn over it, from `github.com/freetiler/nasa-bluemarble-labeled` over jsDelivr, and it reaches
-level 8 as the two GIBS entries do.
-
-| Name | Source | Levels |
-|---|---|---|
-| `blue_marble_labeled` | `freetiler/nasa-bluemarble-labeled` over jsDelivr | 0-8 |
-
-**The default set is `blue_marble_labeled` backed by `offline_natural_earth`.** The set is still two
-entries, and `blue_marble` stays in the catalogue as a name an author can pick. A reader who opens a
-default session reads place names on the globe, which a satellite mosaic alone does not give them.
-
-Every statement above that names `blue_marble` as the default now names `blue_marble_labeled`. Two
-consequences move with it:
-
-- A default session reaches `cdn.jsdelivr.net`, not `gibs.earthdata.nasa.gov`. That one origin is
-  what `trusted_origins` carries, and from there `img-src` and `connect-src`.
-- The credit line reads `FreeTiler.com | NASA | OSM Contributors`, which is the attribution the
-  source asks for. The imagery is under NASA's open-data policy and the labels are under ODbL.
-
-**The URL pins a commit, not the branch.** jsDelivr serves the branch head otherwise, so the tiles
-could change under a reader with no release behind the change. The pinned URL also answers
-`immutable, max-age=31536000`, where the branch URL answers `max-age=604800`.
-
-**The tileset is not vendored.** It is 421 MB, and ADR-0027 keeps the viewer artifact to bytes worth
-hosting forever.
-
-## Amendment: six basemaps, and ASTER Colour Relief is the default
-
-`blue_marble_labeled` leaves the catalogue and never reaches a release. Its place names are painted
-into the JPEG, so no other basemap can borrow them and no reader can turn them off. A separate
-annotation layer draws names that every basemap can wear, and it has its own record.
-
-The catalogue holds six. Three are new.
-
-| Name | Source | Levels | Credit |
-|---|---|---|---|
-| `aster_colour_relief` | GIBS `ASTER_GDEM_Color_Shaded_Relief` | 0-12 | `NASA EOSDIS GIBS` |
-| `aster_grey_relief` | GIBS `ASTER_GDEM_Greyscale_Shaded_Relief` | 0-12 | `NASA EOSDIS GIBS` |
-| `emodnet_baselayer` | EMODnet Bathymetry `2020/baselayer` | 0-15 | `EMODnet Bathymetry (CC BY 4.0)` |
-
-**The default set is all six**, in this order: `aster_colour_relief`, `aster_grey_relief`,
-`blue_marble`, `blue_marble_relief`, `emodnet_baselayer`, `offline_natural_earth`. Every statement
-above that names `blue_marble` as the default now names `aster_colour_relief`, and so does every
-statement in the amendment before this one.
-
-**ASTER Colour Relief leads because entry 0 is the one entry a session opens a host for.** It is
-the sharpest map in the catalogue and it stands alone on `gibs.earthdata.nasa.gov`, so a reader who
-opens the page and picks nothing reaches that host and no other. EMODnet Baselayer is the better
-map — it is global, it draws the sea floor, and it reaches level 15 — and
-`tiles.emodnet-bathymetry.eu` serves it, so it sits fifth and one pick away. The offline pyramid
-sits last: the calm map that opens no host at all, there for the reader to fall back on.
-
-**ASTER Colour Relief draws one flat blue for the ocean.** It is a relief map of the land and it
-carries no sea-floor colour. That is the known cost of the pick, and `blue_marble` and
-`emodnet_baselayer` both stay in the catalogue for a reader who wants the water.
-
-**The GIBS path order is `{z}/{y}/{x}` and EMODnet's is `{z}/{x}/{y}`.** A WMTS REST path names
-TileMatrix, TileRow, TileCol, which is level, row, column. A template reaches the browser as it
-stands, so a swapped pair draws a scrambled globe rather than an error.

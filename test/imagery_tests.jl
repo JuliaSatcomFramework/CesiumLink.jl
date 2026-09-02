@@ -48,7 +48,7 @@ end
     d, _ = CesiumLink.resolve_imagery([Imagery("https://host/{z}/{x}/{y}.png";
                                                border_color = "#0000008c", border_width = 3.0),
                                        KNOWN_EARTH_BASEMAPS.offline_natural_earth])
-    @test [(e.borderColor, e.borderWidth) for e in d] == [("#0000008c", 3.0), ("#ffffff8c", 2.0)]
+    @test [(e.borderColor, e.borderWidth) for e in d] == [("#0000008c", 3.0), ("#3a3a3ab3", 2.0)]
     # The pyramid inside the viewer carries the style as every other entry does, although it
     # carries no URL.
     @test last(d).bundled == true
@@ -101,12 +101,23 @@ end
                                                    "Blue Marble", "Blue Marble Relief",
                                                    "EMODnet Baselayer", "Natural Earth"]
     @test last(d) == (; bundled = true, key = "offline_natural_earth", name = "Natural Earth",
-                      borderColor = "#ffffff8c", borderWidth = 2.0)
+                      borderColor = "#3a3a3ab3", borderWidth = 2.0)
     @test first(d).backing == true
     # The viewer reads the icon and the drop-down category off `key`, so every catalogue basemap
     # carries one. A match by label would hand a renamed basemap the fallback icon instead.
     @test [e.key for e in d] == ["aster_colour_relief", "aster_grey_relief", "blue_marble",
                                  "blue_marble_relief", "emodnet_baselayer", "offline_natural_earth"]
+end
+
+@testitem "a known basemap names the border colour that reads on it" begin
+    # The two Blue Marbles are photographs, dark under a white line. ASTER Grey Relief is a pale
+    # map of the land, so its line is black rather than dark grey. Checked on the resolved wire
+    # declaration, because that is what the viewer restyles the borders from.
+    d, _ = CesiumLink.resolve_imagery(collect(KNOWN_EARTH_BASEMAPS))
+    by_key = Dict(e.key => e.borderColor for e in d)
+    @test by_key["blue_marble"] == "#ffffff8c"
+    @test by_key["blue_marble_relief"] == "#ffffff8c"
+    @test by_key["aster_grey_relief"] == "#0000008c"
 end
 
 @testitem "a basemap set is refused when the viewer could not draw it" setup=[Pyramid] begin

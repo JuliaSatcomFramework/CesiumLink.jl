@@ -31,14 +31,14 @@ globe](#names-and-borders-over-the-globe) turns them off.
 [`KNOWN_EARTH_BASEMAPS`](@ref) holds ready-made [`Imagery`](@ref) values. Each one carries the
 attribution its source asks for, so a session that declares one also credits it.
 
-| Key | What the globe wears | Deepest level | Credit drawn |
-|:--|:--|:--|:--|
-| `offline_natural_earth` | the pyramid inside the viewer, which reaches no network | 2 | none, the texture is public domain |
-| `aster_colour_relief` | ASTER shaded relief from NASA GIBS, in colour | 12 | `NASA EOSDIS GIBS` |
-| `aster_grey_relief` | ASTER shaded relief from NASA GIBS, in grey | 12 | `NASA EOSDIS GIBS` |
-| `emodnet_baselayer` | EMODnet Bathymetry, with sea-floor relief | 15 | `EMODnet Bathymetry (CC BY 4.0)` |
-| `blue_marble` | Blue Marble from NASA GIBS, with sea-floor colour | 8 | `NASA EOSDIS GIBS` |
-| `blue_marble_relief` | Blue Marble from NASA GIBS, land relief only | 8 | `NASA EOSDIS GIBS` |
+| Key | What the globe wears | Deepest level | Credit drawn | Border |
+|:--|:--|:--|:--|:--|
+| `offline_natural_earth` | the pyramid inside the viewer, which reaches no network | 2 | none, the texture is public domain | dark grey |
+| `aster_colour_relief` | ASTER shaded relief from NASA GIBS, in colour | 12 | `NASA EOSDIS GIBS` | dark grey |
+| `aster_grey_relief` | ASTER shaded relief from NASA GIBS, in grey | 12 | `NASA EOSDIS GIBS` | black |
+| `emodnet_baselayer` | EMODnet Bathymetry, with sea-floor relief | 15 | `EMODnet Bathymetry (CC BY 4.0)` | dark grey |
+| `blue_marble` | Blue Marble from NASA GIBS, with sea-floor colour | 8 | `NASA EOSDIS GIBS` | white |
+| `blue_marble_relief` | Blue Marble from NASA GIBS, land relief only | 8 | `NASA EOSDIS GIBS` | white |
 
 The two ASTER reliefs draw the land only. Their ocean is one flat blue and carries no sea-floor
 colour. `emodnet_baselayer` draws the sea floor, and it is the one entry served from a host other
