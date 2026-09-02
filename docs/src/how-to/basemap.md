@@ -118,9 +118,8 @@ with the same set to pick from. See ADR-0034 for the whole decision and what it 
 
 ## Names and borders over the globe
 
-The viewer draws three more layers above whatever basemap the reader picked: the place names, the
-country borders and the region borders. The first two are on by default and the third is off, and
-`start_server` takes a flag for each:
+The viewer draws two more layers above whatever basemap the reader picked: the place names and the
+country borders. Both are on by default, and `start_server` takes a flag for each:
 
 ```julia
 # the names alone, with no line asserting a boundary
@@ -128,31 +127,16 @@ start_server(; country_borders = false)
 
 # the bare globe
 start_server(; named_places = false, country_borders = false)
-
-# every line, down to the states and the provinces inside each country
-start_server(; region_borders = true)
 ```
 
 The names are the continents, the oceans and seas, the countries, and their larger cities. The
-country borders are the boundary lines between countries. The region borders are the boundary lines
-between the regions inside one country: its states and its provinces. The flags stay separate
-because a border is a political claim. A reader who wants the names without one turns the borders
-off and keeps the names.
-
-**A region line needs the country lines.** `region_borders = true` draws nothing while
-`country_borders` is false, and taking the country borders off takes the region lines with them. A
-region edge with no country edge around it is a claim with no context, and it reads as a fault. The
-`annotations` cell says the same thing: its region checkbox goes dead while its country checkbox is
-clear.
-
-The region borders are off by default for two reasons. A region line is a second political claim on
-top of the country line, so a reader who wants no claims meets none. And the layer costs frames, so
-a default session pays nothing for it. Each line states the camera height that starts it, so the
-globe carries none of them and a country fills with lines as the reader flies in.
+country borders are the boundary lines between countries. The flags stay separate because a border
+is a political claim. A reader who wants the names without one turns the borders off and keeps the
+names.
 
 No layer belongs to a basemap. The picker takes off the imagery layers of the entry on the globe.
-None of these is an imagery layer, so a switch leaves all three where they are. Every file ships
-inside the viewer, so none reaches the network, opens an origin, or adds to the credit line.
+Neither of these is an imagery layer, so a switch leaves both where they are. Every file ships
+inside the viewer, so neither reaches the network, opens an origin, or adds to the credit line.
 
 The reader switches each layer from the `annotations` cell, which stands beside the basemap picker
 and holds one checkbox each. A tick is that reader's own view of the globe and never travels back to

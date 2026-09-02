@@ -70,7 +70,6 @@ async function start(): Promise<void> {
     stars: declaration?.stars,
     namedPlaces: declaration?.namedPlaces,
     countryBorders: declaration?.countryBorders,
-    regionBorders: declaration?.regionBorders,
     furniture: declaration?.furniture,
   });
   publish(handle);

@@ -1,13 +1,10 @@
-// Place names, country borders and region borders, drawn above whatever basemap the reader picked.
+// Place names and country borders, drawn above whatever basemap the reader picked.
 //
-// None of the three is a basemap. The session owns them, the Core adds them once, and the picker
-// never touches them: it removes only the base layers it counted from the entry on the globe, so a
-// layer added above survives a switch (ADR-0036).
+// Neither is a basemap. The session owns them, the Core adds them once, and the picker never
+// touches them: it removes only the base layers it counted from the entry on the globe, so a layer
+// added above survives a switch (ADR-0036).
 //
 // The names and the country borders are independent, and either may be off while the other is on.
-// The region borders depend on the country borders: a region line never draws while the country
-// lines are off, because a region edge without the country edge around it is a claim with no
-// context.
 
 import {
   Cartesian3,
@@ -41,41 +38,26 @@ export interface NamedPlace {
   maxz: number;
 }
 
-/**
- * One feature of `region-borders.geojson`. The generator keeps the geometry and one property: the
- * geographic level the line starts drawing at, which is what holds 10,000 lines off a globe view.
- */
-interface RegionLine {
-  properties: { minz: number };
-}
-
-/** The three layers, each switchable, and the region borders held to the country borders. */
+/** The two layers, each switchable. */
 export interface Annotations {
   /** Whether the place names are drawn: what the session declared, until something switches it. */
   readonly places: boolean;
   /** Whether the country borders are drawn. */
   readonly borders: boolean;
-  /** Whether the region borders are asked for. They draw only while `borders` is true as well. */
-  readonly regions: boolean;
   /** Draw the place names, or take them off. */
   showPlaces(on: boolean): void;
-  /** Draw the country borders, or take them off. Taking them off takes the region lines with them. */
+  /** Draw the country borders, or take them off. */
   showBorders(on: boolean): void;
-  /** Ask for the region borders, or take them off. */
-  showRegions(on: boolean): void;
 }
 
 /**
- * Which of the three layers the session asked for.
+ * Which of the two layers the session asked for.
  *
- * `places` and `borders` are drawn when absent, so each states only a departure from the default.
- * `regions` is the other way round: it is drawn only when it is asked for. A region line is a
- * second political claim on top of the country line, and a reader who wants no claims meets none.
+ * Both are drawn when absent, so each flag states only a departure from the default.
  */
 export interface AnnotationFlags {
   places?: boolean;
   borders?: boolean;
-  regions?: boolean;
 }
 
 // The handle for a viewer, so that whatever puts the flags on the wire can reach the layers
@@ -116,10 +98,6 @@ const LEVEL_HEIGHT = 4e7;
  */
 const COUNTRY_LINE = Color.WHITE.withAlpha(0.55);
 const COUNTRY_LINE_WIDTH = 2;
-
-/** A region line is fainter and thinner than a country line, because a region is a smaller claim. */
-const REGION_LINE = Color.WHITE.withAlpha(0.4);
-const REGION_LINE_WIDTH = 1.5;
 
 /** How each kind of name is drawn. A `dot` kind hangs its text to the right of its position. */
 const STYLE: Record<NamedPlace["kind"], { font: string; fill: string; dot: boolean }> = {
@@ -335,17 +313,12 @@ export function addAnnotations(
 ): Annotations {
   const base = annotationBase(baseUrl);
   let borders: GeoJsonDataSource | null = null;
-  let regions: GeoJsonDataSource | null = null;
   // Fills the label collection from the camera it is called under. It stays a no-op until the names
   // arrive, and switching the layer back on calls it rather than waiting for the camera to move.
   let repopulate = () => {};
-  // Rebuilds the region lines for the band the camera is in. Same contract as `repopulate`.
-  let repaintRegions = () => {};
   const on = {
     places: show.places !== false,
     borders: show.borders !== false,
-    // The one flag that states what it asks for rather than what it drops.
-    regions: show.regions === true,
   };
   const warn = (what: string) => (err: unknown) => {
     console.warn(`CesiumLink: the ${what} did not load (${err}). The globe wears none.`);
@@ -355,7 +328,6 @@ export function addAnnotations(
   // has altered by `percentageChanged`.
   const onCamera = () => {
     repopulate();
-    repaintRegions();
   };
   widget.camera.percentageChanged = CAMERA_STEP;
   widget.camera.changed.addEventListener(onCamera);
@@ -416,47 +388,8 @@ export function addAnnotations(
     widget.dataSources.add(source);
   })();
 
-  const areas = (async () => {
-    const all: RegionLine[] = (await (await fetch(base + "region-borders.geojson")).json()).features;
-    // Past the deepest band the whole file is drawn, so the level decides nothing more and the
-    // layer stops rebuilding however far in the camera goes.
-    const deepest = all.reduce((z, f) => Math.max(z, f.properties.minz), 0);
-    // Which band is on the globe. Minus one is none of them, which is what an off layer draws.
-    let band = -1;
-    // Which rebuild is the current one. A camera that moves on while a band loads has already
-    // asked for another, and the load that arrives late must not put its lines on the globe.
-    let newest = 0;
-    repaintRegions = () => {
-      // Natural Earth's shallowest hint puts 153 lines on a whole-globe view, which is the noise
-      // the band exists to keep off. Every hint therefore starts one level deeper than it asks for,
-      // and level 0 draws nothing at all.
-      const want = on.regions && on.borders
-        ? Math.min(levelAt(widget.camera.positionCartographic.height) - 1, deepest)
-        : -1;
-      if (want === band) return;
-      band = want;
-      const mine = ++newest;
-      if (regions) {
-        widget.dataSources.remove(regions, true);
-        regions = null;
-      }
-      const features = all.filter((f) => f.properties.minz <= want);
-      if (features.length === 0) return;
-      GeoJsonDataSource.load({ type: "FeatureCollection", features }, {
-        stroke: REGION_LINE,
-        strokeWidth: REGION_LINE_WIDTH,
-      }).then((source) => {
-        if (mine !== newest) return;
-        regions = source;
-        widget.dataSources.add(source);
-      }).catch(warn("region borders"));
-    };
-    repaintRegions();
-  })();
-
   names.catch(warn("place names"));
   lines.catch(warn("country borders"));
-  areas.catch(warn("region borders"));
 
   const handle: Annotations = {
     // Read off the same object the two setters write, so a control over the globe states what the
@@ -467,9 +400,6 @@ export function addAnnotations(
     get borders() {
       return on.borders;
     },
-    get regions() {
-      return on.regions;
-    },
     showPlaces(draw) {
       on.places = draw;
       repopulate();
@@ -477,13 +407,6 @@ export function addAnnotations(
     showBorders(draw) {
       on.borders = draw;
       if (borders) borders.show = draw;
-      // A region line never draws while the country lines are off, so the country switch drives
-      // both. The reader sees the region lines go with the borders and come back with them.
-      repaintRegions();
-    },
-    showRegions(draw) {
-      on.regions = draw;
-      repaintRegions();
     },
   };
   attached.set(widget, handle);

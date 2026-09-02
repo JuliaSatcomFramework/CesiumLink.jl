@@ -37,8 +37,6 @@ export interface RecordingHeader {
   /** Recorded only when off, since the names and the country borders are drawn by default. */
   namedPlaces?: boolean;
   countryBorders?: boolean;
-  /** Recorded only when on, since the region borders are drawn only when a session asks. */
-  regionBorders?: boolean;
   /**
    * The Core's own on-screen items. This is also the retained `core/furniture` command, written at
    * offset zero — the same duplication the live declaration carries, and for the same reason: the
@@ -135,7 +133,6 @@ export function declarationOf(header: RecordingHeader, opts: RecordingOptions = 
   if (header.stars) declaration.stars = true;
   if (header.namedPlaces === false) declaration.namedPlaces = false;
   if (header.countryBorders === false) declaration.countryBorders = false;
-  if (header.regionBorders) declaration.regionBorders = true;
   if (header.furniture) declaration.furniture = header.furniture;
   if (opts.ellipsoid) declaration.ellipsoid = opts.ellipsoid;
   if (opts.imagery !== undefined) declaration.imagery = opts.imagery;

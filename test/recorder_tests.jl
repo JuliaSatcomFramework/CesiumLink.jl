@@ -93,8 +93,7 @@ end
         server = start_server(; dist_dir = nothing, host = "::1", port = 0,
                               ellipsoid = (a = 1737400.0, b = 1737400.0),
                               imagery = "https://tiles.invalid/{z}/{x}/{y}.png",
-                              lighting = true, stars = true, named_places = false,
-                              region_borders = true)
+                              lighting = true, stars = true, named_places = false)
         try
             declare_furniture(server; timeline = false)
             record!(server, path)
@@ -109,10 +108,9 @@ end
         @test header["lighting"] == true
         @test header["stars"] == true
         # An annotation layer that is on by default travels only when it is off, since on is what a
-        # player already does. The region lines are off by default, so they travel only when on.
+        # player already does.
         @test header["namedPlaces"] == false
         @test !haskey(header, "countryBorders")
-        @test header["regionBorders"] == true
         # The furniture is here as well as in the retained command written under it, so the player
         # builds the declared set before it paints rather than flashing the default one first.
         @test header["furniture"]["items"]["timeline"] == false

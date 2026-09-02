@@ -242,7 +242,7 @@ function basemapPicker(
 }
 
 /**
- * The three annotation boxes, one per layer.
+ * The two annotation boxes, one per layer.
  *
  * A box starts at what the session declared and writes straight to the layer. Nothing about a tick
  * travels upward: it is the reader's own view of a scene the server states, which is the rule the
@@ -260,22 +260,14 @@ function annotationRows(layers: Annotations): HTMLElement[] {
     box.addEventListener("change", () => set(box.checked));
     label.append(box, document.createTextNode(text));
     rows.push(label);
-    return box;
   };
   row("Place names", layers.places, (draw) => layers.showPlaces(draw));
-  row("Country borders", layers.borders, (draw) => {
-    layers.showBorders(draw);
-    // A region line never draws while the country lines are off. The box says so by going dead,
-    // which is what a reader can see: a live box that changes nothing reads as a broken one.
-    regions.disabled = !draw;
-  });
-  const regions = row("Region borders", layers.regions, (draw) => layers.showRegions(draw));
-  regions.disabled = !layers.borders;
+  row("Country borders", layers.borders, (draw) => layers.showBorders(draw));
   return rows;
 }
 
 /**
- * The map-annotations cell: one button that opens the three annotation boxes.
+ * The map-annotations cell: one button that opens the two annotation boxes.
  *
  * Only for a globe with no basemap picker. The boxes belong in the picker's drop-down, because the
  * layers and the basemap are one idea — what the globe wears — and a button of their own is one
@@ -291,7 +283,7 @@ function annotationsCell(el: HTMLElement, layers: Annotations): { destroy(): voi
   const button = document.createElement("button");
   button.type = "button";
   button.className = "cesium-button";
-  button.title = "Place names, country borders and region borders";
+  button.title = "Place names and country borders";
   button.textContent = "A";
   button.style.cssText = "width:32px;height:32px;padding:0;font:16px/32px sans-serif";
   button.setAttribute("aria-expanded", "false");

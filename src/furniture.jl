@@ -72,11 +72,10 @@ while the session declares fewer than two. One declared basemap is therefore alr
 opt-out. This keyword is for a session that declares a set and needs no picker over it. See
 [`Imagery`](@ref).
 
-`annotations` is the cell that opens onto the place names, the country borders and the region
-borders, one checkbox each. The first two layers are drawn by default, so the cell is on by default
-too: it is the only way a reader takes one off, and the only way a reader puts the region borders
-on. Turning the cell off leaves whatever [`start_server`](@ref) declared on the globe, since a tick
-is the reader's own view and never travels back to the server.
+`annotations` is the cell that opens onto the place names and the country borders, one checkbox
+each. Both layers are drawn by default, so the cell is on by default too: it is the only way a
+reader takes one off. Turning the cell off leaves whatever [`start_server`](@ref) declared on the
+globe, since a tick is the reader's own view and never travels back to the server.
 
 `camera_follow` governs the indicator only, not the camera. The viewer shows it once a viewpoint
 arrives, and offers the way back to a user who took the camera with a drag. A session that declares

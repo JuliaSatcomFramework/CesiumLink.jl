@@ -1,22 +1,20 @@
 #!/usr/bin/env node
-// Writes the checked-in annotation data the label overlay draws: place names, country boundaries
-// and region boundaries, all from Natural Earth.
+// Writes the checked-in annotation data the label overlay draws: place names and country
+// boundaries, both from Natural Earth.
 //
 //   node tools/make-annotation-data.mjs
 //
-// Run it by hand, when Natural Earth cuts a release. It is not part of the build: the three files it
+// Run it by hand, when Natural Earth cuts a release. It is not part of the build: the two files it
 // writes are committed, so the build never reaches the network.
 //
-// It downloads its five inputs the first time and keeps them under `tools/.cache/natural-earth`,
+// It downloads its four inputs the first time and keeps them under `tools/.cache/natural-earth`,
 // which git ignores. Delete that directory to re-fetch.
 //
 // Names come from the 1:10m set and country boundaries from the 1:50m set, and the mismatch is
-// deliberate. Region boundaries are 1:10m again, chained and thinned below, because the 1:50m
-// regions file covers a dozen large countries and no other.
-// Ground polylines are the expensive half of drawing this: measured with the same names and the
-// same paging, 1:110m and 1:50m boundaries both cost 165-371 ms a frame while 1:10m costs 337-785.
-// 1:50m is free against 1:110m and its outlines follow the coast, where 1:110m turns Switzerland
-// into a chunky polygon at 900 km.
+// deliberate. Ground polylines are the expensive half of drawing this: measured with the same names
+// and the same paging, 1:110m and 1:50m boundaries both cost 165-371 ms a frame while 1:10m costs
+// 337-785. 1:50m is free against 1:110m and its outlines follow the coast, where 1:110m turns
+// Switzerland into a chunky polygon at 900 km.
 //
 // Natural Earth is public domain, so no output carries a credit line.
 import { cpSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
@@ -32,7 +30,6 @@ const PLACES = "ne_10m_populated_places_simple";
 const COUNTRIES = "ne_10m_admin_0_countries";
 const MARINE = "ne_10m_geography_marine_polys";
 const BORDERS = "ne_50m_admin_0_boundary_lines_land";
-const REGIONS = "ne_10m_admin_1_states_provinces_lines";
 
 // A city or a capital keeps its name to the deepest level a camera reaches, so it needs no ceiling.
 const NO_CEILING = 99;
@@ -175,112 +172,13 @@ async function places() {
   return rows.map((r) => ({ ...r, lon: round(r.lon), lat: round(r.lat) }));
 }
 
-/**
- * Degrees. A vertex closer than this to the straight line between its neighbours goes. The 1:50m
- * boundaries space their vertices about 0.1 degrees apart and the 1:10m ones 0.01, so this puts the
- * finer file's density between the two: the shape holds at every level the layer draws, and the
- * vertex count falls to a quarter.
- */
-const REGION_TOLERANCE = 0.02;
-
-/** Douglas-Peucker over one line of [lon, lat] pairs. */
-function thin(line, tolerance) {
-  if (line.length <= 2) return line;
-  const [ax, ay] = line[0];
-  const [bx, by] = line[line.length - 1];
-  const dx = bx - ax;
-  const dy = by - ay;
-  const len = Math.hypot(dx, dy);
-  let worst = 0;
-  let at = 0;
-  for (let i = 1; i < line.length - 1; i++) {
-    const [px, py] = line[i];
-    const d = len === 0
-      ? Math.hypot(px - ax, py - ay)
-      : Math.abs(dy * px - dx * py + bx * ay - by * ax) / len;
-    if (d > worst) {
-      worst = d;
-      at = i;
-    }
-  }
-  if (worst <= tolerance) return [line[0], line[line.length - 1]];
-  return [...thin(line.slice(0, at + 1), tolerance).slice(0, -1), ...thin(line.slice(at), tolerance)];
-}
-
-/**
- * The parts of a line chained back together wherever one ends where another starts.
- *
- * The 1:10m file cuts a boundary into many short parts, and Cesium makes one entity of each part.
- * The entities are what a frame pays for, so 45,000 parts is the cost and 10,000 lines is not.
- */
-function chain(parts) {
-  const key = ([x, y]) => `${x},${y}`;
-  const open = parts.map((p) => p.slice());
-  const out = [];
-  while (open.length > 0) {
-    let line = open.pop();
-    let grew = true;
-    while (grew) {
-      grew = false;
-      for (let i = 0; i < open.length; i++) {
-        const p = open[i];
-        if (key(p[0]) === key(line[line.length - 1])) line = [...line, ...p.slice(1)];
-        else if (key(p[p.length - 1]) === key(line[0])) line = [...p, ...line.slice(1)];
-        else if (key(p[p.length - 1]) === key(line[line.length - 1])) line = [...line, ...p.slice(0, -1).reverse()];
-        else if (key(p[0]) === key(line[0])) line = [...p.slice(1).reverse(), ...line];
-        else continue;
-        open.splice(i, 1);
-        grew = true;
-        break;
-      }
-    }
-    out.push(line);
-  }
-  return out;
-}
-
-/**
- * Natural Earth's `MIN_ZOOM` is what keeps this layer from reading as noise: all 10,178 lines at
- * once from the globe say nothing and cost frames. The hint is converted the way `minz` is, so the
- * ten bands it holds are levels 1 to 10.
- *
- * The rest of the properties go. The file carries thirty-odd `FCLASS_` columns, one per country's
- * own view of the boundary, and the layer reads none of them. Chained, thinned and stripped, the
- * 21 MB file ships as 2.5 MB.
- */
-async function regions() {
-  return {
-    type: "FeatureCollection",
-    // The 1:10m file carries a few features with no geometry at all. A line that is not there
-    // draws nothing and costs an entity.
-    features: (await features(REGIONS)).filter((f) => f.geometry !== null).map((f) => {
-      const g = f.geometry;
-      const parts = g.type === "LineString" ? [g.coordinates] : g.coordinates;
-      // Four decimal places is eleven metres, as for the names.
-      const lines = chain(parts).map((l) =>
-        thin(l, REGION_TOLERANCE).map(([x, y]) => [Number(x.toFixed(4)), Number(y.toFixed(4))]));
-      return {
-        type: "Feature",
-        properties: { minz: Math.max(0, level(f.properties.MIN_ZOOM, 3)) },
-        geometry: lines.length === 1
-          ? { type: "LineString", coordinates: lines[0] }
-          : { type: "MultiLineString", coordinates: lines },
-      };
-    }),
-  };
-}
-
 const rows = await places();
-const lines = await regions();
 mkdirSync(out, { recursive: true });
 writeFileSync(join(out, "named-places.json"), JSON.stringify(rows));
 // The boundary file travels as it stands: Cesium builds a ground polyline per LineString, and it
 // will not draw the outline of a polygon on terrain.
 cpSync(await input(BORDERS), join(out, "country-borders.geojson"));
-writeFileSync(join(out, "region-borders.geojson"), JSON.stringify(lines));
 
 const kb = (f) => `${Math.round(statSync(join(out, f)).size / 1024)} KB`;
 console.log(`wrote ${rows.length} names to ${join(out, "named-places.json")} (${kb("named-places.json")})`);
 console.log(`wrote ${join(out, "country-borders.geojson")} (${kb("country-borders.geojson")})`);
-console.log(`wrote ${lines.features.length} region lines to \
-${join(out, "region-borders.geojson")} (${kb("region-borders.geojson")})`);

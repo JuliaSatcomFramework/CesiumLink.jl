@@ -63,11 +63,6 @@ export interface Declaration {
   /** `false` takes the country borders off the globe. Absent draws them. */
   countryBorders?: boolean;
   /**
-   * `true` puts the region borders on the globe. Absent draws none — the other way round to the two
-   * fields above, because this layer is off by default and the wire states the departure from it.
-   */
-  regionBorders?: boolean;
-  /**
    * The Core's own on-screen items. Absent means the Core builds its default set, which is what a
    * session that declares no furniture shows.
    */

@@ -123,12 +123,11 @@ fallback layer (the **fallback** is what a basemap that does not build gives you
 is a different mechanism), underlay, stack.
 
 **Annotation layer**:
-Place names, country borders and region borders drawn above the **basemap**. It
-belongs to the session and not to a basemap, so it survives a pick. The picker takes
-off the imagery layers it counted, and an annotation layer is not one of those. The
-server states each part at `start_server`, and the reader switches each part from the
-**furniture**. All three data files ship inside the viewer, so the layer reaches no
-network and draws no credit.
+Place names and country borders drawn above the **basemap**. It belongs to the session
+and not to a basemap, so it survives a pick. The picker takes off the imagery layers it
+counted, and an annotation layer is not one of those. The server states each part at
+`start_server`, and the reader switches each part from the **furniture**. Both data
+files ship inside the viewer, so the layer reaches no network and draws no credit.
 _Avoid_: overlay (that is the HTML above the canvas, which carries the credit, the
 **furniture** and the **floats**), label layer.
 
@@ -148,17 +147,6 @@ in a worker that can fail for good. The server states them apart from the **name
 border is a political claim and a reader may want the names without one.
 _Avoid_: boundaries (that is the footprint outline an `Areas` value draws, which
 belongs to the `primitives` **payload vocabulary**).
-
-**Region borders**:
-The boundary lines between the regions inside a country the **annotation layer**
-draws. They are the only part of that layer a session must ask for, because a region
-line is a second political claim on top of the **country borders**. They draw only
-while the country borders draw, and each line states the camera height that starts
-it, so the globe carries none of them.
-_Avoid_: regions on its own (that is the block of array bytes behind a frame header,
-and the overlay corner a **furniture** group travels into), states, provinces,
-boundaries (that is the footprint outline an `Areas` value draws, which belongs to
-the `primitives` **payload vocabulary**).
 
 **Context object**:
 The single options-bag argument the Core passes into a module's `setup`

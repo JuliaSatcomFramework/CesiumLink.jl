@@ -12,12 +12,12 @@ it off.
 
 ## Decision
 
-**The viewer draws three annotation layers above the basemap: place names, country borders and
-region borders. The session owns them, not the pick.**
+**The viewer draws two annotation layers above the basemap: place names and country borders. The
+session owns them, not the pick.**
 
-All three are ordinary Cesium objects rather than imagery: the names are a `LabelCollection` on
-`scene.primitives`, the two sets of borders a `GeoJsonDataSource` each on `widget.dataSources`. The
-Core adds them once, when it builds the scene.
+Both are ordinary Cesium objects rather than imagery: the names are a `LabelCollection` on
+`scene.primitives`, the borders a `GeoJsonDataSource` on `widget.dataSources`. The Core adds them
+once, when it builds the scene.
 
 **The picker cannot take them off, by construction.** It removes the base layers it counted from the
 entry that is on the globe, and it counts imagery layers. An annotation layer is not an imagery
@@ -27,26 +27,6 @@ has to be remembered by whoever changes it next.
 **The names and the country borders are independent.** Either may be off while the other is on. A
 reader who wants the borders without the names, or the names without the borders, gets both answers
 from two flags.
-
-**The region borders are the exception, twice over.** They are off unless a session asks, where the
-other two are on unless a session refuses. And they draw only while the country borders draw, so the
-reader never meets a state where a province edge is drawn and the country edge around it is not. A
-region line is a second political claim on top of the country line: a reader who wants no claims
-meets none, and a session that says nothing pays no frames for them.
-
-The layer also pages, for the reason the names do. Natural Earth's `MIN_ZOOM` says how deep each of
-the 10,178 lines belongs, and the generator writes that as the `minz` the names already carry. The
-viewer rebuilds the data source from the lines the camera's level reaches, and rebuilds it again
-only when the level crosses into another band, of which the file holds ten. Hiding an entity is
-not enough here either: a hidden polyline is still a polyline, and the polylines are the expensive
-half of drawing this.
-
-The region lines are the 1:10m file, where the country lines are 1:50m, because the 1:50m regions
-file covers a dozen large countries and no other: Italy has no line in it. The 1:10m file cuts each
-boundary into many short parts and Cesium makes an entity of each, so the generator chains the parts
-back into lines and thins the vertices to a spacing between the two scales. That takes the file from
-45,000 entities and 10 MB to 10,000 entities and 2.5 MB, and the frame cost from double to close to
-none.
 
 **They carry no credit and open no origin.** Every file ships inside the viewer, so nothing reaches
 the network. The data is Natural Earth, which is public domain. ADR-0034's rule stands unamended:

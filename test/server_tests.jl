@@ -1071,11 +1071,6 @@ end
     @test !haskey(declared(; named_places = false), "countryBorders")
     @test declared(; country_borders = false)["countryBorders"] == false
     @test !haskey(declared(; country_borders = false), "namedPlaces")
-    # The region lines are the one layer that is off by default, so the wire carries them only when
-    # the session asks. A reader who wants no political claim on the globe meets none.
-    @test !haskey(declared(), "regionBorders")
-    @test declared(; region_borders = true)["regionBorders"] == true
-    @test !haskey(declared(; region_borders = true), "countryBorders")
 end
 
 @testitem "core/stop stops the server, and no listener can refuse it" setup=[FreePort, WsOpen] begin
