@@ -31,10 +31,13 @@ Cesium reads the template out of `tilemapresource.xml`. An XYZ pyramid declares 
 
 `name` is the label in the picker. A set of one draws no picker, so a lone basemap needs none.
 
-`tiling` is the projection an XYZ pyramid is cut in. `:mercator` is the default, because that is
-what `{z}/{x}/{y}` means on the web and what the ready-made Moon and Mars basemaps use;
-`:geographic` states the other one. A TMS directory carries its scheme in `tilemapresource.xml`, so
-`:geographic` given with one warns and is dropped.
+`tiling` is the grid an XYZ pyramid is cut on, and it takes one of three values. `:mercator` is the
+default, because that is what `{z}/{x}/{y}` means on the web and what the ready-made Moon and Mars
+basemaps use. `:geographic` states the other common one, which is 256 pixel tiles on a level 0 of
+two columns by one row. `:gibs_geographic` states the EPSG:4326 grid NASA GIBS publishes: 512 pixel
+tiles, a level 0 of two columns by one row, then 3 by 2, 5 by 3, 10 by 5, and a doubling per level
+below that. A TMS directory carries its scheme in `tilemapresource.xml`, so a `tiling` given with
+one warns and is dropped.
 
 `max_level` is the deepest level the source holds. The server probes it from an XYZ directory, so
 give it for a URL alone — a remote host cannot be probed, and an unset maximum asks a deep zoom for
@@ -82,8 +85,9 @@ struct Imagery
     function Imagery(url, name, tiling, max_level, credit, backing, border_color, border_width,
                      bundled)
         t = Symbol(tiling)
-        t in (:mercator, :geographic) ||
-            throw(ArgumentError("`tiling` is `:mercator` or `:geographic` (got $(repr(tiling)))"))
+        t in (:mercator, :geographic, :gibs_geographic) ||
+            throw(ArgumentError("`tiling` is `:mercator`, `:geographic` or `:gibs_geographic` " *
+                                "(got $(repr(tiling)))"))
         max_level === nothing || max_level > 0 ||
             throw(ArgumentError("`max_level` is the deepest level of the pyramid, so it is a " *
                                 "positive integer (got $(repr(max_level)))"))
@@ -132,11 +136,14 @@ of Earth, so none belongs in a session on another body.
 | Key | What the globe wears | Deepest level | Border |
 |---|---|---|---|
 | `offline_natural_earth` | the pyramid inside the viewer, which reaches no network | 2 | dark grey |
-| `aster_colour_relief` | ASTER shaded relief from NASA GIBS, in colour | 12 | dark grey |
-| `aster_grey_relief` | ASTER shaded relief from NASA GIBS, in grey | 12 | black |
+| `aster_colour_relief` | ASTER shaded relief from NASA GIBS, in colour | 11 | dark grey |
+| `aster_grey_relief` | ASTER shaded relief from NASA GIBS, in grey | 11 | black |
 | `emodnet_baselayer` | EMODnet Bathymetry, with sea-floor relief | 15 | dark grey |
-| `blue_marble` | Blue Marble from NASA GIBS, with sea-floor colour | 8 | white |
-| `blue_marble_relief` | Blue Marble from NASA GIBS, land relief only | 8 | white |
+| `blue_marble` | Blue Marble from NASA GIBS, with sea-floor colour | 7 | white |
+| `blue_marble_relief` | Blue Marble from NASA GIBS, land relief only | 7 | white |
+
+Every online entry draws to both poles. The five are cut on a geographic grid, which covers the
+whole globe, so the backing under them shows only while a host is unreachable.
 
 Pick the ones you want by name. This is a `NamedTuple` and not a list to filter, because a filter
 selects by name string. Rename a basemap in a later release, and the filter matches nothing and
@@ -156,22 +163,28 @@ Each value carries the attribution its source asks for.
 const KNOWN_EARTH_BASEMAPS = (;
     offline_natural_earth = Imagery(; name = "Natural Earth", bundled = true,
                                     border_color = "#3a3a3ab3"),
-    # The two ASTER reliefs are drawn maps of the land and reach level 12, deeper than any
-    # photograph GIBS serves. Neither carries sea-floor colour: the ocean is one flat blue.
+    # The four GIBS entries are declared on the EPSG:4326 endpoint, on the `gibs_geographic` grid.
+    # It draws to both poles, where the Web Mercator endpoint stops at 85.0511 degrees and leaves
+    # the backing showing as a disc. It is also finer per level: ASTER is 30.5 metres per pixel at
+    # level 11, against 38.2 at Mercator level 12.
+    #
+    # Their path order is `{z}/{y}/{x}`, where the EMODnet entry is `{z}/{x}/{y}`: a WMTS REST path
+    # names the tile row before the tile column. A template reaches the browser as it stands, so a
+    # swapped pair draws a scrambled globe rather than an error.
+    #
+    # The two ASTER reliefs are drawn maps of the land and reach 30.5 metres per pixel, finer than
+    # any photograph GIBS serves. Neither carries sea-floor colour: the ocean is one flat blue.
     aster_colour_relief = Imagery(
-        "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/ASTER_GDEM_Color_Shaded_Relief/\
-         default/GoogleMapsCompatible_Level12/{z}/{y}/{x}.jpeg";
-        name = "ASTER Colour Relief", max_level = 12, backing = true,
+        "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/ASTER_GDEM_Color_Shaded_Relief/\
+         default/default/31.25m/{z}/{y}/{x}.jpeg";
+        name = "ASTER Colour Relief", tiling = :gibs_geographic, max_level = 11, backing = true,
         credit = "NASA EOSDIS GIBS", border_color = "#3a3a3ab3"),
     aster_grey_relief = Imagery(
-        "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/ASTER_GDEM_Greyscale_Shaded_Relief/\
-         default/GoogleMapsCompatible_Level12/{z}/{y}/{x}.jpeg";
-        name = "ASTER Grey Relief", max_level = 12, backing = true,
+        "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/ASTER_GDEM_Greyscale_Shaded_Relief/\
+         default/default/31.25m/{z}/{y}/{x}.jpeg";
+        name = "ASTER Grey Relief", tiling = :gibs_geographic, max_level = 11, backing = true,
         credit = "NASA EOSDIS GIBS", border_color = "#0000008c"),
-    # The one entry on a host other than GIBS. Its path order is `{z}/{x}/{y}`, where the GIBS
-    # entries are `{z}/{y}/{x}`: a WMTS REST path names the tile row before the tile column. A
-    # template reaches the browser as it stands, so a swapped pair draws a scrambled globe rather
-    # than an error.
+    # The one entry on a host other than GIBS, and the one whose path order is `{z}/{x}/{y}`.
     #
     # EMODnet publishes the same layer on five tile matrix sets, and `inspire_quad` is the
     # EPSG:4326 one. It is Cesium's `GeographicTilingScheme` exactly: 256 pixel tiles, a level 0 of
@@ -182,14 +195,14 @@ const KNOWN_EARTH_BASEMAPS = (;
         name = "EMODnet Baselayer", tiling = :geographic, max_level = 15, backing = true,
         credit = "EMODnet Bathymetry (CC BY 4.0)", border_color = "#3a3a3ab3"),
     blue_marble = Imagery(
-        "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_ShadedRelief_Bathymetry/\
-         default/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpeg";
-        name = "Blue Marble", max_level = 8, backing = true,
+        "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/BlueMarble_ShadedRelief_Bathymetry/\
+         default/default/500m/{z}/{y}/{x}.jpeg";
+        name = "Blue Marble", tiling = :gibs_geographic, max_level = 7, backing = true,
         credit = "NASA EOSDIS GIBS", border_color = "#ffffff8c"),
     blue_marble_relief = Imagery(
-        "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_ShadedRelief/\
-         default/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpeg";
-        name = "Blue Marble Relief", max_level = 8, backing = true,
+        "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/BlueMarble_ShadedRelief/\
+         default/default/500m/{z}/{y}/{x}.jpeg";
+        name = "Blue Marble Relief", tiling = :gibs_geographic, max_level = 7, backing = true,
         credit = "NASA EOSDIS GIBS", border_color = "#ffffff8c"),
 )
 
@@ -271,11 +284,15 @@ function resolve_assets(assets)
     return dirs
 end
 
+# The spelling of a tiling scheme on the wire. A Julia symbol joins two words with an underscore,
+# and the wire joins them with a hyphen, as `gibs-geographic`.
+wire_tiling(tiling::Symbol) = replace(String(tiling), '_' => '-')
+
 # The declaration for a source that is not on disk. It is declared as it stands and never fetched:
 # there is no network call at `start_server`, and a URL that answers nothing is found by the
 # browser, which says so and falls back to the bundled texture.
 function url_declaration(im::Imagery)
-    d = (; im.url, layout = "xyz", tiling = String(im.tiling))
+    d = (; im.url, layout = "xyz", tiling = wire_tiling(im.tiling))
     im.max_level === nothing || (d = (; d..., maxLevel = im.max_level))
     return with_common(d, im)
 end
@@ -333,7 +350,7 @@ function dir_declaration(im::Imagery)
             @warn "`tilemapresource.xml` decides the tiling scheme of a TMS directory, so the \
                 declared one is dropped" dir tiling = im.tiling
     else
-        d = (; d..., tiling = String(im.tiling),
+        d = (; d..., tiling = wire_tiling(im.tiling),
              maxLevel = im.max_level === nothing ? maximum(levels) : im.max_level)
     end
     return (with_common(d, im), dir)

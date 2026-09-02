@@ -5,7 +5,8 @@
 # the directory rather than by an argument.
 
 @testitem "an Imagery refuses what the viewer could not draw" begin
-    @test_throws "`tiling` is `:mercator` or `:geographic`" Imagery("u"; tiling = :web)
+    @test_throws "`tiling` is `:mercator`, `:geographic` or `:gibs_geographic`" Imagery(
+        "u"; tiling = :web)
     # Level 0 is the whole globe in one tile, so a maximum of 0 asks for a pyramid with nothing
     # under its top. A negative one names no level at all.
     @test_throws "positive integer" Imagery("u"; max_level = 0)
@@ -13,6 +14,9 @@
 
     im = Imagery("u"; tiling = :geographic, max_level = 7, credit = "USGS")
     @test (im.url, im.tiling, im.max_level, im.credit) == ("u", :geographic, 7, "USGS")
+    # The three grids the viewer can build, and each of them by name.
+    @test [Imagery("u"; tiling).tiling for tiling in (:mercator, :geographic, :gibs_geographic)] ==
+          [:mercator, :geographic, :gibs_geographic]
     @test (Imagery("u").tiling, Imagery("u").max_level, Imagery("u").credit) ==
           (:mercator, nothing, nothing)
     # The easy case is one string, and it reaches everything that takes an `Imagery`.
@@ -87,6 +91,19 @@ end
     # rather than an error.
     @test all(endswith("{z}/{y}/{x}.jpeg"), (KNOWN_EARTH_BASEMAPS.aster_colour_relief.url,
                                              KNOWN_EARTH_BASEMAPS.aster_grey_relief.url))
+    # The four GIBS entries are on the EPSG:4326 endpoint, which reaches both poles, and each of
+    # them names the tile matrix set its layer is published on. The grid is NASA's own, so a
+    # Cesium geographic scheme would place every tile wrong.
+    gibs = (KNOWN_EARTH_BASEMAPS.aster_colour_relief, KNOWN_EARTH_BASEMAPS.aster_grey_relief,
+            KNOWN_EARTH_BASEMAPS.blue_marble, KNOWN_EARTH_BASEMAPS.blue_marble_relief)
+    @test all(im -> occursin("/wmts/epsg4326/best/", im.url), gibs)
+    @test all(im -> im.tiling === :gibs_geographic, gibs)
+    @test [im.max_level for im in gibs] == [11, 11, 7, 7]
+    @test occursin("/default/default/31.25m/", KNOWN_EARTH_BASEMAPS.aster_colour_relief.url)
+    @test occursin("/default/default/500m/", KNOWN_EARTH_BASEMAPS.blue_marble.url)
+    # A backing answers a host that stopped answering. It stays on every online entry, and once
+    # the caps are gone it never draws in normal use.
+    @test all(im -> im.backing, gibs)
     @test endswith(KNOWN_EARTH_BASEMAPS.emodnet_baselayer.url, "{z}/{x}/{y}.png")
     # EMODnet is declared on its EPSG:4326 tile matrix set, which reaches both poles. A Web
     # Mercator set stops at 85.0511 degrees and leaves the backing showing as a disc there.
@@ -172,6 +189,11 @@ end
                                               credit = "USGS"))
     @test only(d) == (; url = template, layout = "xyz", tiling = "geographic", maxLevel = 7,
                       credit = "USGS", borderColor = "#ffffff8c", borderWidth = 2.0)
+
+    # A Julia symbol joins two words with an underscore, and the wire joins them with a hyphen.
+    d, _ = CesiumLink.resolve_imagery(Imagery(template; tiling = :gibs_geographic, max_level = 11))
+    @test only(d) == (; url = template, layout = "xyz", tiling = "gibs-geographic", maxLevel = 11,
+                      borderColor = "#ffffff8c", borderWidth = 2.0)
 
     # A set keeps the order the author gave it, because entry 1 is what the globe wears at startup.
     d, _ = CesiumLink.resolve_imagery([KNOWN_EARTH_BASEMAPS.blue_marble_relief,

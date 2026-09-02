@@ -11,6 +11,7 @@ import {
   WebMercatorTilingScheme,
 } from "@cesium/engine";
 import { addAnnotations } from "./annotations";
+import { GIBS_TILE_PIXELS, GibsGeographicTilingScheme } from "./gibs-tiling";
 // The layers `createScene` adds are reached from the widget it answers with, so the lookup that
 // does it belongs beside the builder as well as in the package's own surface.
 export { annotationsOf } from "./annotations";
@@ -32,8 +33,12 @@ export interface ImagerySpec {
    * the bundled entry, which names no URL to lay out.
    */
   layout?: "tms" | "xyz";
-  /** XYZ only. `"mercator"` is what `{z}/{x}/{y}` means on the web, and is the default. */
-  tiling?: "geographic" | "mercator";
+  /**
+   * XYZ only. `"mercator"` is what `{z}/{x}/{y}` means on the web, and is the default.
+   * `"gibs-geographic"` is the EPSG:4326 grid NASA GIBS publishes, whose tile counts per level and
+   * 512 pixel tiles are its own (`GibsGeographicTilingScheme`).
+   */
+  tiling?: "geographic" | "gibs-geographic" | "mercator";
   /** XYZ only. The deepest level the source holds. Absent means Cesium asks for any level. */
   maxLevel?: number;
   /**
@@ -237,6 +242,17 @@ function buildProvider(
   if (spec.layout === "tms") {
     // The pyramid states its own tiling scheme and depth in `tilemapresource.xml`.
     return TileMapServiceImageryProvider.fromUrl(spec.url, { ellipsoid });
+  }
+  // The GIBS grid states a tile size of its own, and a scheme carries no tile size. The other two
+  // schemes take Cesium's own 256 pixel default, which is what a `{z}/{x}/{y}` tile is on the web.
+  if (spec.tiling === "gibs-geographic") {
+    return new UrlTemplateImageryProvider({
+      url: spec.url,
+      tilingScheme: new GibsGeographicTilingScheme({ ellipsoid }),
+      tileWidth: GIBS_TILE_PIXELS,
+      tileHeight: GIBS_TILE_PIXELS,
+      maximumLevel: spec.maxLevel,
+    });
   }
   const tilingScheme = spec.tiling === "geographic"
     ? new GeographicTilingScheme({ ellipsoid })

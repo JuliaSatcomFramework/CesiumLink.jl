@@ -38,6 +38,15 @@ needs no threshold: Cesium walks a failed tile up to a ready ancestor, finds non
 layer below (`TileImagery.js`). Mid-session network loss heals itself, and coming back heals itself
 too.
 
+**Every online basemap in the catalogue is cut on a geographic grid, so a basemap backing draws
+only while a host is dead.** A Web Mercator source stops at 85.0511 degrees. Above that latitude it
+holds no tile at all, so the backing under it shows through as a disc at each pole, on every session
+and whatever the network does. A geographic grid covers the whole globe. The five online catalogue
+entries therefore name a geographic endpoint each: EMODnet on its `inspire_quad` tile matrix set,
+and the four GIBS layers on `epsg4326`. The GIBS grid is NASA's own, so the viewer carries a
+tiling scheme for it (`tiling = :gibs_geographic`). A backing is then the answer to a host that
+stopped answering, and nothing else.
+
 **A basemap backing is the bundled Earth texture and nothing else.** `backing = true` on a session whose
 ellipsoid is not Earth throws at `start_server`. ADR-0020 named the failure this prevents — a Moon
 scene quietly wearing Earth's face is a picture that lies — and here it is cheap to make impossible,

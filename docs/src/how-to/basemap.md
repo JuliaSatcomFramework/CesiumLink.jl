@@ -34,15 +34,18 @@ attribution its source asks for, so a session that declares one also credits it.
 | Key | What the globe wears | Deepest level | Credit drawn | Border |
 |:--|:--|:--|:--|:--|
 | `offline_natural_earth` | the pyramid inside the viewer, which reaches no network | 2 | none, the texture is public domain | dark grey |
-| `aster_colour_relief` | ASTER shaded relief from NASA GIBS, in colour | 12 | `NASA EOSDIS GIBS` | dark grey |
-| `aster_grey_relief` | ASTER shaded relief from NASA GIBS, in grey | 12 | `NASA EOSDIS GIBS` | black |
+| `aster_colour_relief` | ASTER shaded relief from NASA GIBS, in colour | 11 | `NASA EOSDIS GIBS` | dark grey |
+| `aster_grey_relief` | ASTER shaded relief from NASA GIBS, in grey | 11 | `NASA EOSDIS GIBS` | black |
 | `emodnet_baselayer` | EMODnet Bathymetry, with sea-floor relief | 15 | `EMODnet Bathymetry (CC BY 4.0)` | dark grey |
-| `blue_marble` | Blue Marble from NASA GIBS, with sea-floor colour | 8 | `NASA EOSDIS GIBS` | white |
-| `blue_marble_relief` | Blue Marble from NASA GIBS, land relief only | 8 | `NASA EOSDIS GIBS` | white |
+| `blue_marble` | Blue Marble from NASA GIBS, with sea-floor colour | 7 | `NASA EOSDIS GIBS` | white |
+| `blue_marble_relief` | Blue Marble from NASA GIBS, land relief only | 7 | `NASA EOSDIS GIBS` | white |
 
 The two ASTER reliefs draw the land only. Their ocean is one flat blue and carries no sea-floor
 colour. `emodnet_baselayer` draws the sea floor, and it is the one entry served from a host other
 than NASA GIBS.
+
+The five online entries are cut on a geographic grid, so each of them draws to both poles. Each
+names a basemap backing as well, and the backing shows only while its host is unreachable.
 
 Every one of them is of Earth. None belongs in a session on another body.
 
@@ -189,12 +192,20 @@ start_server(; imagery = "https://host/tiles/{z}/{x}/{y}.png")
 Nothing is fetched here. The server declares the template as it stands, and the browser asks for the
 tiles.
 
-`tiling` is the projection the pyramid is cut in. Leave it alone for a basemap published on the web:
-`{z}/{x}/{y}` means Web Mercator, the default. Set it for a pyramid cut the other way:
+`tiling` is the grid the pyramid is cut on. Leave it alone for a basemap published on the web:
+`{z}/{x}/{y}` means Web Mercator, the default. Set it for a pyramid cut another way:
 
 ```julia
 start_server(; imagery = Imagery(url; tiling = :geographic))
 ```
+
+It takes one of three values:
+
+- `:mercator`, the default. Web Mercator, which stops at 85.0511 degrees and draws no pole.
+- `:geographic`. 256 pixel tiles, a level 0 of two columns by one row, and a doubling per level.
+- `:gibs_geographic`. The EPSG:4326 grid NASA GIBS publishes: 512 pixel tiles, a level 0 of two
+  columns by one row, then 3 by 2, 5 by 3, 10 by 5, and a doubling per level below that. Use it for
+  a layer served from `gibs.earthdata.nasa.gov/wmts/epsg4326/`.
 
 A basemap in the wrong projection still draws. It is stretched towards the poles and the coordinates
 you send land on the wrong part of it, so check the shape of a coastline before you trust a pin.

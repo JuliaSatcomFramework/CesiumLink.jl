@@ -140,14 +140,14 @@ end
     server = start_server(; dist_dir = nothing, host = "::1", port = freeport())
     try
         @test server.trusted_origins ==
-              ["https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/ASTER_GDEM_Color_Shaded_Relief/\
-                default/GoogleMapsCompatible_Level12/",
-               "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/ASTER_GDEM_Greyscale_Shaded_Relief/\
-                default/GoogleMapsCompatible_Level12/",
-               "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_ShadedRelief_Bathymetry/\
-                default/GoogleMapsCompatible_Level8/",
-               "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_ShadedRelief/\
-                default/GoogleMapsCompatible_Level8/",
+              ["https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/ASTER_GDEM_Color_Shaded_Relief/\
+                default/default/31.25m/",
+               "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/ASTER_GDEM_Greyscale_Shaded_Relief/\
+                default/default/31.25m/",
+               "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/BlueMarble_ShadedRelief_Bathymetry/\
+                default/default/500m/",
+               "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/BlueMarble_ShadedRelief/\
+                default/default/500m/",
                "https://tiles.emodnet-bathymetry.eu/2020/baselayer/inspire_quad/"]
     finally
         stop_server(server)
@@ -160,8 +160,8 @@ end
                                      KNOWN_EARTH_BASEMAPS.emodnet_baselayer])
     try
         @test server.trusted_origins ==
-              ["https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/ASTER_GDEM_Color_Shaded_Relief/\
-                default/GoogleMapsCompatible_Level12/",
+              ["https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/ASTER_GDEM_Color_Shaded_Relief/\
+                default/default/31.25m/",
                "https://tiles.emodnet-bathymetry.eu/2020/baselayer/inspire_quad/"]
     finally
         stop_server(server)
@@ -211,18 +211,18 @@ end
                     # after it.
                     @test entry["trustedOrigins"] ==
                           ["https://cdn.example",
-                           "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/\
+                           "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/\
                             ASTER_GDEM_Color_Shaded_Relief/default/\
-                            GoogleMapsCompatible_Level12/",
-                           "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/\
+                            default/31.25m/",
+                           "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/\
                             ASTER_GDEM_Greyscale_Shaded_Relief/default/\
-                            GoogleMapsCompatible_Level12/",
-                           "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/\
+                            default/31.25m/",
+                           "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/\
                             BlueMarble_ShadedRelief_Bathymetry/default/\
-                            GoogleMapsCompatible_Level8/",
-                           "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/\
+                            default/500m/",
+                           "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/\
                             BlueMarble_ShadedRelief/default/\
-                            GoogleMapsCompatible_Level8/",
+                            default/500m/",
                            "https://tiles.emodnet-bathymetry.eu/2020/baselayer/inspire_quad/"]
                 finally
                     stop_server(server)

@@ -132,7 +132,7 @@ The session declaration. Sent once per connection, before anything else, and ret
     "assets": { "models": "assets/models/", "imagery": "assets/imagery/" },
     "imagery": [
       { "url": "https://gibs.earthdata.nasa.gov/…/{z}/{y}/{x}.jpeg", "layout": "xyz",
-        "tiling": "mercator", "maxLevel": 8, "name": "Blue Marble",
+        "tiling": "gibs-geographic", "maxLevel": 7, "name": "Blue Marble",
         "key": "blue_marble", "credit": "NASA EOSDIS GIBS", "backing": true,
         "borderColor": "#ffffff8c", "borderWidth": 2.0 },
       { "bundled": true, "name": "Natural Earth", "key": "offline_natural_earth",
@@ -167,6 +167,13 @@ The session declaration. Sent once per connection, before anything else, and ret
 - An entry of `imagery` names one source as `url`, `layout` (`"xyz"` or `"tms"`) and `tiling`, and
   optionally `maxLevel`, `name`, `credit`, `key`, `backing`, `borderColor` and `borderWidth`. A
   `bundled` entry names none of the first three.
+  - `tiling` is the grid an XYZ pyramid is cut on: `"mercator"`, `"geographic"` or
+    `"gibs-geographic"`. `"mercator"` is what `{z}/{x}/{y}` means on the web, and it is what an
+    absent field means. `"geographic"` is 256 pixel tiles on a level 0 of two columns by one row,
+    doubling per level. `"gibs-geographic"` is the EPSG:4326 grid NASA GIBS publishes: 512 pixel
+    tiles, a level 0 of two columns by one row, then 3 by 2, 5 by 3, 10 by 5, and a doubling per
+    level below that. A `"tms"` entry states its grid in `tilemapresource.xml`, so it carries no
+    `tiling`.
   - `name` is the label the picker shows. `credit` is the attribution drawn over the globe while
     this entry is the one on screen. It is HTML, and the viewer sanitizes it before it draws it.
   - `key` names the catalogue basemap the entry is, such as `"blue_marble"`. The viewer draws its
