@@ -206,6 +206,14 @@ module registered. Operating one reports the user's input and changes nothing
 locally; the server answers with a replacement window. A widget always shows the
 *declared* value, so a control the server refused to apply snaps back.
 
+**Addressed box**:
+An overlay row, a group box, or a **float** that carries a **name**. That name is the
+address both a `ui/pointer` event and a keyframed **window** entry use. A box without
+one raises no pointer event, and no window entry reaches it. A **Control** is an
+addressed box that also holds a declared value and reports the user's input. A title
+with a name is an addressed box and nothing more.
+_Avoid_: box on its own (a group and a float are both boxes), element, node.
+
 **Furniture**:
 An item the Core puts on screen itself — the timeline ruler, the animation clock,
 the keyframe readout, the scene-mode picker, the fullscreen, home and projection
