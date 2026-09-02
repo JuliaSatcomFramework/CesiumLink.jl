@@ -18,7 +18,7 @@ using ..CesiumLink: rgba8, to_wire_index
 using ColorTypes: Colorant
 using Base64: base64encode
 
-export Nodes, Edges, Areas, primitives_payload, marker_image
+export Nodes, Edges, Areas, Label, primitives_payload, marker_image
 
 # One file per family, over the knob helpers all three share. `knobs.jl` comes first because every
 # family calls it, and `payload.jl` last because it names all three families.

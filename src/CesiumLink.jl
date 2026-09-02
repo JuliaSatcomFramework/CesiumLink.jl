@@ -70,7 +70,7 @@ export on_event, on_pointer, on_ui_pointer, off_event, command!, tooltip!, Comma
 export serve_scene!, install_scene!
 export AbstractControl, Title, Legend, Toggle, Select, Group, declare_overlay
 export Floating, Screen, Entity, World, declare_floating
-export Nodes, Edges, Areas, primitives_payload, marker_image, rgba, vendored, viewer_dist
+export Nodes, Edges, Areas, Label, primitives_payload, marker_image, rgba, vendored, viewer_dist
 export Models, models_payload
 export Raster, rgba_grid, heatmap_index, heatmap_payload
 export record!, stop_recording!, replay

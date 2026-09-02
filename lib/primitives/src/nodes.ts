@@ -8,12 +8,38 @@
 import type {
   BillboardCollection, Cartesian3, Color, LabelCollection, NearFarScalar, Scene,
 } from "@cesium/engine";
-import type { NdArray } from "../../core/src/codec.ts";
+import { isNdArray, type NdArray } from "../../core/src/codec.ts";
 import type { WindowInfo } from "../../core/src/windows.ts";
 import { at, knob, type Knob, type Slice } from "./knobs.ts";
-import { colorOf, WHITE, type CesiumRuntime } from "./paint.ts";
+import { BLACK, colorOf, WHITE, type CesiumRuntime } from "./paint.ts";
 import type { Placement, Timeline } from "../../core/src/windows.ts";
 import { markerSprite } from "./sprites.ts";
+
+/** Where a label sits against the point the family draws it at. */
+export type HorizontalAlign = "left" | "center" | "right";
+export type VerticalAlign = "top" | "center" | "bottom" | "baseline";
+
+/** The look one family draws its labels with. Every field an author leaves out keeps the default. */
+export interface LabelSpec {
+  /** One label per entity. */
+  text: string[];
+  /** `[horizontal, vertical]`: which point of the text the offset is measured from. */
+  align?: [HorizontalAlign, VerticalAlign];
+  /** `[x, y]` pixels from the node, y growing downward. */
+  offset?: number[];
+  /** A CSS font string. */
+  font?: string;
+  /** The text colour, in the forms a node colour takes. The outline stays black. */
+  color?: unknown;
+  /** The colour of a box drawn behind the text. No colour draws no box. */
+  background?: unknown;
+  /** `[near_m, near_scale, far_m, far_scale]`. */
+  scaleByDistance?: number[];
+  /** `[near_m, near_alpha, far_m, far_alpha]`. */
+  fadeByDistance?: number[];
+  /** `[near_m, far_m]`: the camera range the label is drawn over. */
+  showBetween?: number[];
+}
 
 /** A node family as Julia sends it. */
 export interface NodeSpec {
@@ -26,8 +52,8 @@ export interface NodeSpec {
   /** What to draw each entity with: a stock glyph name, an `assets/<mount>/<file>` path, a
    *  `data:` URI, or the owner-namespaced name of a sprite a peer module registered. */
   marker?: string;
-  /** One label per entity, drawn beside the marker. */
-  label?: string[];
+  /** One label per entity, drawn beside the marker: plain texts, or texts with a style. */
+  label?: string[] | LabelSpec;
   /** `[near_m, near_scale, far_m, far_scale]`: markers stay legible close up and shrink far out. */
   scaleByDistance?: number[];
 }
@@ -41,6 +67,47 @@ interface NodeWindow {
 }
 
 const DEFAULT_SIZE = 10;
+/** The default look, which a family that sends plain texts draws with. */
+const DEFAULT_LABEL_FONT = "13px sans-serif";
+const DEFAULT_LABEL_OFFSET: readonly number[] = [0, -14];
+
+/** What a family's `label` asks for, as one style. An array of texts means the default look. */
+const labelStyle = (label: string[] | LabelSpec | undefined): LabelSpec | null =>
+  label === undefined ? null : Array.isArray(label) ? { text: label } : label;
+
+/** A style colour, read through the reader a node colour uses, so both take the same forms. */
+const styleColor = (raw: unknown, n: number, what: string): Slice | null =>
+  knob(raw, { itemLen: 4, n, count: 1, what })?.frame(0) ?? null;
+
+/** A colour's part of the family signature, in whichever form it arrived. */
+const colorKey = (raw: unknown): string =>
+  isNdArray(raw) ? Array.from(raw.data).join(",") : String(raw ?? "");
+
+/** The texts and every style field, so a restyled family rebuilds its labels. */
+const labelSignature = (style: LabelSpec | null): string =>
+  style === null ? "" : [
+    style.text.join("\u0000"), style.align ?? "", style.offset ?? "", style.font ?? "",
+    colorKey(style.color), colorKey(style.background), style.scaleByDistance ?? "",
+    style.fadeByDistance ?? "", style.showBetween ?? "",
+  ].join("\u0001");
+
+/** A `[near_m, near_value, far_m, far_value]` range, or nothing where none was named. */
+const nearFar = (C: CesiumRuntime, range?: number[]): NearFarScalar | undefined =>
+  range && range.length === 4
+    ? new C.NearFarScalar(range[0], range[1], range[2], range[3])
+    : undefined;
+
+/** Cesium's origin for one alignment name, falling back to the default look's own. */
+const horizontalOrigin = (C: CesiumRuntime, name?: HorizontalAlign) =>
+  name === "center" ? C.HorizontalOrigin.CENTER :
+  name === "right" ? C.HorizontalOrigin.RIGHT :
+  C.HorizontalOrigin.LEFT;
+
+const verticalOrigin = (C: CesiumRuntime, name?: VerticalAlign) =>
+  name === "top" ? C.VerticalOrigin.TOP :
+  name === "center" ? C.VerticalOrigin.CENTER :
+  name === "baseline" ? C.VerticalOrigin.BASELINE :
+  C.VerticalOrigin.BOTTOM;
 
 /** One node family: the billboards, their live positions, and what each window said about them. */
 export class NodeFamily {
@@ -90,13 +157,13 @@ export class NodeFamily {
     // The billboards themselves depend only on the family's shape: how many entities, which glyph,
     // and what each is labelled. Everything else is an attribute write on standing primitives.
     const marker = spec.marker ?? "disc";
-    const signature = `${n}|${marker}|${spec.scaleByDistance ?? []}|${
-      (spec.label ?? []).join("\u0000")}`;
+    const label = labelStyle(spec.label);
+    const signature = `${n}|${marker}|${spec.scaleByDistance ?? []}|${labelSignature(label)}`;
     if (signature !== this.built) {
       // Sizes from this window's first keyframe, which is what the marker is born at. A billboard
       // built at one size and written to another draws right either way, but an SVG marker is
       // rasterized once, at the size it was born with — see `build`.
-      this.build(n, marker, spec.label, spec.scaleByDistance, w.size?.frame(0) ?? null);
+      this.build(n, marker, label, spec.scaleByDistance, w.size?.frame(0) ?? null);
       this.built = signature;
     }
     this.n = n;
@@ -117,14 +184,12 @@ export class NodeFamily {
    * and `scaleByDistance` drawing the marker larger than its base size close up. Give such a family
    * a raster image instead.
    */
-  private build(n: number, marker: string, labels?: string[], scaleByDistance?: number[],
+  private build(n: number, marker: string, label: LabelSpec | null, scaleByDistance?: number[],
                 size: Slice | null = null): void {
     const { C, scene } = this;
     this.destroyPrimitives();
     this.positions.length = 0;
-    this.scale = scaleByDistance && scaleByDistance.length === 4
-      ? new C.NearFarScalar(scaleByDistance[0], scaleByDistance[1], scaleByDistance[2], scaleByDistance[3])
-      : undefined;
+    this.scale = nearFar(C, scaleByDistance);
     const billboards = scene.primitives.add(new C.BillboardCollection({ scene })) as BillboardCollection;
     const image = markerSprite(marker, this.assetUrl);
     for (let i = 0; i < n; i++) {
@@ -145,23 +210,54 @@ export class NodeFamily {
       });
     }
     this.billboards = billboards;
-    if (labels && labels.length) {
-      const collection = scene.primitives.add(new C.LabelCollection({ scene })) as LabelCollection;
-      for (let i = 0; i < n; i++) {
-        collection.add({
-          position: this.positions[i],
-          text: labels[i] ?? "",
-          font: "13px sans-serif",
-          fillColor: C.Color.WHITE,
-          outlineColor: C.Color.BLACK,
-          outlineWidth: 2,
-          style: C.LabelStyle.FILL_AND_OUTLINE,
-          pixelOffset: new C.Cartesian2(0, -14),
-          verticalOrigin: C.VerticalOrigin.BOTTOM,
-        });
-      }
-      this.labels = collection;
+    if (label && label.text.length) this.labels = this.buildLabels(label, n);
+  }
+
+  /**
+   * One label per entity, in the style the family asked for. A style that names no field draws the
+   * look a plain array of texts draws: 13 px sans-serif, white with a black edge, the text hanging
+   * to the right of the node with its bottom 14 px above it.
+   *
+   * Cesium clones every colour, offset and range as it builds a label, so one scratch of each
+   * serves the whole family.
+   */
+  private buildLabels(style: LabelSpec, n: number): LabelCollection {
+    const { C, scene } = this;
+    const collection = scene.primitives.add(new C.LabelCollection({ scene })) as LabelCollection;
+    const [h, v] = style.align ?? [];
+    const offset = style.offset ?? DEFAULT_LABEL_OFFSET;
+    const span = style.showBetween;
+    const fill = styleColor(style.color, n, `${this.kind}.label.color`);
+    const background = style.background === undefined || style.background === null
+      ? null
+      : styleColor(style.background, n, `${this.kind}.label.background`);
+    const shared = {
+      font: style.font ?? DEFAULT_LABEL_FONT,
+      outlineColor: C.Color.BLACK,
+      outlineWidth: 2,
+      style: C.LabelStyle.FILL_AND_OUTLINE,
+      pixelOffset: new C.Cartesian2(offset[0], offset[1]),
+      horizontalOrigin: horizontalOrigin(C, h),
+      verticalOrigin: verticalOrigin(C, v),
+      showBackground: background !== null,
+      scaleByDistance: nearFar(C, style.scaleByDistance),
+      translucencyByDistance: nearFar(C, style.fadeByDistance),
+      distanceDisplayCondition: span && span.length === 2
+        ? new C.DistanceDisplayCondition(span[0], span[1])
+        : undefined,
+    };
+    const fillScratch = new C.Color();
+    const backgroundScratch = new C.Color();
+    for (let i = 0; i < n; i++) {
+      collection.add({
+        ...shared,
+        position: this.positions[i],
+        text: style.text[i] ?? "",
+        fillColor: colorOf(C, fill, i, WHITE, fillScratch),
+        backgroundColor: background ? colorOf(C, background, i, BLACK, backgroundScratch) : undefined,
+      });
     }
+    return collection;
   }
 
   /** True when this family's positions interpolate rather than stand still for the window. */

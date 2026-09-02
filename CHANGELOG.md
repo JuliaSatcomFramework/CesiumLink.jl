@@ -4,6 +4,12 @@ All notable changes to CesiumLink are in this file.
 
 ## [Unreleased]
 
+### Added
+
+- `Label`, passed as the `label` keyword of `Nodes`, sets how a node's text looks: its alignment,
+  pixel offset, font, colours and the camera distances it draws between. A plain `Vector{String}`
+  stays valid and keeps today's look.
+
 ## [0.2.0] - 2026-09-02
 
 Basemap picker, place names and country borders, in #40. Pointer events on the boxes the `ui` module

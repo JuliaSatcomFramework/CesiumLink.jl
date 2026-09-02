@@ -34,6 +34,98 @@ function marker_image(path)
     return "data:$mime;base64," * base64encode(read(path))
 end
 
+# Where a label sits against the point the offset lands on: across the text, then down it.
+const LABEL_ACROSS = (:left, :center, :right)
+const LABEL_DOWN = (:top, :center, :bottom, :baseline)
+
+# A range of camera distances, in the two shapes the viewer reads one in: `(near_m, far_m)` for a
+# visibility range, and four values for a ramp that runs between the two distances. `form` names the
+# shape in the error, since the two four-value fields ramp different things. The near distance must
+# stay below the far one. Cesium refuses a display condition whose range does not grow, and a ramp
+# over such a range has nothing to interpolate.
+near_far(what, form, ::Nothing, n) = nothing
+function near_far(what, form, v, n)
+    v isa Union{Tuple,AbstractVector} && length(v) == n && all(x -> x isa Real, v) ||
+        throw(ArgumentError("$what is $form (got $(repr(v)))"))
+    far = n == 2 ? v[2] : v[3]
+    v[1] < far || throw(ArgumentError(
+        "$what needs its near metres below its far ones (got $(v[1]) and $far)"))
+    return Tuple(Float64(x) for x in v)
+end
+
+"""
+    Label(texts; align = (:left, :bottom), offset = (0, -14), font = "13px sans-serif",
+          color = nothing, background = nothing, scale_by_distance = nothing,
+          fade_by_distance = nothing, show_between = nothing)
+
+The texts a [`Nodes`](@ref) family writes beside its entities, and the look it writes them in. Pass
+one as the `label` keyword of `Nodes`. `texts` holds one string per entity. Every other field covers
+the whole family. A label is a style and never a position. A plain `Vector{String}` in that keyword
+is this style with every default kept.
+
+Each label follows the node it belongs to. `offset` moves it from there in pixels, `x` to the right
+and `y` down, and `align` says which part of the text lands on that point. `(:left, :bottom)` puts
+the bottom left corner of the text there, so the text hangs up and to the right of the node.
+`(:center, :bottom)` centres the text over the node. `font` is a CSS font string.
+
+`color` fills the glyphs over the black outline every label keeps, and takes the colour forms
+`Nodes` takes for `color`. `background` draws a box behind the text in the colour you give it.
+Without it the text stands on the scene.
+
+Three fields read the camera distance, in metres. `scale_by_distance` is
+`(near_m, near_scale, far_m, far_scale)`, `fade_by_distance` is
+`(near_m, near_alpha, far_m, far_alpha)`, and `show_between` is `(near_m, far_m)`, the distances the
+text is drawn between. All three need the near metres below the far ones.
+
+```julia
+Nodes(:city; position = pos, label = Label(names; align = (:center, :bottom), offset = (0, -18)))
+Nodes(:gw; position = gw, label = Label(names; color = "#ffd166", show_between = (0, 5.0e6)))
+```
+"""
+struct Label
+    text::Vector{String}
+    align::Tuple{Symbol,Symbol}
+    # Pixels from the node, `x` to the right and `y` down, which is the browser's screen axis.
+    offset::NTuple{2,Float64}
+    font::String
+    color::Union{Nothing,Array{UInt8}}
+    background::Union{Nothing,Array{UInt8}}
+    scale_by_distance::Union{Nothing,NTuple{4,Float64}}
+    fade_by_distance::Union{Nothing,NTuple{4,Float64}}
+    show_between::Union{Nothing,NTuple{2,Float64}}
+    # An INNER constructor, for the reason `Nodes` has one: an exact-typed call would otherwise
+    # reach the auto-generated one and put an unchecked style on the wire.
+    function Label(text, align, offset, font, color, background, scale_by_distance,
+                   fade_by_distance, show_between)
+        align isa Union{Tuple,AbstractVector} && length(align) == 2 &&
+            Symbol(align[1]) in LABEL_ACROSS && Symbol(align[2]) in LABEL_DOWN ||
+            throw(ArgumentError("Label.align is one of $LABEL_ACROSS across the text and one of " *
+                                "$LABEL_DOWN down it (got $(repr(align)))"))
+        offset isa Union{Tuple,AbstractVector} && length(offset) == 2 &&
+            all(x -> x isa Real, offset) ||
+            throw(ArgumentError("Label.offset is (x_px, y_px) from the node, y downward " *
+                                "(got $(repr(offset)))"))
+        return new(collect(String, text), (Symbol(align[1]), Symbol(align[2])),
+                   NTuple{2,Float64}(offset), String(font), to_colors(color), to_colors(background),
+                   near_far("Label.scale_by_distance", "(near_m, near_scale, far_m, far_scale)",
+                            scale_by_distance, 4),
+                   near_far("Label.fade_by_distance", "(near_m, near_alpha, far_m, far_alpha)",
+                            fade_by_distance, 4),
+                   near_far("Label.show_between", "(near_m, far_m)", show_between, 2))
+    end
+end
+
+Label(texts; align = (:left, :bottom), offset = (0, -14), font = "13px sans-serif",
+      color = nothing, background = nothing, scale_by_distance = nothing,
+      fade_by_distance = nothing, show_between = nothing) =
+    Label(texts, align, offset, font, color, background, scale_by_distance, fade_by_distance,
+          show_between)
+
+# The strings a `label` knob carries, in whichever of its two forms it arrives.
+label_texts(::Nothing) = nothing
+label_texts(l::Label) = l.text
+label_texts(v) = collect(String, v)
+
 """
     Nodes(kind; position, color=nothing, size=nothing, marker=:disc, label=nothing,
           show=nothing, scale_by_distance=nothing)
@@ -47,7 +139,8 @@ dimension varies it over time. `marker` names what each entity is drawn with: on
 white glyph the per-entity colour tints — an image of your own from [`marker_image`](@ref), an
 `assets/<mount>/<file>` path the server serves, or the owner-namespaced name of a sprite a browser
 module registered (`"orbits.pulse"`). The same tint multiplies a supplied image, which the default
-white leaves as you drew it. `label` is one string per entity. `scale_by_distance` is
+white leaves as you drew it. `label` is one string per entity, or a [`Label`](@ref) that
+carries those strings and says how they are drawn. `scale_by_distance` is
 `(near_m, near_scale, far_m, far_scale)`, so markers stay legible close up and shrink when the whole
 scene is in view.
 
@@ -79,7 +172,8 @@ struct Nodes
     # A stock glyph name, an `assets/<mount>/<file>` path, a `data:` URI, or the name of a
     # sprite a peer module registered in the browser.
     marker::String
-    label::Union{Nothing,Vector{String}}
+    # A plain string array is the default style. A `Label` says what the strings look like.
+    label::Union{Nothing,Vector{String},Label}
     scale_by_distance::Union{Nothing,NTuple{4,Float64}}
     # An INNER constructor so the shape checks run for every call form: an exact-typed call would
     # otherwise reach the auto-generated one and put a malformed family on the wire.
@@ -89,8 +183,9 @@ struct Nodes
             throw(ArgumentError("$kind.position is 3 × N or 3 × N × keyframes (got $(Base.size(pos)))"))
         n = Base.size(pos, 2)
         mk = to_source(marker, "$kind.marker", MARKERS)
-        label === nothing || length(label) == n ||
-            throw(ArgumentError("$kind has $(length(label)) labels for $n entities"))
+        texts = label_texts(label)
+        texts === nothing || length(texts) == n ||
+            throw(ArgumentError("$kind has $(length(texts)) labels for $n entities"))
         c, s, v = to_colors(color), to_scalars(size), to_codes(show)
         agree_frames(String(kind),
             "position" => (ndims(pos) == 3 ? Base.size(pos, 3) : 0),
@@ -98,8 +193,7 @@ struct Nodes
             "size" => knob_frames(s, n, 1, "$kind.size"),
             "show" => knob_frames(v, n, 1, "$kind.show"))
         sbd = scale_by_distance === nothing ? nothing : NTuple{4,Float64}(scale_by_distance)
-        return new(String(kind), pos, c, s, v, mk,
-                   label === nothing ? nothing : collect(String, label), sbd)
+        return new(String(kind), pos, c, s, v, mk, label isa Label ? label : texts, sbd)
     end
 end
 

@@ -76,6 +76,68 @@ end
                                                                         size = rand(Float32, 2, 3))
 end
 
+@testitem "a node family draws its labels in the style it names, or in the default one" setup=[Wire] begin
+    using CesiumLink: Nodes, Label, primitives_payload, decode_arrays
+
+    pos = zeros(Float32, 3, 2)
+    styled = Nodes(:city; position = pos,
+                   label = Label(["Roma", "Oslo"]; align = (:center, :bottom), offset = (0, -18),
+                                 font = "16px serif", color = (255, 209, 102, 255),
+                                 background = "#00000088",
+                                 scale_by_distance = (1.0e6, 1.0, 2.0e7, 0.5),
+                                 fade_by_distance = (1.0e6, 1.0, 2.0e7, 0.0),
+                                 show_between = (0, 5.0e6)))
+    p, region = lowered(primitives_payload(styled))
+    l = p["nodes"][1]["label"]
+    @test l["text"] == ["Roma", "Oslo"]
+    @test l["align"] == ["center", "bottom"]
+    @test l["offset"] == [0, -18]
+    @test l["font"] == "16px serif"
+    # The colours travel encoded, in the form the family's own colour knob travels in.
+    @test decode_arrays(l["color"], region) == UInt8[255, 209, 102, 255]
+    @test decode_arrays(l["background"], region) == UInt8[0, 0, 0, 136]
+    # Four plain numbers each, as the family's `scale_by_distance` sends.
+    @test l["scaleByDistance"] == [1.0e6, 1.0, 2.0e7, 0.5]
+    @test l["fadeByDistance"] == [1.0e6, 1.0, 2.0e7, 0.0]
+    @test l["showBetween"] == [0, 5.0e6]
+
+    # A style that names none of the optional fields carries none of them, and the rest hold today's
+    # look: 13 px sans-serif, bottom left of the text 14 px above the node.
+    default = first(lowered(primitives_payload(Nodes(:city; position = pos,
+                                                     label = Label(["a", "b"])))))
+    d = default["nodes"][1]["label"]
+    @test d["align"] == ["left", "bottom"]
+    @test d["offset"] == [0, -14]
+    @test d["font"] == "13px sans-serif"
+    @test !haskey(d, "color")
+    @test !haskey(d, "background")
+    @test !haskey(d, "showBetween")
+
+    # The shorthand: a plain vector means that same style, and travels as the array it always has.
+    plain = first(lowered(primitives_payload(Nodes(:city; position = pos, label = ["a", "b"]))))
+    @test plain["nodes"][1]["label"] == ["a", "b"]
+
+    # One text per entity, in whichever form the labels arrive.
+    @test_throws "3 labels for 2 entities" Nodes(:city; position = pos,
+                                                 label = Label(["a", "b", "c"]))
+end
+
+@testitem "a label style is checked where it is built" begin
+    using CesiumLink: Label
+
+    @test_throws "Label.align is one of" Label(["a"]; align = (:middle, :bottom))
+    @test_throws "Label.align is one of" Label(["a"]; align = (:left, :under))
+    @test_throws "Label.align is one of" Label(["a"]; align = :left)
+    @test_throws "Label.offset is (x_px, y_px)" Label(["a"]; offset = (1, 2, 3))
+    @test_throws "Label.offset is (x_px, y_px)" Label(["a"]; offset = ("a", "b"))
+    @test_throws "(near_m, near_scale, far_m, far_scale)" Label(["a"]; scale_by_distance = (1, 2))
+    # A range the camera crosses the wrong way round draws nothing at all, so it is refused here.
+    @test_throws "near metres below its far ones" Label(["a"]; show_between = (5.0e6, 1.0e6))
+    @test_throws "near metres below its far ones" Label(["a"];
+                                                        fade_by_distance = (2.0e7, 1, 1.0e6, 0))
+    @test_throws "a colour tuple" Label(["a"]; color = (300, 0, 0))
+end
+
 @testitem "an edge family joins two endpoint families, with per-edge appearance" setup=[Wire] begin
     using CesiumLink: Edges, Nodes, primitives_payload, decode_arrays
 
