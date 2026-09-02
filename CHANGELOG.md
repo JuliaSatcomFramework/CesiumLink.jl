@@ -4,7 +4,7 @@ All notable changes to CesiumLink are in this file.
 
 ## [Unreleased]
 
-## [0.2.0] - 2026-08-27
+## [0.2.0] - 2026-09-02
 
 ### Added
 
@@ -17,6 +17,16 @@ All notable changes to CesiumLink are in this file.
 - `Imagery` takes `backing`. A basemap marked that way draws the viewer's bundled pyramid underneath
   itself, so a source that stops serving leaves a globe instead of a black ball.
 - `declare_furniture` takes `basemap`. Set it to `false` to declare a set and show no picker over it.
+- The viewer draws place names and country borders above whichever basemap is on screen, from
+  two Natural Earth files inside the viewer, so neither reaches the network. `start_server` takes
+  `named_places` and `country_borders`, both on by default and each its own flag. The names page
+  with the camera height, so a continent never competes with the cities inside it. See ADR-0036.
+- `declare_furniture` takes `annotations`, the cell beside the basemap picker with one checkbox
+  per layer. A tick is the reader's own view and never travels back to the server.
+- `Imagery` takes `border_color` and `border_width`, the style its country borders are drawn in,
+  because the right colour depends on what lies under the line. Every known basemap carries the
+  colour that reads on it. The viewer thins the width from 2,000 km out to half at 20,000 km.
+- `Imagery` accepts `tiling = :gibs_geographic`, NASA's EPSG:4326 grid, which is not Cesium's own.
 
 ### Changed
 
@@ -36,7 +46,10 @@ All notable changes to CesiumLink are in this file.
   are for a page with no server behind it, or for a session on another body.
 - A recording carries the whole declared set, not one basemap. A recording made with a keyed URL
   therefore holds that key in plain text.
-- The content policy of a VSCode panel opens for the origin of every basemap in the set.
+- The content policy of a VSCode panel opens for the tile directory of every basemap in the set,
+  not for its host.
+- Every known online basemap is geographic tiles that reach both poles. A Web Mercator source
+  stops at 85 degrees and wears the backing as a pale disc at each pole; none of the seven does.
 - The viewer builds against `@cesium/engine` `^26.2.0`. The exact `26.1.0` pin made npm install a
   second engine below `@cesium/widgets`, and the bundle carried both. See #38.
 
