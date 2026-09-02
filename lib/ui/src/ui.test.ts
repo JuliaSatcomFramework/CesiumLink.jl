@@ -645,7 +645,7 @@ test("a group box and an addressed child inside it each raise their own crossing
                    [["leave", "panel"], ["leave", "isl"]]);
 });
 
-test("a re-declared row moves its listeners to the element that replaced it", () => {
+test("a re-declared row that stays under the pointer raises no leave and no second enter", () => {
   const v = fakeViewer();
   v.subscribe([{ id: null, type: null, mods: null }]);
   const ROW = { kind: "title", region: "top-center", id: "run", text: "one" };
@@ -653,17 +653,43 @@ test("a re-declared row moves its listeners to the element that replaced it", ()
   const first = v.controls[0].el;
   first.fire("mouseenter", mouseAt(5, 5));
 
-  v.declare([{ ...ROW, text: "two" }]);
+  // A listener answering the enter by restyling the row rebuilds it. The pointer never left the
+  // box, so the swap says nothing: a listener restoring the style on the leave would rebuild the
+  // row again, and the two would answer each other forever.
+  v.declare([{ ...ROW, style: "color:red" }]);
   const second = v.controls[0].el;
   assert.notEqual(second, first, "the changed row is built again, so it is a new element");
-  assert.deepEqual(crossings(v).map((c) => c.type), ["enter", "leave"],
-                   "and the element that left answers the enter it saw");
+  assert.deepEqual(crossings(v).map((c) => c.type), ["enter"], "the box was replaced, not removed");
 
+  // The browser fires `mouseenter` on the element that arrived under the resting pointer.
+  second.fire("mouseenter", mouseAt(5, 5));
+  assert.deepEqual(crossings(v).map((c) => c.type), ["enter"], "and the pointer is where it was");
+
+  // The listeners went with the new element, so the pointer really leaving is answered once.
   first.fire("click", mouseAt(5, 5));
-  assert.equal(crossings(v).length, 2, "the element that left hears nothing more");
+  assert.equal(crossings(v).length, 1, "the element that left hears nothing more");
   second.fire("click", mouseAt(5, 5));
   assert.deepEqual(crossings(v).at(-1), { type: "click", id: "run", mods: [],
                                           screen: { x: 5, y: 5 } });
+  second.fire("mouseleave", mouseAt(9, 9));
+  assert.deepEqual(crossings(v).at(-1), { type: "leave", id: "run", mods: [],
+                                          screen: { x: 9, y: 9 } });
+});
+
+test("a group child a keyframe swaps under the pointer raises no crossing of its own", () => {
+  const v = fakeViewer();
+  v.subscribe([{ id: null, type: null, mods: null }]);
+  v.declare([{ kind: "group", region: "top-left",
+               controls: [{ kind: "title", id: "count", text: "0", keyframed: ["text"] }] }]);
+  v.controls[0].el.children[0].fire("mouseenter", mouseAt(5, 5));
+
+  v.deliver({ per_keyframe: { count: { text: ["7 sats", "9 sats"] } } },
+            { startFrame: 0, count: 2 });
+  v.crossInto(1);
+  assert.deepEqual(crossings(v).map((c) => c.type), ["enter"], "the child was swapped, not removed");
+
+  v.controls[0].el.children[0].fire("mouseleave", mouseAt(9, 9));
+  assert.deepEqual(crossings(v).map((c) => c.type), ["enter", "leave"]);
 });
 
 test("each tooltip fragment is isolated, and no content leaves an empty box behind", () => {

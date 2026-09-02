@@ -160,19 +160,27 @@ export default {
     // Which crossings a listener upstream asked for. The check happens here, so a crossing nobody
     // registered for never leaves the browser.
     let subscription: PointerSubscription[] = [];
+    // Where the pointer is, held per addressed id rather than per element. A box that a
+    // re-declaration rebuilds is the same box under the same pointer, so the element that replaces
+    // it inherits the state and the pair of crossings the swap would otherwise raise never happens.
+    const inside = new Map<string, { mods: string[]; screen: { x: number; y: number } }>();
+    // How many live elements carry each id. Every replacement watches the new element before it
+    // drops the old one, so this never reaches zero across a swap and only a real removal answers.
+    const watchers = new Map<string, number>();
 
     /**
      * Raise the pointer events of one addressed box. `mouseenter` and `mouseleave` do not bubble,
      * so a box raises one crossing whatever its children are, and a child carrying an id of its own
      * raises its own beside it.
      *
-     * The disposer drops the three listeners and raises the `leave` the browser will not: an
-     * element taken out of the document fires no `mouseleave`, so a box removed under the pointer
-     * would otherwise strand whoever saw its `enter`. That synthetic one carries what the `enter`
-     * carried, since the box is gone and no event says where the pointer is now.
+     * The disposer drops the three listeners and, when it drops the last element carrying the id,
+     * raises the `leave` the browser will not: an element taken out of the document fires no
+     * `mouseleave`, so a box removed under the pointer would otherwise strand whoever saw its
+     * `enter`. That synthetic one carries what the `enter` carried, since the box is gone and no
+     * event says where the pointer is now.
      */
     const watch = (el: HTMLElement, id: string): (() => void) => {
-      let inside: { mods: string[]; screen: { x: number; y: number } } | null = null;
+      watchers.set(id, (watchers.get(id) ?? 0) + 1);
       const raise = (type: PointerType, at: { mods: string[]; screen: { x: number; y: number } }) => {
         const wanted = subscription.some(
           (s) => (s.id == null || s.id === id) && (s.type == null || s.type === type) &&
@@ -194,12 +202,16 @@ export default {
         if (e.detail === 0 && e.target !== el) return;
         raise("click", read(e));
       };
+      // The browser fires `mouseenter` on the element that replaced one under a resting pointer.
+      // The pointer never left the box, so that second enter says nothing.
       const enter = (e: MouseEvent) => {
-        inside = read(e);
-        raise("enter", inside);
+        if (inside.has(id)) return;
+        const at = read(e);
+        inside.set(id, at);
+        raise("enter", at);
       };
       const leave = (e: MouseEvent) => {
-        inside = null;
+        if (!inside.delete(id)) return;
         raise("leave", read(e));
       };
       el.addEventListener("click", click);
@@ -209,9 +221,16 @@ export default {
         el.removeEventListener("click", click);
         el.removeEventListener("mouseenter", enter);
         el.removeEventListener("mouseleave", leave);
-        const at = inside;
-        inside = null;
-        if (at) raise("leave", at);
+        const left = (watchers.get(id) ?? 1) - 1;
+        if (left > 0) {
+          watchers.set(id, left);
+          return;   // another element still carries this id: the box was replaced, not removed
+        }
+        watchers.delete(id);
+        const at = inside.get(id);
+        if (!at) return;
+        inside.delete(id);
+        raise("leave", at);
       };
     };
 
@@ -322,10 +341,13 @@ export default {
           if (!next) return;   // a kind that stopped building: keep what is on screen
           built[at].el.replaceWith(next.el);
           built[at] = next;
-          // A swapped child is a new element, so its listeners go with the old one.
+          // A swapped child is a new element, so its listeners go with the old one. The new element
+          // is watched first: the id stays carried throughout, so a pointer resting on the child
+          // sees a swap rather than a removal and an arrival.
           if (id !== null) {
-            watched[at]!();
+            const drop = watched[at]!;
             watched[at] = watch(next.el, id);
+            drop();
           }
           next.onKeyframe?.(index);
         });
@@ -445,7 +467,10 @@ export default {
         }
       }
 
-      clear();
+      // The new rows go up before the old ones come down. The Core appends within a region and the
+      // old elements leave after, so the order is the declared one, and a box that keeps its id
+      // across the two lists is carried throughout rather than removed and put back.
+      const old = live;
       live = rows.map((r) => {
         const built = buildRow(r.spec);
         // No such kind: the row is skipped and the rest of the panel renders, but it stays in the
@@ -454,6 +479,7 @@ export default {
           ? { key: r.key, json: r.json, el: null, dispose: null, tracks: [] }
           : rowOf(r, built, index, null);
       });
+      for (const row of old) row.dispose?.();
       applyNow();
     };
 

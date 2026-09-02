@@ -932,4 +932,5 @@ in.
 
 `mouseenter` and `mouseleave` do not bubble, so one box raises one crossing whatever its children
 are. A box removed while the pointer is inside it raises a synthetic `leave` carrying what its
-`enter` carried, so every `enter` has one `leave` after it.
+`enter` carried, so every `enter` has one `leave` after it. A box that a re-declaration rebuilds in
+place, with the same id and a new element, keeps its state and raises nothing.
