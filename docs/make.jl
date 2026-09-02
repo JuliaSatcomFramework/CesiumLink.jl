@@ -422,6 +422,7 @@ makedocs(;
             "Show a value on hover" => "how-to/tooltips.md",
             "Put controls in the overlay" => "how-to/overlay-controls.md",
             "Put a box on screen" => "how-to/floating.md",
+            "React to a click or a hover on a box" => "how-to/ui-pointer.md",
             "Choose the on-screen furniture" => "how-to/furniture.md",
             "Drape a scalar field over the globe" => "how-to/heatmap.md",
             "Put your own model on a satellite" => "how-to/models.md",

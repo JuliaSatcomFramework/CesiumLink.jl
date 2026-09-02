@@ -6,7 +6,8 @@ All notable changes to CesiumLink are in this file.
 
 ## [0.2.0] - 2026-09-02
 
-Basemap picker, place names and country borders. See #40 for the whole story.
+Basemap picker, place names and country borders, in #40. Pointer events on the boxes the `ui` module
+draws, in #41.
 
 ### Added
 
@@ -18,6 +19,16 @@ Basemap picker, place names and country borders. See #40 for the whole story.
 - Place names and country borders draw above any basemap from files inside the viewer.
   `start_server` takes `named_places` and `country_borders`, both on by default, and
   `declare_furniture` takes `annotations`, the cell with one checkbox per layer. See ADR-0036.
+- `Title`, `Legend` and `Group` take an optional `id`. A box that carries one is an addressed box,
+  under the same name a window's `per_keyframe` entries address. `Toggle`, `Select` and a float
+  carry one already.
+- `on_ui_pointer(f, server, id; type, alt, ctrl, shift)` answers the pointer events an addressed box
+  raises on `ui/pointer`, and is exported. The server derives the `ui/subscribe` list from the
+  registered listeners and declares it again whenever that set changes, the way `core/subscribe`
+  works.
+- An addressed box raises `:click`, `:enter` and `:leave`, and the event carries `ev.type`, `ev.id`,
+  `ev.mods` and `ev.screen`. Removing a box while the pointer is inside it raises the `:leave`, so
+  every `:enter` has one behind it. See ADR-0035 and #41.
 
 ### Changed
 

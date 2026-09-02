@@ -40,6 +40,9 @@ The set is retained, so a browser that connects later comes back to the same box
 declaration is unchanged keeps the box it already has, so a move or a restyle does not tear down a
 mounted module.
 
+A float's id also addresses the box's own pointer events. See
+[React to a click or a hover on a box](ui-pointer.md).
+
 ## Choose an anchor
 
 | Anchor | Where the box goes |

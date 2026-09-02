@@ -23,6 +23,8 @@ cannot, read the [tutorials](../tutorials/index.md) first. For the whole surface
   dropdown, and the box that holds several.
 - [Put a box on screen](floating.md) — a box anchored to the screen, to an entity, or to a point on
   the globe.
+- [React to a click or a hover on a box](ui-pointer.md): the click and the two crossings an
+  addressed box raises.
 
 ## Decide what the viewer shows
 
