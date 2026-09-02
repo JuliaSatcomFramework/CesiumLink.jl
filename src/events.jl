@@ -219,6 +219,9 @@ Register `f` to answer the pointer events an addressed box raises on `ui/pointer
 addressed by the `id` its declaration carries, and `f` is called as `f(ev, reply)`, exactly as an
 [`on_event`](@ref) listener is.
 
+The argument and the keywords narrow what is wanted, and the server computes the declared
+subscription from them:
+
 | Argument | Meaning |
 |---|---|
 | `id` | which box to answer, a `String` or a `Symbol`; `nothing` for every addressed box |

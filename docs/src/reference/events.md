@@ -21,9 +21,11 @@ which keyframe the clock just crossed into. The last two are what a scene builds
 ```@docs
 on_event
 on_pointer
+on_ui_pointer
 off_event
 CesiumLink.EventListener
 CesiumLink.pointer_subscription
+CesiumLink.ui_subscription
 ```
 
 ## Commands and replies

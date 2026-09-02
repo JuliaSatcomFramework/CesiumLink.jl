@@ -636,3 +636,39 @@ end
         stop_server(server)
     end
 end
+
+@testitem "a declared title, an alt-click on it, and the listener that asked for it" begin
+    using CesiumLink: dispatch_event, on_ui_pointer, declared
+
+    server = start_server(; host = "::1", port = 0)
+    try
+        declare_overlay(server, [Title("Constellation"; id = "run-title")])
+        seen = []
+        on_ui_pointer(server, "run-title"; type = :click, alt = true) do ev, reply
+            push!(seen, (ev.id, ev.type, ev.mods, ev.screen))
+        end
+
+        # The id in the declaration is the address the subscription narrows by. So the box on screen
+        # and the box the viewer watches are one box.
+        @test only(declared(server, "ui", "declare"))["id"] == "run-title"
+        entries = declared(server, "ui", "subscribe")
+        @test all(e -> e["id"] == "run-title" && e["type"] == "click", entries)
+        # `alt = true` leaves the other two modifiers open, and an entry states a set exactly.
+        @test sort([e["mods"] for e in entries]) ==
+              sort([["alt"], ["alt", "shift"], ["alt", "ctrl"], ["alt", "ctrl", "shift"]])
+
+        # What the `ui` module sends for one crossing, verbatim.
+        crossing(id, mods) = Dict("module" => "ui", "topic" => "pointer",
+                                  "payload" => Dict("type" => "click", "id" => id, "mods" => mods,
+                                                    "screen" => Dict("x" => 412, "y" => 88)))
+        dispatch_event(server, crossing("run-title", ["alt"]))
+        @test only(seen) == ("run-title", :click, (:alt,), (; x = 412, y = 88))
+
+        # Another box, and the same box with no modifier held, are both outside what it asked for.
+        dispatch_event(server, crossing("bar", ["alt"]))
+        dispatch_event(server, crossing("run-title", String[]))
+        @test length(seen) == 1
+    finally
+        stop_server(server)
+    end
+end

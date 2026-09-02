@@ -137,8 +137,8 @@ request. That makes a per-frame readout free where the same thing on the tooltip
 trip per keyframe, and it is worth reaching for whenever the text is a function of the keyframe
 alone. A title is plain text, not markup.
 
-`id` names this box as an addressed box, so an [`on_ui_pointer`](@ref) listener can act on it.
-Without one, this title is decoration only.
+`id` names this box as an addressed box, so a [`CesiumLink.on_ui_pointer`](@ref) listener can act on
+it. Without one, this title is decoration only.
 """
 struct Title <: AbstractControl
     text::Union{String,Nothing}
@@ -176,8 +176,8 @@ A colorbar: the gradient of the colormap `cmap` between the values `min` and `ma
 colormap value that coloured the entities is what keeps the bar from drifting from what is on
 screen — see [`CesiumLink.rgba`](@ref) for the accepted colormap forms.
 
-`id` names this box as an addressed box, so an [`on_ui_pointer`](@ref) listener can act on it.
-Without one, this legend is decoration only.
+`id` names this box as an addressed box, so a [`CesiumLink.on_ui_pointer`](@ref) listener can act on
+it. Without one, this legend is decoration only.
 """
 struct Legend <: AbstractControl
     title::String
@@ -289,8 +289,8 @@ Group([Legend("Sat Throughput (Gbps)", 0, 12, SAT_CMAP),
 A group does not nest: one level is what grouping related controls needs, and a box inside a box
 buys nothing the region stack does not already give.
 
-`id` names the group box itself as an addressed box, so an [`on_ui_pointer`](@ref) listener can act
-on it. It is a separate name from any child's own `id`.
+`id` names the group box itself as an addressed box, so a [`CesiumLink.on_ui_pointer`](@ref)
+listener can act on it. It is a separate name from any child's own `id`.
 """
 struct Group <: AbstractControl
     controls::Vector{AbstractControl}
