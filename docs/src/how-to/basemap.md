@@ -45,7 +45,7 @@ The two ASTER reliefs draw the land only. Their ocean is one flat blue and carri
 colour. `emodnet_baselayer` draws the sea floor, and it is the one entry served from a host other
 than NASA GIBS.
 
-The six online entries are cut on a geographic grid, so each of them draws to both poles. Each
+The online entries are cut on a geographic grid, so each of them draws to both poles. Each
 names a basemap backing as well, and the backing shows only while its host is unreachable.
 
 Every one of them is of Earth. None belongs in a session on another body.
@@ -90,7 +90,7 @@ startup. The credit line at the bottom right names the basemap you picked, and t
 it on every switch. Natural Earth is the bundled pyramid, so it draws no credit and asks for no
 tile.
 
-The picker sorts the six under three headings. A heading names what the reader sees, and never who
+The picker sorts the seven under three headings. A heading names what the reader sees, and never who
 serves the tiles. Relief holds the maps somebody drew, and Imagery holds the photographs:
 
 | Heading | What sits under it |
@@ -113,7 +113,7 @@ basemaps. [Choose the on-screen furniture](furniture.md) turns it off by hand.
 
 **A basemap can name a basemap backing.** `backing = true` draws the bundled pyramid under that
 basemap. A source that returns no tiles leaves a globe instead of a hole, and the globe repairs
-itself when the source answers again. All six known online basemaps ask for one.
+itself when the source answers again. Every known online basemap asks for one.
 
 A basemap backing belongs to one basemap, and the set never holds it as an entry. The reader cannot
 pick it, it carries no transparency, and it always sits below. The backing is always the bundled

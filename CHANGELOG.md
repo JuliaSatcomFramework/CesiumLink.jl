@@ -8,9 +8,9 @@ All notable changes to CesiumLink are in this file.
 
 ### Added
 
-- `KNOWN_EARTH_BASEMAPS` names six ready-made `Imagery` values of Earth:
+- `KNOWN_EARTH_BASEMAPS` names seven ready-made `Imagery` values of Earth:
   `offline_natural_earth`, `aster_colour_relief`, `aster_grey_relief`, `emodnet_baselayer`,
-  `blue_marble` and `blue_marble_relief`. Each one carries the attribution its source asks for.
+  `blue_marble`, `blue_marble_relief` and `city_lights`. Each one carries the attribution its source asks for.
   `Imagery` and `KNOWN_EARTH_BASEMAPS` are both exported.
 - `imagery` takes a list, so a server declares a basemap **set** and the reader picks inside it. A
   picker button stands in the furniture group while the set holds two or more.
@@ -21,8 +21,8 @@ All notable changes to CesiumLink are in this file.
 ### Changed
 
 - **Breaking behaviour.** An absent `imagery` on Earth no longer means the bundled texture alone. It
-  declares the six ready-made basemaps, ASTER Colour Relief first and backed by the bundled pyramid,
-  so a default session offers all six in the picker. Entry 1 is the only one the page builds a tile
+  declares the seven ready-made basemaps, ASTER Colour Relief first and backed by the bundled pyramid,
+  so a default session offers all seven in the picker. Entry 1 is the only one the page builds a tile
   provider for, so the globe opens by asking `gibs.earthdata.nasa.gov` for tiles and reaches no
   other host until the reader picks one. One line takes the network out again:
   `start_server(; imagery = KNOWN_EARTH_BASEMAPS.offline_natural_earth)`. A session on another body

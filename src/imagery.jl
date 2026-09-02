@@ -143,7 +143,7 @@ of Earth, so none belongs in a session on another body.
 | `blue_marble_relief` | Blue Marble from NASA GIBS, land relief only | 7 | white |
 | `city_lights` | night-time city lights from NASA GIBS, VIIRS 2012 | 7 | white |
 
-Every online entry draws to both poles. The six are cut on a geographic grid, which covers the
+Every online entry draws to both poles. All of them are cut on a geographic grid, which covers the
 whole globe, so the backing under them shows only while a host is unreachable.
 
 Pick the ones you want by name. This is a `NamedTuple` and not a list to filter, because a filter

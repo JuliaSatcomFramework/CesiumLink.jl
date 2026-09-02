@@ -68,7 +68,7 @@ follows `cameraFollow`'s stated rule — the item hides itself while there is no
 author has to think about it. Naming one basemap is therefore the whole opt-out: it removes the
 network, the picker and the button in one line.
 
-**An absent `imagery` is the default set**, all six known basemaps with `aster_colour_relief` first.
+**An absent `imagery` is the default set**, all seven known basemaps with `aster_colour_relief` first.
 This is the one behaviour change a reader will notice on upgrade, and it is why the release is 0.2.0.
 
 **An absent `imagery` on a body that is not Earth declares nothing.** The default set is Earth's,
@@ -80,7 +80,7 @@ accepts GRS 80.
 ## What ships as a known basemap
 
 `KNOWN_EARTH_BASEMAPS` holds ready-made values so that an author writes a name rather than a URL, a
-tiling scheme, a depth and an attribution line. The catalogue holds six.
+tiling scheme, a depth and an attribution line. The catalogue holds seven.
 
 | Name | Source | Levels |
 |---|---|---|
@@ -96,8 +96,8 @@ costs nothing until the reader picks it: `buildBaseLayers` (`lib/core/src/scene.
 provider for entry 0 and for no other entry, so a reader who never opens the picker never causes a
 later entry to fetch a tile or open a connection.
 
-**The default set is all six, in this order:** `aster_colour_relief`, `aster_grey_relief`,
-`blue_marble`, `blue_marble_relief`, `emodnet_baselayer`, `offline_natural_earth`.
+**The default set is all seven, in this order:** `aster_colour_relief`, `aster_grey_relief`,
+`blue_marble`, `blue_marble_relief`, `city_lights`, `emodnet_baselayer`, `offline_natural_earth`.
 
 **ASTER Colour Relief leads because entry 0 is the one entry a session opens a host for.** It is the
 sharpest map in the catalogue and it stands alone on `gibs.earthdata.nasa.gov`, so a reader who opens
