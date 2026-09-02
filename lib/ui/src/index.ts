@@ -220,6 +220,7 @@ export default {
         return typeof mount === "function" ? (mount as MountFactory) : null;
       },
       notify: (topic, payload) => ctx.notify(topic, payload),
+      watch,
     });
     // The rows on screen, in declared order: what each was built from, so the next declaration can
     // tell which of them changed, plus its remover and whatever reacts to a crossing. A row nobody

@@ -1055,6 +1055,35 @@ test("resizing an adjustable float reports the box it ended at, once", () => {
   assert.equal(v.sent.length, 1);
 });
 
+test("an enter on a float notifies with the float's id", () => {
+  const v = fakeViewer();
+  v.subscribe([{ id: null, type: null, mods: null }]);
+  v.floating([PIN]);
+  v.floats().get("pin")!.fire("mouseenter", mouseAt(20, 15));
+  assert.deepEqual(crossings(v), [{ type: "enter", id: "pin", mods: [], screen: { x: 20, y: 15 } }]);
+});
+
+test("declaring the set without a float still inside it gives one leave", () => {
+  const v = fakeViewer();
+  v.subscribe([{ id: null, type: null, mods: null }]);
+  v.floating([PIN]);
+  v.floats().get("pin")!.fire("mouseenter", mouseAt(20, 15));
+
+  // The float's box leaves the page, which fires no `mouseleave` of its own.
+  v.floating([]);
+  assert.deepEqual(crossings(v).map((c) => c.type), ["enter", "leave"]);
+});
+
+test("a float whose id no subscription entry names notifies nothing", () => {
+  const v = fakeViewer();
+  v.subscribe([{ id: "other", type: null, mods: null }]);
+  v.floating([PIN]);
+  const box = v.floats().get("pin")!;
+  box.fire("mouseenter", mouseAt(0, 0));
+  box.fire("click", mouseAt(0, 0));
+  assert.deepEqual(crossings(v), []);
+});
+
 test("a tooltip box flips and clamps to stay inside the container", () => {
   const bounds = { w: 800, h: 600 };
   assert.deepEqual(place({ x: 10, y: 10 }, { w: 200, h: 100 }, bounds), { left: 24, top: 24 });
