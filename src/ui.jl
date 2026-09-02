@@ -118,9 +118,13 @@ JSON.lower(c::AbstractControl) =
 _style(c::AbstractControl) =
     hasproperty(c, :style) && !isempty(c.style) ? (; style = c.style) : (;)
 
+# An id is optional on `Title`, `Legend` and `Group`, and only their own `payload` methods reach for
+# it. A box with no id leaves it off the wire entirely, the way `_style` leaves an empty style off.
+_id(c) = c.id === nothing ? (;) : (; c.id)
+
 """
-    Title(text; region = :top_center, style = nothing)
-    Title(titles::AbstractDict; region = :top_center, style = nothing)
+    Title(text; region = :top_center, style = nothing, id = nothing)
+    Title(titles::AbstractDict; region = :top_center, style = nothing, id = nothing)
 
 A caption. `text` is one string; `titles` maps a **1-based** absolute keyframe index to the text for
 that keyframe. A keyframe the mapping says nothing about keeps the text it had, so a title declared
@@ -128,44 +132,52 @@ only where it changes reads correctly in between.
 
 **A keyframe-keyed title is the only content the viewer chooses for itself.** It is handed every
 string up front and picks one on each crossing, with no event, no round trip and no per-frame work on
-this side — everything else that changes at a crossing was delivered in a window or answered on
+this side. Everything else that changes at a crossing was delivered in a window or answered on
 request. That makes a per-frame readout free where the same thing on the tooltip path costs a round
 trip per keyframe, and it is worth reaching for whenever the text is a function of the keyframe
 alone. A title is plain text, not markup.
+
+`id` names this box as an addressed box, so an [`on_ui_pointer`](@ref) listener can act on it.
+Without one, this title is decoration only.
 """
 struct Title <: AbstractControl
     text::Union{String,Nothing}
     frames::Union{Dict{Int,String},Nothing}
     region::Symbol
     style::Dict{String,String}
+    id::Union{String,Nothing}
     # An INNER constructor so validation runs for every call form: an outer one is bypassed by an
     # exact-typed call straight to the auto-generated inner.
-    function Title(text, frames, region; style = nothing)
+    function Title(text, frames, region; style = nothing, id = nothing)
         (text === nothing) == (frames === nothing) &&
             throw(ArgumentError("a title is either one string or a keyframe-keyed mapping"))
         frames === nothing || all(≥(1), keys(frames)) ||
             throw(ArgumentError("title keyframes are 1-based absolute indices"))
-        return new(text, frames, overlay_region(region), overlay_style(style))
+        return new(text, frames, overlay_region(region), overlay_style(style),
+                   id === nothing ? nothing : String(id))
     end
 end
 
-Title(text::AbstractString; region = :top_center, style = nothing) =
-    Title(String(text), nothing, region; style)
-Title(titles::AbstractDict; region = :top_center, style = nothing) =
-    Title(nothing, Dict{Int,String}(Int(k) => String(v) for (k, v) in titles), region; style)
+Title(text::AbstractString; region = :top_center, style = nothing, id = nothing) =
+    Title(String(text), nothing, region; style, id)
+Title(titles::AbstractDict; region = :top_center, style = nothing, id = nothing) =
+    Title(nothing, Dict{Int,String}(Int(k) => String(v) for (k, v) in titles), region; style, id)
 
 kind(::Title) = "title"
 # A keyframe key is an index, so it converts to the 0-based form the wire carries. `to_wire_index`
 # and `from_wire_index` in `codec.jl` are that conversion; every site that needs it calls one.
-payload(t::Title) = t.frames === nothing ? (; text = t.text) :
-    (; frames = Dict(string(to_wire_index(k)) => v for (k, v) in t.frames))
+payload(t::Title) = (; (t.frames === nothing ? (; text = t.text) :
+    (; frames = Dict(string(to_wire_index(k)) => v for (k, v) in t.frames)))..., _id(t)...)
 
 """
-    Legend(title, min, max, cmap; region = :top_left, style = nothing)
+    Legend(title, min, max, cmap; region = :top_left, style = nothing, id = nothing)
 
 A colorbar: the gradient of the colormap `cmap` between the values `min` and `max`. Passing the same
 colormap value that coloured the entities is what keeps the bar from drifting from what is on
 screen — see [`CesiumLink.rgba`](@ref) for the accepted colormap forms.
+
+`id` names this box as an addressed box, so an [`on_ui_pointer`](@ref) listener can act on it.
+Without one, this legend is decoration only.
 """
 struct Legend <: AbstractControl
     title::String
@@ -174,7 +186,8 @@ struct Legend <: AbstractControl
     stops::Vector{Tuple{Float64,String}}
     region::Symbol
     style::Dict{String,String}
-    function Legend(title, min, max, stops, region; style = nothing)
+    id::Union{String,Nothing}
+    function Legend(title, min, max, stops, region; style = nothing, id = nothing)
         isempty(stops) && throw(ArgumentError("a legend needs at least one colour stop"))
         # The four-argument form takes a colormap and the five-argument form takes the stops it
         # lowers to, so the fourth argument means two things. Reject the colormap here: destructuring
@@ -186,15 +199,15 @@ struct Legend <: AbstractControl
         all(0 ≤ f ≤ 1 for (f, _) in st) ||
             throw(ArgumentError("legend stop fractions lie in [0, 1]"))
         return new(String(title), Float64(min), Float64(max), st, overlay_region(region),
-                   overlay_style(style))
+                   overlay_style(style), id === nothing ? nothing : String(id))
     end
 end
 
-Legend(title, min, max, cmap; region = :top_left, style = nothing) =
-    Legend(title, min, max, legend_stops(cmap), region; style)
+Legend(title, min, max, cmap; region = :top_left, style = nothing, id = nothing) =
+    Legend(title, min, max, legend_stops(cmap), region; style, id)
 
 kind(::Legend) = "legend"
-payload(l::Legend) = (; l.title, l.min, l.max, l.stops)
+payload(l::Legend) = (; l.title, l.min, l.max, l.stops, _id(l)...)
 
 """
     Toggle(id, label, value; region = :bottom_right, style = nothing)
@@ -259,7 +272,7 @@ payload(s::Select) =
     (; s.id, s.label, s.value, options = [(; value = v, label = l) for (v, l) in s.options])
 
 """
-    Group(controls; region = :bottom_right, style = nothing)
+    Group(controls; region = :bottom_right, style = nothing, id = nothing)
 
 One box holding several controls, so related controls read as one thing rather than as a stack of
 separate boxes. The group's `region` places the box; the `region` of a control inside it says
@@ -275,23 +288,29 @@ Group([Legend("Sat Throughput (Gbps)", 0, 12, SAT_CMAP),
 
 A group does not nest: one level is what grouping related controls needs, and a box inside a box
 buys nothing the region stack does not already give.
+
+`id` names the group box itself as an addressed box, so an [`on_ui_pointer`](@ref) listener can act
+on it. It is a separate name from any child's own `id`.
 """
 struct Group <: AbstractControl
     controls::Vector{AbstractControl}
     region::Symbol
     style::Dict{String,String}
-    function Group(controls, region; style = nothing)
+    id::Union{String,Nothing}
+    function Group(controls, region; style = nothing, id = nothing)
         cs = collect(AbstractControl, controls)
         isempty(cs) && throw(ArgumentError("a group needs at least one control"))
         any(c -> c isa Group, cs) && throw(ArgumentError("a group does not nest inside a group"))
-        return new(cs, overlay_region(region), overlay_style(style))
+        return new(cs, overlay_region(region), overlay_style(style),
+                   id === nothing ? nothing : String(id))
     end
 end
 
-Group(controls; region = :bottom_right, style = nothing) = Group(controls, region; style)
+Group(controls; region = :bottom_right, style = nothing, id = nothing) =
+    Group(controls, region; style, id)
 
 kind(::Group) = "group"
-payload(g::Group) = (; g.controls)
+payload(g::Group) = (; g.controls, _id(g)...)
 
 """
     declare_overlay(server::Server, items) -> Int

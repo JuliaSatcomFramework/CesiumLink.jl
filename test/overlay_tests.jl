@@ -69,6 +69,28 @@ end
     @test_throws "an overlay region is" Group([Toggle(:isl, "ISLs", true)], :middle)
 end
 
+@testitem "an id is optional on a title, a legend and a group, and either spelling records a String" begin
+    using JSON
+
+    # No id at all leaves it off the wire entirely, as an empty style is left off.
+    @test !haskey(JSON.parse(JSON.json(Title("x"))), "id")
+
+    t = Title("x"; id = :run)
+    @test t.id == "run"
+    @test JSON.parse(JSON.json(t))["id"] == "run"
+end
+
+@testitem "a group's own id and its children's ids are separate names" begin
+    using JSON
+
+    g = Group([Toggle(:isl, "ISL links", true), Select(:cells, "Cells", :all, [:all => "All"])];
+              id = :panel)
+    o = JSON.parse(JSON.json(g))
+
+    @test o["id"] == "panel"
+    @test [c["id"] for c in o["controls"]] == ["isl", "cells"]
+end
+
 @testitem "a legend samples the colormap it was given" begin
     using CesiumLink: legend_stops
 
@@ -331,14 +353,18 @@ end
 end
 
 @testitem "a control's payload names every field it declares" begin
-    # Each control with the payload keys it must produce, in order. `Title` appears twice: it
-    # declares two content fields and carries exactly one of them.
+    # Each control with the payload keys it must produce, in order. `Title` appears three times: it
+    # declares two content fields and carries exactly one of them, plus the optional `id`.
     cases = [Toggle(:isl, "ISL", true)                  => (:id, :label, :value),
              Legend("t", 0, 12, ["#000000", "#ffffff"]) => (:title, :min, :max, :stops),
+             Legend("t", 0, 12, ["#000000", "#ffffff"]; id = :bar) =>
+                                                            (:title, :min, :max, :stops, :id),
              Select(:c, "C", :a, [:a => "A"])           => (:id, :label, :value, :options),
              Title("x")                                 => (:text,),
+             Title("x"; id = :run)                      => (:text, :id),
              Title(Dict(1 => "x"))                      => (:frames,),
-             Group([Toggle(:i, "L", true)])             => (:controls,)]
+             Group([Toggle(:i, "L", true)])             => (:controls,),
+             Group([Toggle(:i, "L", true)]; id = :box)  => (:controls, :id)]
     for (c, ks) in cases
         @test Tuple(keys(CesiumLink.payload(c))) == ks
     end
