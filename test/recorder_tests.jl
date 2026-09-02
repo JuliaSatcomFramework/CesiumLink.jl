@@ -131,7 +131,7 @@ end
         header = JSON.parse(readline(path))
         # A default session declares the default set. Every entry of it has tiles a replaying
         # page can reach, so the whole set travels.
-        @test length(header["imagery"]) == 2
+        @test length(header["imagery"]) == 6
         # Absent and `false` are two different declarations. A session that declares nothing must
         # state neither. A recorded `false` asks the player for a globe with no base layer at all.
         @test !any(haskey(header, k) for k in ("ellipsoid", "lighting", "stars", "furniture"))

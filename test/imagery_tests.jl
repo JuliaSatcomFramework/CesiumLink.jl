@@ -30,7 +30,7 @@ end
     # Absent, no base layer, and a named set are three declarations. An absent one on Earth is the
     # default set, which the reader picks within. `:none` draws no base layer at all.
     d, dir = CesiumLink.resolve_imagery(nothing)
-    @test length(d) == 2
+    @test length(d) == 6
     @test dir === nothing
     # The default set is of Earth, so a session on another body declares nothing and keeps the
     # texture the viewer bundles. Earth's coastlines on a Moon globe are a picture that lies.
@@ -63,16 +63,19 @@ end
     offline = KNOWN_EARTH_BASEMAPS.offline_natural_earth
     @test offline.bundled && isempty(offline.url) && offline.credit === nothing
 
-    # The catalogue holds six, and an absent `imagery` declares two of them. Entry 1 is what
-    # the globe wears at startup, and the pyramid inside the viewer is there for the reader to
-    # pick. An author names the other four, and the default set leaves them out.
+    # The catalogue holds six, and an absent `imagery` declares all six. Entry 1 is what the
+    # globe wears at startup, and the pyramid inside the viewer closes the set for the reader to
+    # fall back on.
     d, _ = CesiumLink.resolve_imagery(nothing)
-    @test [get(e, :name, nothing) for e in d] == ["ASTER Colour Relief", "Natural Earth"]
+    @test [get(e, :name, nothing) for e in d] == ["ASTER Colour Relief", "ASTER Grey Relief",
+                                                   "Blue Marble", "Blue Marble Relief",
+                                                   "EMODnet Baselayer", "Natural Earth"]
     @test last(d) == (; bundled = true, key = "offline_natural_earth", name = "Natural Earth")
     @test first(d).backing == true
     # The viewer reads the icon and the drop-down category off `key`, so every catalogue basemap
     # carries one. A match by label would hand a renamed basemap the fallback icon instead.
-    @test [e.key for e in d] == ["aster_colour_relief", "offline_natural_earth"]
+    @test [e.key for e in d] == ["aster_colour_relief", "aster_grey_relief", "blue_marble",
+                                 "blue_marble_relief", "emodnet_baselayer", "offline_natural_earth"]
 end
 
 @testitem "a basemap set is refused when the viewer could not draw it" setup=[Pyramid] begin

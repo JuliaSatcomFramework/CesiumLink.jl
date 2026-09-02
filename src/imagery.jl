@@ -154,18 +154,22 @@ const KNOWN_EARTH_BASEMAPS = (;
         credit = "NASA EOSDIS GIBS"),
 )
 
-# What a session declares when the caller declares nothing: a sharp globe that repairs itself offline
-# (ADR-0034). The offline pyramid is in the set as well as under the first entry. A reader can
-# therefore pick the calm flat map at any time, and not only when the network drops.
+# What a session declares when the caller declares nothing (ADR-0034): every basemap this package
+# knows. An entry costs nothing until the reader picks it: the page builds a tile provider for
+# entry 0 alone (`buildBaseLayers` in `lib/core/src/scene.ts`), so the default set can hold the
+# whole catalogue and still open one host at startup.
 #
-# Two entries and no more. The set is also what the picker offers, and what widens the content
-# policy: every entry's tile directory reaches `img-src` and `connect-src`. A session that named no
-# basemap has agreed to no host beyond the one its default set names.
+# The content policy admits each entry's tile directory, not the host under it: `img-src` and
+# `connect-src` widen by one directory per entry with a URL, and the set never trusts a host wider
+# than the directories its own entries name.
 #
-# ASTER Colour Relief leads, and not the deeper EMODnet Baselayer, because every entry here must
-# sit on `gibs.earthdata.nasa.gov`. A session that names nothing then trusts one host and opens one
-# tile directory. The cost is a flat blue ocean with no sea-floor colour.
+# ASTER Colour Relief leads, sharp and alone on `gibs.earthdata.nasa.gov`. The offline pyramid is
+# last: the calm map that needs no network, always there for the reader to fall back on.
 const DEFAULT_EARTH_BASEMAPS = [KNOWN_EARTH_BASEMAPS.aster_colour_relief,
+                                KNOWN_EARTH_BASEMAPS.aster_grey_relief,
+                                KNOWN_EARTH_BASEMAPS.blue_marble,
+                                KNOWN_EARTH_BASEMAPS.blue_marble_relief,
+                                KNOWN_EARTH_BASEMAPS.emodnet_baselayer,
                                 KNOWN_EARTH_BASEMAPS.offline_natural_earth]
 
 # The levels of a tile pyramid: every subdirectory whose name is an integer.

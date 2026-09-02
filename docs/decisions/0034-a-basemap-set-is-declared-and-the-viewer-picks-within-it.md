@@ -211,3 +211,24 @@ carries no sea-floor colour. That is the known cost of the pick, and `blue_marbl
 **The GIBS path order is `{z}/{y}/{x}` and EMODnet's is `{z}/{x}/{y}`.** A WMTS REST path names
 TileMatrix, TileRow, TileCol, which is level, row, column. A template reaches the browser as it
 stands, so a swapped pair draws a scrambled globe rather than an error.
+
+## Amendment: the default set is every known basemap
+
+`buildBaseLayers` (`lib/core/src/scene.ts`) builds a tile provider for entry 0 of the declared set
+and no other entry. A reader who never opens the picker never causes a later entry to fetch a tile
+or open a connection. An entry in the set costs nothing until the reader picks it.
+
+**The default set is now every basemap `KNOWN_EARTH_BASEMAPS` holds**, in this order:
+`aster_colour_relief`, `aster_grey_relief`, `blue_marble`, `blue_marble_relief`,
+`emodnet_baselayer`, `offline_natural_earth`. Read every count of two entries above as six.
+
+**The content policy widens by tile directory, not by host.** `trusted_origins` reads the directory
+each entry's URL points at (`csp_source`), not the host under it. So the earlier reasoning for a
+one-host default, and the "widens by one origin" claim under Consequences, no longer hold: six
+entries open five tile directories, four on `gibs.earthdata.nasa.gov` and one on
+`tiles.emodnet-bathymetry.eu`. Two hosts, and a directory list, not a wider trust in either one.
+
+**ASTER Colour Relief still leads.** It is the sharpest map in the catalogue and it still stands
+alone on `gibs.earthdata.nasa.gov`, so a session that opens the page and picks nothing still reaches
+one host at startup, the same host a two-entry default always reached first. The offline pyramid
+moves last: the calm map that opens no host at all, still there for the reader to fall back on.

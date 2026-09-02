@@ -400,7 +400,7 @@ the camera may never travel that far.
 
 | value | the globe wears |
 |---|---|
-| `nothing`, the default | on Earth, ASTER Colour Relief backed by the bundled pyramid; on another body, the viewer's bundled texture |
+| `nothing`, the default | on Earth, the six ready-made basemaps, ASTER Colour Relief first; on another body, the viewer's bundled texture |
 | a path to a directory | the tile pyramid in it, served from this server under `/assets/imagery/` |
 | any other string, or an [`Imagery`](@ref) | the source it names, declared as it stands |
 | a list of any of those | that set, first entry worn at startup |

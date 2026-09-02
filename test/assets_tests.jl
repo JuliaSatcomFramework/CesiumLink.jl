@@ -135,13 +135,20 @@ end
 
     # A set has a source per entry, and the reader can pick any of them. A webview gets its policy
     # once, at panel creation, so every source has to be in it from the start. The default set is
-    # ASTER Colour Relief over the pyramid inside the viewer. That pyramid needs no source, so a
-    # session that named nothing reaches one directory of one host and nothing else.
+    # every known basemap, and the pyramid inside the viewer needs no source. So a session that
+    # named nothing reaches one directory per online entry, on the two hosts those entries sit on.
     server = start_server(; dist_dir = nothing, host = "::1", port = freeport())
     try
         @test server.trusted_origins ==
               ["https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/ASTER_GDEM_Color_Shaded_Relief/\
-                default/GoogleMapsCompatible_Level12/"]
+                default/GoogleMapsCompatible_Level12/",
+               "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/ASTER_GDEM_Greyscale_Shaded_Relief/\
+                default/GoogleMapsCompatible_Level12/",
+               "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_ShadedRelief_Bathymetry/\
+                default/GoogleMapsCompatible_Level8/",
+               "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_ShadedRelief/\
+                default/GoogleMapsCompatible_Level8/",
+               "https://tiles.emodnet-bathymetry.eu/2020/baselayer/web_mercator/"]
     finally
         stop_server(server)
     end
@@ -200,12 +207,23 @@ end
                     # resource roots and its policy when its panel is created.
                     @test entry["assets"] == Dict("glb" => dir)
                     # What the author listed reaches the file exactly as written, and comes
-                    # first. The default basemap set adds the one tile directory it reads after it.
+                    # first. The default basemap set adds the tile directory of each online entry
+                    # after it.
                     @test entry["trustedOrigins"] ==
                           ["https://cdn.example",
                            "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/\
                             ASTER_GDEM_Color_Shaded_Relief/default/\
-                            GoogleMapsCompatible_Level12/"]
+                            GoogleMapsCompatible_Level12/",
+                           "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/\
+                            ASTER_GDEM_Greyscale_Shaded_Relief/default/\
+                            GoogleMapsCompatible_Level12/",
+                           "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/\
+                            BlueMarble_ShadedRelief_Bathymetry/default/\
+                            GoogleMapsCompatible_Level8/",
+                           "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/\
+                            BlueMarble_ShadedRelief/default/\
+                            GoogleMapsCompatible_Level8/",
+                           "https://tiles.emodnet-bathymetry.eu/2020/baselayer/web_mercator/"]
                 finally
                     stop_server(server)
                 end

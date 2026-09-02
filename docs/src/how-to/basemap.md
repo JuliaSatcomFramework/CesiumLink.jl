@@ -3,12 +3,13 @@
 The globe wears a **basemap**. The server declares a **basemap set** (one basemap, or several), and
 the reader picks inside the set. `imagery` says what the set holds, once, at `start_server`.
 
-From 0.2.0 a session on Earth that says nothing declares two basemaps: ASTER Colour Relief over
-the pyramid inside the viewer. Both come from NASA GIBS, so a default session asks
-`gibs.earthdata.nasa.gov` for tiles and no other host. Place names and country borders draw over
-that globe, from two files inside the viewer. This is the one change a reader meets on upgrade, and
-the release is 0.2.0 because of it. A session on another body still wears the bundled texture and
-declares nothing.
+From 0.2.0 a session on Earth that says nothing declares all six basemaps this package knows, ASTER
+Colour Relief first and the offline pyramid last. An entry costs nothing until the reader picks it:
+the page builds a tile provider for the first entry alone, so the globe still opens by asking one
+host, `gibs.earthdata.nasa.gov`, for tiles. Place names and country borders draw over that globe,
+from two files inside the viewer. This is the one change a reader meets on upgrade, and the release
+is 0.2.0 because of it. A session on another body still wears the bundled texture and declares
+nothing.
 
 ## Take the network out of it
 
@@ -48,11 +49,15 @@ Every one of them is of Earth. None belongs in a session on another body.
 Name the ones you want, in the order you want them:
 
 ```julia
-# the default set, stated by hand
+# the default order, stated by hand
 start_server(; imagery = [KNOWN_EARTH_BASEMAPS.aster_colour_relief,
+                          KNOWN_EARTH_BASEMAPS.aster_grey_relief,
+                          KNOWN_EARTH_BASEMAPS.blue_marble,
+                          KNOWN_EARTH_BASEMAPS.blue_marble_relief,
+                          KNOWN_EARTH_BASEMAPS.emodnet_baselayer,
                           KNOWN_EARTH_BASEMAPS.offline_natural_earth])
 
-# all six
+# the same six, in catalogue order
 start_server(; imagery = collect(KNOWN_EARTH_BASEMAPS))
 ```
 
