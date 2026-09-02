@@ -42,7 +42,9 @@ function record!(server::Server, path)
          modules = [(; m.id, path = m.path, apiVersion = m.api_version) for m in server.modules],
          recorded_scene(server)...)
     end
-    held = retained_messages(server)
+    # A subscription is derived from the listeners of the live server, so it is never recorded: a
+    # replayed one would tell the viewer what a different server's listeners wanted.
+    held = retained_messages(server; skip = (CORE_SUBSCRIBE, UI_SUBSCRIBE))
     lock(server.record_lock) do
         # Opened only once the previous sink is closed: recording twice to one path would otherwise
         # truncate the file a live handle still points into.

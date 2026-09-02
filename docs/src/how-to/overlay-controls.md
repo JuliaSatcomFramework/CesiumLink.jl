@@ -73,6 +73,9 @@ Group([Legend("Throughput (Gbps)", 0, 12, SAT_CMAP),
 
 A group does not nest.
 
+A `Title`, a `Legend` and a `Group` also take an `id`, which makes the box answer the pointer. See
+[React to a click or a hover on a box](ui-pointer.md).
+
 ## Choose a corner
 
 Every control takes `region`, one of `:top_left`, `:top_center`, `:top_right` and `:bottom_right`.

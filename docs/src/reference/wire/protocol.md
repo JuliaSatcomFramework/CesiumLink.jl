@@ -321,7 +321,7 @@ Everything else. A batch of addressed commands, applied in order (ADR-0010).
 ### Retention
 
 The server retains **the last command per `(module, topic)`**, in recency order, and replays them on
-`ready`. A declaration-shaped topic (`ui/declare`, `core/subscribe`, `core/furniture`,
+`ready`. A declaration-shaped topic (`ui/declare`, `core/subscribe`, `ui/subscribe`, `core/furniture`,
 `core/regions`) is therefore restored on reconnect. An event-shaped one (`ui/tooltip`) is harmless to
 replay, because the next pointer move overwrites it.
 

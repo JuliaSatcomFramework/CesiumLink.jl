@@ -104,6 +104,8 @@ interface Live {
   close: HTMLElement | null;
   /** The drag handle of an adjustable box; null for one the user may not move. */
   strip: HTMLElement | null;
+  /** Drops this box's own pointer listeners; raises a synthetic `leave` if the pointer was inside. */
+  unwatch: () => void;
   anchor: Anchor | null;
   /**
    * Where the user put this box, once they have moved or resized it. It beats the anchor and the
@@ -131,6 +133,11 @@ export interface FloatDeps {
   mountOf(module: string): MountFactory | null;
   /** Report upward, as `ui` itself: the close button and a mounted module both travel this way. */
   notify(topic: string, payload: unknown): void;
+  /**
+   * Raise the pointer events of an addressed box: attach the three listeners to `el` and return the
+   * disposer that drops them again. Every float has an id, so this is called for every one of them.
+   */
+  watch(el: HTMLElement, id: string): () => void;
 }
 
 // Takes the pointer, unlike the tooltip: a float carries a close button and may carry a module
@@ -232,7 +239,7 @@ export function createFloats(deps: FloatDeps): Floats {
     inner.setAttribute("data-ui", "content");
     box.appendChild(inner);
     const one: Live = { spec: {}, json: "", key, box, inner, root: null, mount: null, close: null,
-                        strip: null, anchor: null, rect: null };
+                        strip: null, unwatch: deps.watch(box, id), anchor: null, rect: null };
     if (key === "html") {
       one.root = inner.attachShadow({ mode: "open" });
     } else {
@@ -294,7 +301,7 @@ export function createFloats(deps: FloatDeps): Floats {
       one.strip.onpointerdown = (e) => drag(id, one, e);
       // First, so it stands above the content in the scroll flow and can stick to the top of it.
       one.box.prepend(one.strip);
-      watch(id, one);
+      watchResize(id, one);
     } else {
       one.box.onpointerdown = null;
       one.box.onpointerup = null;
@@ -367,7 +374,7 @@ export function createFloats(deps: FloatDeps): Floats {
 
   // The resize is the browser's own, which reports no move while it runs and writes the size
   // straight onto the box. So measure the box on either side of the gesture and speak on release.
-  const watch = (id: string, one: Live) => {
+  const watchResize = (id: string, one: Live) => {
     let before: Rect | null = null;
     one.box.onpointerdown = () => { before = rectOf(one.box); };
     one.box.onpointerup = () => {
@@ -393,6 +400,7 @@ export function createFloats(deps: FloatDeps): Floats {
     } catch (err) {
       console.warn(`ui: float ${JSON.stringify(id)} threw while disposing its mount: ${err}`);
     }
+    one.unwatch();
     one.box.remove();
     live.delete(id);
   };

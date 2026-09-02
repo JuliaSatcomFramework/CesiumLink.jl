@@ -66,7 +66,7 @@ export viewer_url, bound_port, discovery_dir
 export send_command, send_reply, push_window
 export declare_furniture, declare_regions
 export Viewpoint, declare_camera, declare_follow
-export on_event, on_pointer, off_event, command!, tooltip!, Command, Reply
+export on_event, on_pointer, on_ui_pointer, off_event, command!, tooltip!, Command, Reply
 export serve_scene!, install_scene!
 export AbstractControl, Title, Legend, Toggle, Select, Group, declare_overlay
 export Floating, Screen, Entity, World, declare_floating

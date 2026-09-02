@@ -729,7 +729,8 @@ They implement this contract and nothing more:
   owner-namespaced name such as `"orbits.shell-picker"`. Nothing about it is privileged: it reaches a
   mounted module the way any module reaches another. So one module can both feed `ui` — a float
   `mount`, a `positionOf` an anchor names — and extend it with a widget kind, from a single
-  declaration entry, on either side of `ui`.
+  declaration entry, on either side of `ui`. A box that carries an `id` is an **addressed box**, and
+  raises `click`, `enter` and `leave` on the `ui/pointer` topic.
 - **`heatmap`** drapes a continuous field over the globe as imagery. It is told a box of degrees and
   a grid of RGBA bytes per raster, in the order the rasters stack, and it copies those bytes onto a
   canvas. It holds no colormap, no legend and no value: the server bakes the colour, which keeps a
@@ -879,3 +880,57 @@ The base rank of a field is the module's own convention (§ Payloads). At a base
 array is the same at every keyframe, and an array of rank 2 carries a row per keyframe, with the
 trailing Julia axis as the keyframe. So the box follows the clock with no event and no round trip,
 and the float that placed it never moves.
+
+### Pointer events on an addressed box
+
+An overlay row, a group box, and a float raise their own pointer events when the declaration carries
+an `id`. The `ui` module listens on the DOM element it built, so a crossing never reaches the canvas and
+the Core raises nothing for it (ADR-0035). Two topics carry the traffic.
+
+`ui/subscribe` travels downward, and the server retains it as it retains `core/subscribe`. It states
+which crossings the server wants, as one list:
+
+```json
+{ "module": "ui", "topic": "subscribe",
+  "payload": [
+    { "id": "run-title", "type": "click", "mods": ["alt"] },
+    { "id": null, "type": "enter", "mods": null }
+  ]}
+```
+
+The module sends a crossing upward when it matches **any** entry. A `null` in a field matches
+anything, and an absent field reads as `null`:
+
+| Field | Semantics |
+|---|---|
+| `id` | Which addressed box the entry covers. `null` → every addressed box |
+| `type` | `click`, `enter` or `leave`. `null` → all three |
+| `mods` | Exact match on the modifier set held, in any order. `null` → any modifier state. `[]` → only when the user holds none |
+
+An empty list sends nothing upward. The server derives this list from its registered
+`on_ui_pointer` listeners and sends it again whenever that set changes, so no author writes it by
+hand.
+
+`ui/pointer` travels upward, one event per crossing an entry asked for:
+
+```json
+{ "method": "event",
+  "params": {
+    "module": "ui",
+    "topic": "pointer",
+    "seq": 42,
+    "frame": 17,
+    "window": 3,
+    "payload": { "type": "click", "id": "run-title", "mods": ["alt"],
+                 "screen": { "x": 412, "y": 88 } }
+  }}
+```
+
+`mods` is the set held at the moment of the crossing, in the order `alt`, `ctrl`, `shift`. The module
+measures `screen` against the viewer container, which is the space a `Screen` anchor places a float
+in.
+
+`mouseenter` and `mouseleave` do not bubble, so one box raises one crossing whatever its children
+are. A box removed while the pointer is inside it raises a synthetic `leave` carrying what its
+`enter` carried, so every `enter` has one `leave` after it. A box that a re-declaration rebuilds in
+place, with the same id and a new element, keeps its state and raises nothing.
