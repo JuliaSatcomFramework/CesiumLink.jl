@@ -90,6 +90,11 @@ export capture_canvas
 # best-effort and never breaks `Pkg.precompile()`. The catch reports what it swallowed under
 # `JULIA_DEBUG=CesiumLink`: without that, a workload broken by a rename goes on costing its time
 # and buying nothing, and no test goes red.
+#
+# `request_timeout` is the deadline HTTP 2 reads; HTTP 1, which the compat bound still allows,
+# collects it as an unknown keyword and ignores it. The watchdog is the bound that holds on both,
+# so the keyword narrows the wait where it is understood and costs nothing where it is not. Do not
+# reach for `readtimeout` instead: HTTP 2 deprecates it and warns once per precompile.
 @compile_workload begin
     try
         dist = mktempdir()
@@ -105,9 +110,9 @@ export capture_canvas
         try
             bound = bound_port(server)
             base = "http://127.0.0.1:$bound"
-            HTTP.get("$base/index.html"; status_exception = false, readtimeout = 5)
+            HTTP.get("$base/index.html"; status_exception = false, request_timeout = 5)
             HTTP.get("$base/chunk-warmup.js"; headers = ["Accept-Encoding" => "gzip"],
-                      status_exception = false, readtimeout = 5)
+                      status_exception = false, request_timeout = 5)
             HTTP.WebSockets.open("ws://127.0.0.1:$bound/ws"; connect_timeout = 5) do ws
                 HTTP.WebSockets.send(ws,
                     "{\"jsonrpc\":\"2.0\",\"method\":\"ready\",\"params\":{\"protocol\":$PROTOCOL_VERSION}}")
