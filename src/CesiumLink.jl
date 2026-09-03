@@ -23,6 +23,7 @@ using ColorTypes: Colorant, red, green, blue, alpha
 # Qualified rather than brought in: `Dates` stamps one field of the discovery file, and `format` and
 # `now` are names too general to put in this namespace.
 import Dates
+using PrecompileTools: @compile_workload
 
 # Wire encoding, scene payloads, message frames, the server, and session record/replay.
 
@@ -75,5 +76,47 @@ export Models, models_payload
 export Raster, rgba_grid, heatmap_index, heatmap_payload
 export record!, stop_recording!, replay
 export capture_canvas
+
+# Pays the JIT cost of a fresh process's first HTTP request and first WebSocket `ready` round trip
+# at precompile time, so a user's real first request does not pay it. `start_server` binds an
+# ephemeral port (`port = 0`) over a temporary dist directory holding one HTML file and one script
+# above `GZIP_MIN_BYTES` (`src/static.jl`), so both the plain and the gzip-compressed serving paths
+# compile. The `ready` frame matches what the viewer sends (`lib/core/src/transport.ts`,
+# `PROTOCOL_VERSION`).
+#
+# `watchdog` stops the server after 10 s no matter what stage the workload is at: a blocked read
+# then ends, or throws into the outer `catch`, and precompilation finishes instead of hanging. A
+# sandbox that refuses to open a socket at all is caught the same way, so the workload is
+# best-effort and never breaks `Pkg.precompile()`.
+@compile_workload begin
+    try
+        dist = mktempdir()
+        write(joinpath(dist, "index.html"), "<!doctype html><title>compile</title>")
+        write(joinpath(dist, "chunk-warmup.js"), "// " * "x"^1200)
+        server = start_server(; dist_dir = dist, port = 0, open = false)
+        watchdog = Timer(10) do _
+            try
+                stop_server(server)
+            catch
+            end
+        end
+        try
+            bound = bound_port(server)
+            base = "http://127.0.0.1:$bound"
+            HTTP.get("$base/index.html"; status_exception = false, request_timeout = 5)
+            HTTP.get("$base/chunk-warmup.js"; headers = ["Accept-Encoding" => "gzip"],
+                      status_exception = false, request_timeout = 5)
+            HTTP.WebSockets.open("ws://127.0.0.1:$bound/ws"; connect_timeout = 5) do ws
+                HTTP.WebSockets.send(ws,
+                    "{\"jsonrpc\":\"2.0\",\"method\":\"ready\",\"params\":{\"protocol\":$PROTOCOL_VERSION}}")
+                HTTP.WebSockets.receive(ws)
+            end
+        finally
+            close(watchdog)
+            stop_server(server)
+        end
+    catch
+    end
+end
 
 end # module CesiumLink
