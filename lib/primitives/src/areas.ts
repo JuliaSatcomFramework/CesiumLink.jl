@@ -120,6 +120,13 @@ const MIN_MESH_RAD = (0.01 * Math.PI) / 180;
 /** Mean Earth radius in metres, to read a footprint radius as the angle it subtends. */
 const EARTH_RADIUS_M = 6_371_000;
 
+/**
+ * The largest family that tessellates on the main thread. A few dozen polygons cost about 100 ms
+ * inline; the worker pool a larger family goes to takes seconds to start over a slow link.
+ * ponytail: a fixed threshold, measured once at 17 and 200 polygons. Re-measure before tuning.
+ */
+const SYNC_AREA_LIMIT = 50;
+
 /** The angle a footprint of `radius` metres spans, in degrees: its diameter over the globe. */
 export const spanDegrees = (radius: number): number =>
   (2 * radius * 180) / (EARTH_RADIUS_M * Math.PI);
@@ -285,20 +292,21 @@ export class AreaFamily {
         });
       }
     }
-    // Both primitives tessellate off the main thread. A family of hundreds of footprints takes long
-    // enough that building it inline holds the thread and the camera and controls stop answering,
-    // and freeing the thread also brings the first draw of the geometry forward rather than
-    // delaying it. The cost is that the footprints are absent for the frames the build takes.
+    // A small family tessellates inline, where the build is over before a worker could start. A
+    // family of hundreds of footprints goes off the main thread, because building it inline holds
+    // the camera and controls on every rebuild a window triggers, not only the first. The cost is
+    // that those footprints are absent for the frames the build takes.
+    const asynchronous = n > SYNC_AREA_LIMIT;
     this.fill = scene.primitives.add(new C.Primitive({
       geometryInstances: fills,
       appearance: new C.PerInstanceColorAppearance({ flat: true, translucent: true }),
-      asynchronous: true,
+      asynchronous,
     })) as Primitive;
     if (outlineColor) {
       this.outline = scene.primitives.add(new C.Primitive({
         geometryInstances: outlines,
         appearance: new C.PerInstanceColorAppearance({ flat: true, translucent: true }),
-        asynchronous: true,
+        asynchronous,
       })) as Primitive;
     }
   }
