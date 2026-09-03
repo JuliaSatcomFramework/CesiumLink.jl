@@ -282,3 +282,18 @@ test("an area family with nothing standing says so, whichever geometry it was ow
   family.onWindow({ kind: "region", show: { data: Uint8Array.from([1]), shape: [1] } },
                   { ...window(), mode: "append" });
 });
+
+test("the build goes to a worker on the vertices it carries, not on the count of regions", () => {
+  const small = stage();
+  small.family.onWindow({ kind: "region", boundary: [[SQUARE]], extent: extent(0, 10, 0, 10) },
+                        window());
+  assert.equal(small.added[0].asynchronous, false, "four vertices tessellate on the main thread");
+
+  // One region again, and a ring of a thousand vertices: the shape of a country boundary, which a
+  // count of regions reads as the cheapest family there is.
+  const heavy = stage();
+  const long = ring(...Array.from({ length: 2000 }, (_, i) => (i % 2 ? 0 : i / 200)));
+  heavy.family.onWindow({ kind: "region", boundary: [[long]], extent: extent(0, 10, 0, 10) },
+                        window());
+  assert.equal(heavy.added[0].asynchronous, true, "a thousand of them do not");
+});
