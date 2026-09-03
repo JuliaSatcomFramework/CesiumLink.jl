@@ -85,25 +85,41 @@ function gzipped(file::AbstractString, stamp::Tuple{Float64,Int})
     end
 end
 
-# Compress every file of `dir` that `serve_static` would compress, so the first request for one
-# finds its gzip in the cache. The viewer chunk alone costs 145 ms to compress, and every request
-# that arrives while it compresses waits on `GZIP_CACHE_LOCK`. Run this from a task: it holds the
-# lock for one file at a time, so a request during the walk waits for one file and not for the walk.
+# The directories a page reads on its way to a first frame: the dist root, which holds `index.html`
+# and the viewer chunk, and the annotation files the globe wears. Nothing else is warmed. The rest of
+# a dist is about 21 MB of Cesium worker modules and asset JSON that one session mostly never asks
+# for, and `GZIP_CACHE` holds what it compresses for the life of the process.
+const WARM_DIRS = ("", "annotations")
+
+# Compress the files a first page reads, so the request for one finds its gzip in the cache. The
+# viewer chunk alone costs 145 ms to compress, and every request that arrives while it compresses
+# waits on `GZIP_CACHE_LOCK`. Run this from a task: it holds the lock for one file at a time, so a
+# request during the warm-up waits for one file and not for the whole of it.
 function warm_gzip_cache(dir::AbstractString)
-    for (root, _, files) in walkdir(dir), name in files
-        file = joinpath(root, name)
-        ctype = get(MIME_TYPES, lowercase(splitext(name)[2]), "application/octet-stream")
-        stamp = file_stamp(file)
-        ctype in COMPRESSIBLE && stamp[2] >= GZIP_MIN_BYTES && gzipped(file, stamp)
+    for sub in WARM_DIRS
+        root = joinpath(dir, sub)
+        isdir(root) || continue
+        for name in readdir(root)
+            file = joinpath(root, name)
+            isfile(file) || continue
+            ctype = get(MIME_TYPES, lowercase(splitext(name)[2]), "application/octet-stream")
+            stamp = file_stamp(file)
+            ctype in COMPRESSIBLE && stamp[2] >= GZIP_MIN_BYTES && gzipped(file, stamp)
+        end
     end
     return nothing
 end
 
-# Whether a request path names a file whose content never changes under that name: a viewer chunk
-# carries a hash of its content in its name, and Cesium's worker modules import each other by those
-# names. Such a file may be kept for as long as a client likes.
-immutable_path(rel::AbstractString) =
-    occursin(r"^chunk-[^/]+\.js$", basename(rel)) || startswith(rel, "cesium/Workers/")
+# Whether a request path names a file whose content never changes under that name: a chunk carries a
+# hash of its content in its name, wherever it sits. Such a file may be kept for as long as a client
+# likes.
+#
+# The name must carry the hash, and nothing weaker. `cesium/Workers/` holds the hashed chunks and
+# also about fifty entry modules under stable names (`createGeometry.js` and its kind), each one
+# importing the chunk names of the build it came from. Marking those immutable strands a client that
+# reloads a rebuilt dist on the same port: it keeps last year's entry module, asks for chunk names
+# that no longer exist, and the geometry worker never loads. Only clearing the site's data recovers.
+immutable_path(rel::AbstractString) = occursin(r"^chunk-[^/]+\.js$", basename(rel))
 
 # Whether `file` lies strictly under the mount root `root`. The path-traversal guard: a request may
 # reach a file inside its mount and nothing else.
