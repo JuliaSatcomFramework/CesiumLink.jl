@@ -551,12 +551,21 @@ function start_server(; dist_dir = viewer_dist(), host = "127.0.0.1", port = 0,
         throw(ArgumentError("could not listen on $host:$port — the address is already in use"))
     end
     server.listener = listener
+    # Compress the dist before the first page asks for it, so the first client of a new server does
+    # not queue behind the chunk's compression. A failed walk costs nothing: a file it skipped is
+    # compressed on request, as before.
+    server.dist_dir === nothing || @async try
+        warm_gzip_cache(server.dist_dir)
+    catch e
+        @debug "the gzip cache warm-up failed" exception = e
+    end
     # The push goes out after the discovery file, and never before it: the extension reads that
     # file to find the scene the push names.
     server.discovery_file = write_discovery(bound_port(server), title, imagery_source(server);
                                             host = server.host, assets = server.asset_dirs,
                                             trusted_origins = server.trusted_origins,
-                                            modules = module_dirs(server))
+                                            modules = module_dirs(server),
+                                            dist = server.dist_dir)
     if open !== false
         why = push_to_editor(bound_port(server), open)
         # A tab that does not open costs one line, and never the scene. `open = true` asks for the

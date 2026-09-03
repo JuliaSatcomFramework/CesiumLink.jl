@@ -768,6 +768,39 @@ end
     end
 end
 
+@testitem "a content-hashed file is immutable, the rest revalidate, and geojson compresses" setup=[FreePort] begin
+    using HTTP
+
+    mktempdir() do dir
+        write(joinpath(dir, "index.html"), "<html></html>")
+        write(joinpath(dir, "chunk-ABC123.js"), "export const k = 1;\n")
+        workers = mkpath(joinpath(dir, "cesium", "Workers"))
+        write(joinpath(workers, "createGeometry.js"), "self.k = 1;\n")
+        write(joinpath(workers, "chunk-DEF456.js"), "export const w = 1;\n")
+        borders = joinpath(mkpath(joinpath(dir, "annotations")), "borders.geojson")
+        write(borders, repeat("{\"type\":\"FeatureCollection\",\"features\":[]}\n", 100))
+        port = freeport()
+        server = start_server(; dist_dir = dir, host = "::1", port)
+        try
+            cache(path) = HTTP.header(HTTP.get("http://[::1]:$port$path"), "Cache-Control")
+            @test cache("/index.html") == "no-cache"
+            @test cache("/chunk-ABC123.js") == "public, max-age=31536000, immutable"
+            @test cache("/cesium/Workers/chunk-DEF456.js") == "public, max-age=31536000, immutable"
+            # A worker entry module keeps a stable name and imports the chunk names of its own
+            # build, so a client that kept it across a rebuild would ask for chunks that are gone.
+            @test cache("/cesium/Workers/createGeometry.js") == "no-cache"
+
+            gz = HTTP.get("http://[::1]:$port/annotations/borders.geojson",
+                          ["Accept-Encoding" => "gzip"]; decompress = false)
+            @test HTTP.header(gz, "Content-Type") == "application/geo+json"
+            @test HTTP.header(gz, "Content-Encoding") == "gzip"
+            @test cache("/annotations/borders.geojson") == "no-cache"
+        finally
+            stop_server(server)
+        end
+    end
+end
+
 @testitem "a client announcing another protocol version is closed, not humoured" setup=[FreePort, WsOpen] begin
     using HTTP, JSON
     using CesiumLink: PROTOCOL_VERSION

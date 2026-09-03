@@ -120,6 +120,23 @@ const MIN_MESH_RAD = (0.01 * Math.PI) / 180;
 /** Mean Earth radius in metres, to read a footprint radius as the angle it subtends. */
 const EARTH_RADIUS_M = 6_371_000;
 
+/**
+ * The most tessellation work a family may do on the main thread, in vertices.
+ *
+ * Counted rather than the number of regions: the cost of a build is the vertices Cesium walks, and
+ * five country boundaries carry more of them than fifty footprint hexagons. A draped region adds
+ * the cells its extent covers at the mesh granularity, because Cesium subdivides that region across
+ * the ellipsoid instead of using its vertices as given.
+ *
+ * The budget is fifty default hexagons, which is the shape the 100 ms figure was measured on. Below
+ * it the build runs inline, where it is over before a worker could start; above it the family goes
+ * to the worker pool, which takes seconds to start over a slow link but holds neither the camera
+ * nor the controls on the rebuilds a window triggers.
+ *
+ * ponytail: one flat budget, measured on footprint circles at 17 and 200. Re-measure before tuning.
+ */
+const SYNC_VERTEX_BUDGET = 300;
+
 /** The angle a footprint of `radius` metres spans, in degrees: its diameter over the globe. */
 export const spanDegrees = (radius: number): number =>
   (2 * radius * 180) / (EARTH_RADIUS_M * Math.PI);
@@ -211,6 +228,7 @@ export class AreaFamily {
     // both with a better message; a module speaking the wire directly does not go through Julia.
     const meshRadians = Math.min(Math.PI, Math.max(MIN_MESH_RAD,
       ((spec.meshDeg ?? MESH_CELL_DEG) * Math.PI) / 180));
+    const meshDegrees = (meshRadians * 180) / Math.PI;
     const heights = knob(spec.heightM, { itemLen: 1, n, count, what: `${this.kind}.height_m` })?.frame(0) ?? null;
     const radius = knob(spec.radius, { itemLen: 1, n, count, what: `${this.kind}.radius` })?.frame(0) ?? null;
     // The colours and mask the instances are born with come from this window's first keyframe,
@@ -224,6 +242,8 @@ export class AreaFamily {
     const outlines: GeometryInstance[] = outlineColor ? new Array(n) : [];
     this.ids = new Array(n);
     this.shown = new Array(n);
+    // What this family costs to tessellate, against `SYNC_VERTEX_BUDGET`.
+    let vertexCost = 0;
     for (let i = 0; i < n; i++) {
       const region = spec.boundary?.[i];
       const height = heights ? at(heights, i) : 0;
@@ -231,6 +251,7 @@ export class AreaFamily {
       let span: number;
       if (region) {
         hierarchy = this.rings(region, height);
+        for (const ring of region) vertexCost += ring.data.length / 2;
         // An edge hangs off the middle of the region's extent. A given boundary has no centre of
         // its own, and averaging its vertices would pull the point towards the finely drawn side.
         const e = spec.extent!.data;
@@ -244,15 +265,18 @@ export class AreaFamily {
         this.positions.push(center);
         const r = radius ? at(radius, i) : DEFAULT_RADIUS;
         hierarchy = this.footprint(center, r, sides);
+        vertexCost += sides;
         span = spanDegrees(r);
       }
       // Below the threshold the vertices are used exactly, which is both cheaper and the only way to
       // keep a footprint's corners where they were computed. Above it Cesium subdivides the polygon
       // across the ellipsoid, and then it reads one height for the whole surface rather than the
       // heights of the vertices.
-      const shape = (spec.drape ?? span > DRAPE_SPAN_DEG)
-        ? { height, granularity: meshRadians }
-        : { perPositionHeight: true };
+      const draped = spec.drape ?? span > DRAPE_SPAN_DEG;
+      const shape = draped ? { height, granularity: meshRadians } : { perPositionHeight: true };
+      // A draped region is subdivided across the ellipsoid rather than drawn from its own vertices,
+      // so its cost is the cells its extent covers at the mesh granularity.
+      if (draped) vertexCost += (span / meshDegrees) ** 2;
       const id = (this.ids[i] = this.pickId(this.kind, i));
       // Every instance carries a `show` attribute whether or not this window masks anything: an
       // attribute absent at build time cannot be written later, and a mask is how the server hides
@@ -285,20 +309,21 @@ export class AreaFamily {
         });
       }
     }
-    // Both primitives tessellate off the main thread. A family of hundreds of footprints takes long
-    // enough that building it inline holds the thread and the camera and controls stop answering,
-    // and freeing the thread also brings the first draw of the geometry forward rather than
-    // delaying it. The cost is that the footprints are absent for the frames the build takes.
+    // A cheap family tessellates inline, where the build is over before a worker could start. An
+    // expensive one goes off the main thread, because building it inline holds the camera and
+    // controls on every rebuild a window triggers, not only the first. The cost is that those
+    // regions are absent for the frames the build takes.
+    const asynchronous = vertexCost > SYNC_VERTEX_BUDGET;
     this.fill = scene.primitives.add(new C.Primitive({
       geometryInstances: fills,
       appearance: new C.PerInstanceColorAppearance({ flat: true, translucent: true }),
-      asynchronous: true,
+      asynchronous,
     })) as Primitive;
     if (outlineColor) {
       this.outline = scene.primitives.add(new C.Primitive({
         geometryInstances: outlines,
         appearance: new C.PerInstanceColorAppearance({ flat: true, translucent: true }),
-        asynchronous: true,
+        asynchronous,
       })) as Primitive;
     }
   }

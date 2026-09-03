@@ -7,16 +7,19 @@
 // The names and the country borders are independent, and either may be off while the other is on.
 
 import {
+  ArcType,
   Cartesian3,
   type CesiumWidget,
   Color,
-  ColorMaterialProperty,
-  ConstantProperty,
-  GeoJsonDataSource,
+  ColorGeometryInstanceAttribute,
+  GeometryInstance,
   HeightReference,
   HorizontalOrigin,
   LabelCollection,
   LabelStyle,
+  PolylineColorAppearance,
+  PolylineGeometry,
+  Primitive,
   type Rectangle,
   SceneMode,
   SceneTransforms,
@@ -133,18 +136,20 @@ const BORDER_THIN_HEIGHT = 2e7;
 const BORDER_THIN_FACTOR = 0.5;
 
 /**
- * How coarsely the factor is rounded: to a twentieth, which is 0.05.
+ * How coarsely the factor is rounded: to a quarter, so the factor takes 1, 0.75 and 0.5 and nothing
+ * else.
  *
- * The step is what keeps the walk over the entities rare. Without one, every camera report writes a
- * new width onto every line for a difference no reader can see.
+ * The step is what keeps the rebuild of the lines rare, and a rebuild is 365 ms of blocked main
+ * thread. Three values means at most two rebuilds over a flight in from globe range; a twentieth
+ * would mean eleven, and a quarter of the declared width is half a pixel on a default line.
  */
-const FACTOR_STEPS = 20;
+const FACTOR_STEPS = 4;
 
 /**
  * What the declared width of a country line is multiplied by at a camera height, in metres.
  *
  * 1 at or below 2,000 km, 0.5 at or above 20,000 km, and linear in the log of the height between
- * the two. The log is what the camera height reads as everywhere else in this module (`levelAt`):
+ * the two, rounded to `FACTOR_STEPS`. The log is what the camera height reads as everywhere else in this module (`levelAt`):
  * each step down halves the height, so a factor linear in the log falls evenly per step.
  */
 export function borderWidthFactor(height: number): number {
@@ -368,32 +373,70 @@ export function addAnnotations(
   show: AnnotationFlags = {},
 ): Annotations {
   const base = annotationBase(baseUrl);
-  let borders: GeoJsonDataSource | null = null;
+  let borders: Primitive | null = null;
+  // The lines as positions on the ellipsoid, kept once the file is parsed: a width change builds
+  // the primitive again from them, and the file is never fetched twice.
+  let borderLines: Cartesian3[][] = [];
   let borderColor = Color.fromCssColorString(DEFAULT_BORDER_COLOR);
   let declaredWidth = DEFAULT_BORDER_WIDTH;
   let widthFactor = borderWidthFactor(widget.camera.positionCartographic.height);
   const sayBadColour = sayOnce((message) => console.warn(message));
-  // Writes the style onto the lines that are already on the globe. The entities are restyled in
-  // place rather than the file being loaded again: the file is the same file whatever the basemap,
-  // and a second load would take the lines off the globe for as long as the fetch runs.
+  // Builds the lines as one primitive at the current width and colour, and puts it on the globe in
+  // place of the one that is there.
+  //
+  // Synchronous, so that the lines wait for no geometry worker. Each worker imports the whole chunk
+  // set of the viewer before it does anything, which holds the lines off the globe for seconds over
+  // a slow link. The build costs about 365 ms on the main thread for the 390 lines of the file.
+  //
+  // The width is baked into the geometry, so a width change is a build and not a restyle. The new
+  // primitive goes on before the old one comes off: a synchronous primitive builds and draws in
+  // its first update, so the globe never draws a frame without lines.
+  const buildBorders = () => {
+    if (borderLines.length === 0) return;
+    const width = declaredWidth * widthFactor;
+    const primitive = new Primitive({
+      geometryInstances: borderLines.map((positions, id) =>
+        new GeometryInstance({
+          id,
+          geometry: new PolylineGeometry({
+            positions,
+            width,
+            // A rhumb line, which is the arc `GeoJsonDataSource` draws a GeoJSON line with.
+            arcType: ArcType.RHUMB,
+            vertexFormat: PolylineColorAppearance.VERTEX_FORMAT,
+          }),
+          attributes: { color: ColorGeometryInstanceAttribute.fromColor(borderColor) },
+        })),
+      appearance: new PolylineColorAppearance(),
+      asynchronous: false,
+      show: on.borders,
+    });
+    widget.scene.primitives.add(primitive);
+    if (borders) widget.scene.primitives.remove(borders);
+    borders = primitive;
+  };
+  // Writes the colour onto the lines that are already on the globe, one per-instance attribute at
+  // a time: a batch-table write, not a build. The batch table exists only after the primitive's
+  // first update, so a colour that arrives before that goes in through a build, which costs
+  // nothing then because nothing is built yet.
   const paintBorders = () => {
     if (!borders) return;
-    for (const entity of borders.entities.values) {
-      if (!entity.polyline) continue;
-      entity.polyline.material = new ColorMaterialProperty(borderColor);
-      // A constant property, never a `CallbackProperty`: the polyline batch re-evaluates a property
-      // that is not constant on every frame, for every line it holds.
-      entity.polyline.width = new ConstantProperty(declaredWidth * widthFactor);
+    if (!borders.ready) {
+      buildBorders();
+      return;
+    }
+    for (let id = 0; id < borderLines.length; id++) {
+      const attributes = borders.getGeometryInstanceAttributes(id);
+      attributes.color = ColorGeometryInstanceAttribute.toValue(borderColor, attributes.color);
     }
   };
-  // The camera height decides how much of the declared width a line is drawn at. The walk over the
-  // entities runs only where the rounded factor alters, which is a few times over a flight in from
-  // globe range.
+  // The camera height decides how much of the declared width a line is drawn at. The build runs
+  // only where the rounded factor alters, which is at most twice over a flight in from globe range.
   const thinBorders = () => {
     const factor = borderWidthFactor(widget.camera.positionCartographic.height);
     if (factor === widthFactor) return;
     widthFactor = factor;
-    paintBorders();
+    buildBorders();
   };
   // Fills the label collection from the camera it is called under. It stays a no-op until the names
   // arrive, and switching the layer back on calls it rather than waiting for the camera to move.
@@ -451,26 +494,36 @@ export function addAnnotations(
   })();
 
   const lines = (async () => {
-    // The boundaries arrive as LineString features and draw as plain polylines on the ellipsoid,
-    // never as ground polylines. A ground polyline is built in a worker that first fetches
-    // `Assets/approximateTerrainHeights.json` for itself, and the worker keeps a fetch that failed
-    // for good: every later line fails with it, and the failure is a bare object the primitive
-    // throws from the render loop, which stops the globe. A VSCode webview answers that fetch with
-    // 408 when its resource pipe is slow. This globe has no terrain, so a line at height zero lies
-    // on the surface, and `depthTestAgainstTerrain` is off, so the globe never hides one.
+    // The boundaries arrive as LineString and MultiLineString features and draw as plain polylines
+    // on the ellipsoid, never as ground polylines. A ground polyline is built in a worker that
+    // first fetches `Assets/approximateTerrainHeights.json` for itself, and the worker keeps a
+    // fetch that failed for good: every later line fails with it, and the failure is a bare object
+    // the primitive throws from the render loop, which stops the globe. A VSCode webview answers
+    // that fetch with 408 when its resource pipe is slow. This globe has no terrain, so a line at
+    // height zero lies on the surface, and `depthTestAgainstTerrain` is off, so the globe never
+    // hides one.
     //
-    // Lines, not polygon outlines: Cesium draws no outline for an entity polygon on the globe and
-    // says nothing, so the data source loads, the entities exist, `polygon.outline` reads true and
-    // the globe is bare.
-    const source = await GeoJsonDataSource.load(base + "country-borders.geojson", {
-      stroke: borderColor,
-      strokeWidth: declaredWidth * widthFactor,
-    });
-    source.show = on.borders;
-    borders = source;
-    widget.dataSources.add(source);
-    // The basemap may have named its style while the file was still on its way.
-    paintBorders();
+    // Lines, not polygon outlines: Cesium draws no outline for a polygon on the globe and says
+    // nothing, so the globe is bare.
+    const response = await fetch(base + "country-borders.geojson");
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const geojson: {
+      features: { geometry: { type: string; coordinates: number[][] | number[][][] } }[];
+    } = await response.json();
+    const lines: Cartesian3[][] = [];
+    for (const { geometry } of geojson.features) {
+      const members = geometry.type === "LineString"
+        ? [geometry.coordinates as number[][]]
+        : geometry.type === "MultiLineString" ? geometry.coordinates as number[][][] : [];
+      for (const coordinates of members) {
+        // A line of one point is no line, and Cesium throws on it.
+        if (coordinates.length < 2) continue;
+        lines.push(Cartesian3.fromDegreesArray(coordinates.flatMap(([lon, lat]) => [lon, lat])));
+      }
+    }
+    borderLines = lines;
+    // At the style the basemap named while the file was on its way, where it named one.
+    buildBorders();
   })();
 
   names.catch(warn("place names"));
@@ -506,8 +559,12 @@ export function addAnnotations(
         );
       }
       borderColor = named ?? Color.fromCssColorString(DEFAULT_BORDER_COLOR);
-      declaredWidth = style.width ?? DEFAULT_BORDER_WIDTH;
-      paintBorders();
+      const width = style.width ?? DEFAULT_BORDER_WIDTH;
+      // A colour alone is written onto the lines in place. A width is geometry, and a build.
+      const rebuild = width !== declaredWidth;
+      declaredWidth = width;
+      if (rebuild) buildBorders();
+      else paintBorders();
     },
   };
   attached.set(widget, handle);

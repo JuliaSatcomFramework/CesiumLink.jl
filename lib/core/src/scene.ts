@@ -1,11 +1,17 @@
 import {
+  Cartesian3,
   CesiumWidget,
   Color,
+  ColorGeometryInstanceAttribute,
   Ellipsoid,
   GeographicTilingScheme,
+  GeometryInstance,
   Ion,
   ImageryLayer,
   type ImageryProvider,
+  PolylineColorAppearance,
+  PolylineGeometry,
+  Primitive,
   TileMapServiceImageryProvider,
   UrlTemplateImageryProvider,
   WebMercatorTilingScheme,
@@ -272,6 +278,41 @@ const BARE_GLOBE_COLOR = Color.DIMGRAY;
 const VIEWER_MARK = "data-cesiumlink-viewer";
 
 /**
+ * Start Cesium's geometry worker pool while the page still waits for the scene payload. The pool
+ * starts on the first asynchronous primitive, and each worker imports about forty chunks before
+ * it takes a task, so over a slow link the last worker is alive seconds after the first. Without
+ * this, that start lands on the critical path of the first Areas family. One throwaway primitive
+ * moves it onto the wait for the declaration.
+ *
+ * The primitive comes off after one frame, built or not, and never waits for `ready`. Scheduling
+ * the task is the whole point: the worker pool is module state in Cesium and outlives the primitive
+ * that asked for it. Waiting instead would leave a primitive in the scene that can fail — a worker
+ * whose chunk fetch is refused puts the primitive in a failed state, and every later
+ * `Primitive.update` rethrows that error from inside `Scene.render`, which stops the render loop
+ * for good.
+ */
+function warmGeometryWorkers(widget: CesiumWidget): void {
+  const { scene } = widget;
+  const primitive = scene.primitives.add(new Primitive({
+    geometryInstances: new GeometryInstance({
+      geometry: new PolylineGeometry({
+        positions: Cartesian3.fromDegreesArray([0, 0, 1, 0]),
+        vertexFormat: PolylineColorAppearance.VERTEX_FORMAT,
+      }),
+      // Invisible for the one frame it exists as a draw command.
+      attributes: { color: ColorGeometryInstanceAttribute.fromColor(Color.TRANSPARENT) },
+    }),
+    appearance: new PolylineColorAppearance(),
+    asynchronous: true,
+  })) as Primitive;
+  const onFrame = (): void => {
+    scene.primitives.remove(primitive);
+    scene.postRender.removeEventListener(onFrame);
+  };
+  scene.postRender.addEventListener(onFrame);
+}
+
+/**
  * Give this viewer a drawing buffer of a size that no other viewer on the page uses.
  *
  * Chrome draws a WebGL canvas into a GPU buffer from a pool. The key of that pool is the size of the
@@ -374,6 +415,7 @@ export async function createScene(
     creditContainer: credits,
   });
   separateDrawingBuffer(widget);
+  warmGeometryWorkers(widget);
   // Cesium's own panel prints `name: message` and the stack, so a thrown value that is not an
   // Error reads as `[object Object]` and `undefined`, which names nothing. This line names it: its
   // class, its keys and its fields, before the panel goes up.

@@ -27,7 +27,7 @@ Each file is JSON and describes one server:
 | `pid` | the process that serves it |
 | `title` | the `title` given to [`start_server`](@ref) |
 | `started` | when the server started, as an ISO 8601 instant in UTC |
-| `dist` | the built viewer this package resolved, [`viewer_dist()`](@ref viewer_dist) |
+| `dist` | the viewer tree this server serves, which is [`viewer_dist()`](@ref viewer_dist) unless `start_server` was given a `dist_dir` |
 | `imagery` | where the basemap tiles are: the mounted directory, or the declared URL. Absent when the scene declares no basemap |
 | `assets` | every directory the server serves, by mount name |
 | `modules` | every registered module's own directory, by module id |
@@ -187,7 +187,7 @@ end
 function write_discovery(port::Integer, title::AbstractString, imagery = nothing;
                          host::AbstractString = "127.0.0.1",
                          assets = Dict{String,String}(), trusted_origins = String[],
-                         modules = Dict{String,String}())
+                         modules = Dict{String,String}(), dist = nothing)
     pid = Int(Base.Libc.getpid())
     try
         dir = discovery_dir()
@@ -206,7 +206,10 @@ function write_discovery(port::Integer, title::AbstractString, imagery = nothing
                      "started" => Dates.format(Dates.now(Dates.UTC), "yyyy-mm-ddTHH:MM:SSZ"),
                      # A reader that hosts the page itself needs the directory before it opens a
                      # socket, so the path travels here rather than on the wire.
-                     "dist" => viewer_dist(),
+                     # The tree this server actually serves, so a host that builds the page reads
+                     # the same files the browser would. Resolving the default here instead would
+                     # fetch the viewer artifact for a server that was handed its own dist.
+                     "dist" => @something(dist, viewer_dist()),
                      # Both of these reach the editor extension before it builds the page: a webview
                      # is given its resource roots and its policy when its panel is created, and
                      # neither can be changed afterwards without dropping the scene.
