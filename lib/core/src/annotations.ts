@@ -136,18 +136,20 @@ const BORDER_THIN_HEIGHT = 2e7;
 const BORDER_THIN_FACTOR = 0.5;
 
 /**
- * How coarsely the factor is rounded: to a twentieth, which is 0.05.
+ * How coarsely the factor is rounded: to a quarter, so the factor takes 1, 0.75 and 0.5 and nothing
+ * else.
  *
- * The step is what keeps the rebuild of the lines rare. Without one, every camera report builds
- * every line again for a difference no reader can see.
+ * The step is what keeps the rebuild of the lines rare, and a rebuild is 365 ms of blocked main
+ * thread. Three values means at most two rebuilds over a flight in from globe range; a twentieth
+ * would mean eleven, and a quarter of the declared width is half a pixel on a default line.
  */
-const FACTOR_STEPS = 20;
+const FACTOR_STEPS = 4;
 
 /**
  * What the declared width of a country line is multiplied by at a camera height, in metres.
  *
  * 1 at or below 2,000 km, 0.5 at or above 20,000 km, and linear in the log of the height between
- * the two. The log is what the camera height reads as everywhere else in this module (`levelAt`):
+ * the two, rounded to `FACTOR_STEPS`. The log is what the camera height reads as everywhere else in this module (`levelAt`):
  * each step down halves the height, so a factor linear in the log falls evenly per step.
  */
 export function borderWidthFactor(height: number): number {
@@ -382,10 +384,9 @@ export function addAnnotations(
   // Builds the lines as one primitive at the current width and colour, and puts it on the globe in
   // place of the one that is there.
   //
-  // Synchronous, so that no geometry worker starts: a scene without Areas then starts none at all.
-  // Each worker imports the whole chunk set of the viewer before it does anything, which holds the
-  // lines off the globe for seconds over a slow link. The build costs about 365 ms on the main
-  // thread for the 390 lines of the file.
+  // Synchronous, so that the lines wait for no geometry worker. Each worker imports the whole chunk
+  // set of the viewer before it does anything, which holds the lines off the globe for seconds over
+  // a slow link. The build costs about 365 ms on the main thread for the 390 lines of the file.
   //
   // The width is baked into the geometry, so a width change is a build and not a restyle. The new
   // primitive goes on before the old one comes off: a synchronous primitive builds and draws in
@@ -430,7 +431,7 @@ export function addAnnotations(
     }
   };
   // The camera height decides how much of the declared width a line is drawn at. The build runs
-  // only where the rounded factor alters, which is a few times over a flight in from globe range.
+  // only where the rounded factor alters, which is at most twice over a flight in from globe range.
   const thinBorders = () => {
     const factor = borderWidthFactor(widget.camera.positionCartographic.height);
     if (factor === widthFactor) return;

@@ -282,7 +282,14 @@ const VIEWER_MARK = "data-cesiumlink-viewer";
  * starts on the first asynchronous primitive, and each worker imports about forty chunks before
  * it takes a task, so over a slow link the last worker is alive seconds after the first. Without
  * this, that start lands on the critical path of the first Areas family. One throwaway primitive
- * moves it onto the wait for the declaration, and goes as soon as it is built.
+ * moves it onto the wait for the declaration.
+ *
+ * The primitive comes off after one frame, built or not, and never waits for `ready`. Scheduling
+ * the task is the whole point: the worker pool is module state in Cesium and outlives the primitive
+ * that asked for it. Waiting instead would leave a primitive in the scene that can fail — a worker
+ * whose chunk fetch is refused puts the primitive in a failed state, and every later
+ * `Primitive.update` rethrows that error from inside `Scene.render`, which stops the render loop
+ * for good.
  */
 function warmGeometryWorkers(widget: CesiumWidget): void {
   const { scene } = widget;
@@ -299,7 +306,6 @@ function warmGeometryWorkers(widget: CesiumWidget): void {
     asynchronous: true,
   })) as Primitive;
   const onFrame = (): void => {
-    if (!primitive.ready) return;
     scene.primitives.remove(primitive);
     scene.postRender.removeEventListener(onFrame);
   };
