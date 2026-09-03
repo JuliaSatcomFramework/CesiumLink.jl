@@ -87,7 +87,9 @@ export capture_canvas
 # `watchdog` stops the server after 10 s no matter what stage the workload is at: a blocked read
 # then ends, or throws into the outer `catch`, and precompilation finishes instead of hanging. A
 # sandbox that refuses to open a socket at all is caught the same way, so the workload is
-# best-effort and never breaks `Pkg.precompile()`.
+# best-effort and never breaks `Pkg.precompile()`. The catch reports what it swallowed under
+# `JULIA_DEBUG=CesiumLink`: without that, a workload broken by a rename goes on costing its time
+# and buying nothing, and no test goes red.
 @compile_workload begin
     try
         dist = mktempdir()
@@ -103,9 +105,9 @@ export capture_canvas
         try
             bound = bound_port(server)
             base = "http://127.0.0.1:$bound"
-            HTTP.get("$base/index.html"; status_exception = false, request_timeout = 5)
+            HTTP.get("$base/index.html"; status_exception = false, readtimeout = 5)
             HTTP.get("$base/chunk-warmup.js"; headers = ["Accept-Encoding" => "gzip"],
-                      status_exception = false, request_timeout = 5)
+                      status_exception = false, readtimeout = 5)
             HTTP.WebSockets.open("ws://127.0.0.1:$bound/ws"; connect_timeout = 5) do ws
                 HTTP.WebSockets.send(ws,
                     "{\"jsonrpc\":\"2.0\",\"method\":\"ready\",\"params\":{\"protocol\":$PROTOCOL_VERSION}}")
@@ -115,7 +117,8 @@ export capture_canvas
             close(watchdog)
             stop_server(server)
         end
-    catch
+    catch e
+        @debug "the precompile workload did not run" exception = (e, catch_backtrace())
     end
 end
 

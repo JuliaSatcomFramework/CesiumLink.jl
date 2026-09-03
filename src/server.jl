@@ -564,7 +564,8 @@ function start_server(; dist_dir = viewer_dist(), host = "127.0.0.1", port = 0,
     server.discovery_file = write_discovery(bound_port(server), title, imagery_source(server);
                                             host = server.host, assets = server.asset_dirs,
                                             trusted_origins = server.trusted_origins,
-                                            modules = module_dirs(server))
+                                            modules = module_dirs(server),
+                                            dist = server.dist_dir)
     if open !== false
         why = push_to_editor(bound_port(server), open)
         # A tab that does not open costs one line, and never the scene. `open = true` asks for the
