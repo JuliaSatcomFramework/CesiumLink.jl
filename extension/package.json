@@ -2,7 +2,7 @@
   "name": "cesiumlink",
   "displayName": "CesiumLink",
   "description": "Companion of the Julia package CesiumLink.jl: a live 3D globe scene in an editor tab, over a relayed WebSocket.",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "publisher": "disberd",
   "icon": "icon.png",
   "engines": {
