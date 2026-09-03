@@ -12,7 +12,8 @@ const MIME_TYPES = Dict(
     ".json" => "application/json", ".jpg" => "image/jpeg", ".jpeg" => "image/jpeg",
     ".png" => "image/png", ".gif" => "image/gif", ".svg" => "image/svg+xml",
     ".wasm" => "application/wasm", ".xml" => "application/xml", ".map" => "application/json",
-    ".ktx2" => "image/ktx2", ".bin" => "application/octet-stream")
+    ".ktx2" => "image/ktx2", ".bin" => "application/octet-stream",
+    ".geojson" => "application/geo+json")
 
 # Which directory a request path is served from: `/modules/<id>/<rest>` comes from the registered
 # module's own directory, `/assets/<name>/<rest>` from the mount of that name, everything else from
@@ -42,7 +43,8 @@ end
 # Content types worth gzipping: text and wasm shrink several-fold, while the image and archive
 # formats above are already compressed, so gzipping one spends CPU to grow the body.
 const COMPRESSIBLE = Set(("text/html", "text/javascript", "text/css", "application/json",
-                          "image/svg+xml", "application/xml", "application/wasm"))
+                          "application/geo+json", "image/svg+xml", "application/xml",
+                          "application/wasm"))
 
 # Under this, the gzip header and trailer are most of what would be sent.
 const GZIP_MIN_BYTES = 1024
@@ -83,6 +85,26 @@ function gzipped(file::AbstractString, stamp::Tuple{Float64,Int})
     end
 end
 
+# Compress every file of `dir` that `serve_static` would compress, so the first request for one
+# finds its gzip in the cache. The viewer chunk alone costs 145 ms to compress, and every request
+# that arrives while it compresses waits on `GZIP_CACHE_LOCK`. Run this from a task: it holds the
+# lock for one file at a time, so a request during the walk waits for one file and not for the walk.
+function warm_gzip_cache(dir::AbstractString)
+    for (root, _, files) in walkdir(dir), name in files
+        file = joinpath(root, name)
+        ctype = get(MIME_TYPES, lowercase(splitext(name)[2]), "application/octet-stream")
+        stamp = file_stamp(file)
+        ctype in COMPRESSIBLE && stamp[2] >= GZIP_MIN_BYTES && gzipped(file, stamp)
+    end
+    return nothing
+end
+
+# Whether a request path names a file whose content never changes under that name: a viewer chunk
+# carries a hash of its content in its name, and Cesium's worker modules import each other by those
+# names. Such a file may be kept for as long as a client likes.
+immutable_path(rel::AbstractString) =
+    occursin(r"^chunk-[^/]+\.js$", basename(rel)) || startswith(rel, "cesium/Workers/")
+
 # Whether `file` lies strictly under the mount root `root`. The path-traversal guard: a request may
 # reach a file inside its mount and nothing else.
 #
@@ -119,10 +141,13 @@ function serve_static(server::Server, stream)
     ctype = get(MIME_TYPES, lowercase(splitext(file)[2]), "application/octet-stream")
     HTTP.setheader(stream, "Content-Type" => ctype)
     HTTP.setheader(stream, "ETag" => tag)
-    # Revalidate every time rather than expire: nothing here is served under a versioned URL, so a
-    # client allowed to skip the ask would keep one build until its own cache turned over. The ask
-    # costs a round trip, and only a file that has actually changed costs its bytes.
-    HTTP.setheader(stream, "Cache-Control" => "no-cache")
+    # Revalidate every time rather than expire, unless the name is a hash of the content: a client
+    # allowed to skip the ask for `index.html` would keep one build until its own cache turned over.
+    # The ask costs a round trip, and only a file that has actually changed costs its bytes. A
+    # hashed file changes its name when it changes, so the ask buys nothing there, and a warm
+    # reload of the page makes 900 of them for the geometry workers alone.
+    HTTP.setheader(stream, "Cache-Control" => immutable_path(rel) ?
+                   "public, max-age=31536000, immutable" : "no-cache")
     # The body depends on what the client accepts, so anything caching in front of this must say so.
     HTTP.setheader(stream, "Vary" => "Accept-Encoding")
     # `If-None-Match` carries a list, and may carry `*`; a tag is a quoted token, so finding ours
