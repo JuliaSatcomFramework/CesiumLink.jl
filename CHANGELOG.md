@@ -4,11 +4,27 @@ All notable changes to CesiumLink are in this file.
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-09-03
+
+A style for node labels, in #42. A faster page boot, in #44.
+
 ### Added
 
 - `Label`, passed as the `label` keyword of `Nodes`, sets how a node's text looks: its alignment,
   pixel offset, font, colours and the camera distances it draws between. A plain `Vector{String}`
   stays valid and keeps today's look.
+
+### Changed
+
+- The first page of a new server opens sooner. The server precompiles the first request and the
+  `ready` round trip, compresses the viewer files before a page asks for them, and marks each
+  hashed file `immutable` so a browser keeps it.
+- The country borders draw as one primitive on the main thread. They no longer wait for the
+  geometry workers, which made them arrive seconds after the globe.
+- A small `Areas` family is built on the main thread. A large one still goes to the workers, which
+  the viewer now starts as soon as the widget exists.
+- The `dist` field of a discovery file names the viewer tree the server serves. A server given its
+  own `dist_dir` no longer downloads the viewer artifact to fill that field in.
 
 ## [0.2.0] - 2026-09-02
 
