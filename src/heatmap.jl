@@ -110,7 +110,16 @@ end
 # --- the family ----------------------------------------------------------------------------------
 
 """
-    Raster(kind; extent, rgba)
+    MAGNIFICATIONS
+
+How a raster may be drawn where one texel covers many pixels. `:linear` blends between neighbouring
+texels, which is what a continuous field wants; `:nearest` draws each texel as a flat block, which is
+what a field of classes wants.
+"""
+const MAGNIFICATIONS = (:linear, :nearest)
+
+"""
+    Raster(kind; extent, rgba, magnification=:linear)
 
 One heatmap: a grid of baked colour and the box of degrees it is stretched over. `extent` is
 `(west, south, east, north)`, ordered and within `±180°` of longitude and `±90°` of latitude. `rgba`
@@ -119,12 +128,20 @@ is the `UInt8` array [`rgba_grid`](@ref) returns, `4 × W × H` or `4 × W × H 
 `kind` names the raster inside the window. A later window replaces the raster of the same name, and
 the order rasters are passed in is the order they stack: a later one draws over an earlier one.
 
+`magnification` is what the viewer does where a texel covers many pixels, one of `$(MAGNIFICATIONS)`.
+A grid is nearly always magnified — a coarse field stretched over a continent is one texel every
+hundred kilometres — so this is what decides whether a class boundary is a line or a gradient.
+`:linear` blends between texels, and a stepped colormap then reads as a ramp a degree wide that no
+legend accounts for. `:nearest` draws the texel, so the boundary lands where the data puts it. Bake a
+continuous ramp and magnify it `:linear`; bake classes and magnify them `:nearest`.
+
 A field that crosses ±180° is refused, because the box it describes is then ambiguous. Declare two
 rasters, one each side of the meridian.
 
 ```julia
 Raster(:coverage; extent = (-20, 10, 40, 50), rgba = rgba_grid(CMAP, demand))
 Raster(:globe; extent = (-180, -90, 180, 90), rgba = rgba_grid(CMAP, coarse))
+Raster(:classes; extent = (-20, 10, 40, 50), rgba = rgba_grid(STEPS, cls), magnification = :nearest)
 ```
 """
 struct Raster
@@ -133,10 +150,14 @@ struct Raster
     extent::NTuple{4,Float64}
     # `4 × W × H`, or `4 × W × H × keyframes`, with the north edge last on the latitude axis.
     rgba::Array{UInt8}
+    magnification::Symbol
     # An INNER constructor so the shape checks run for every call form: an exact-typed call would
     # otherwise reach the auto-generated one and put a malformed raster on the wire.
-    function Raster(kind, extent, grid)
+    function Raster(kind, extent, grid, magnification)
         ext = to_extent(kind, extent)
+        mag = Symbol(magnification)
+        mag in MAGNIFICATIONS || throw(ArgumentError(
+            "$kind.magnification is one of $(MAGNIFICATIONS) (got $(repr(magnification)))"))
         # The wire carries bytes, and a Float64 grid is four times the size for nothing. Say so
         # rather than convert: a caller holding values rather than colours wants `rgba_grid`.
         grid isa AbstractArray{UInt8} || throw(ArgumentError(
@@ -146,11 +167,11 @@ struct Raster
             "$kind.rgba is 4 × W × H, or 4 × W × H × keyframes (got $(size(grid)))"))
         size(grid, 2) ≥ 1 && size(grid, 3) ≥ 1 || throw(ArgumentError(
             "$kind.rgba covers at least one texel (got $(size(grid)))"))
-        return new(String(kind), ext, convert(Array{UInt8}, grid))
+        return new(String(kind), ext, convert(Array{UInt8}, grid), mag)
     end
 end
 
-Raster(kind; extent, rgba) = Raster(kind, extent, rgba)
+Raster(kind; extent, rgba, magnification = :linear) = Raster(kind, extent, rgba, magnification)
 
 """
     heatmap_payload(rasters...) -> NamedTuple
@@ -176,7 +197,9 @@ function heatmap_payload(rasters::Raster...)
     return (; heatmaps = [lower(r) for r in rasters])
 end
 
-# The extent stays a tuple: the module reads four plain numbers there, not an encoded array.
-lower(r::Raster) = (; r.kind, extent = r.extent, rgba = r.rgba)
+# The extent stays a tuple: the module reads four plain numbers there, not an encoded array. The
+# magnification travels as its name, which is the string the module compares.
+lower(r::Raster) = (; r.kind, extent = r.extent, rgba = r.rgba,
+                    magnification = String(r.magnification))
 
 end # module Heatmap

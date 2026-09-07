@@ -93,6 +93,12 @@ end
     two = heatmap_payload(Raster(:globe; extent = (-180, -90, 180, 90), rgba = grid),
                           Raster(:coverage; extent = EXTENT, rgba = grid))
     @test [h.kind for h in two.heatmaps] == ["globe", "coverage"]
+
+    # Every raster states its magnification, so the module never has to guess one.
+    @test p["magnification"] == "linear"
+    r = first(lowered(heatmap_payload(Raster(:coverage; extent = EXTENT, rgba = grid,
+                                             magnification = :nearest))))["heatmaps"][1]
+    @test r["magnification"] == "nearest"
 end
 
 @testitem "a raster names itself when it refuses what it is given" setup=[HeatmapField] begin
@@ -120,6 +126,10 @@ end
         :coverage; extent = EXTENT, rgba = grid[:, :, 1])
     @test_throws "coverage.rgba is 4 × W × H" Raster(
         :coverage; extent = EXTENT, rgba = rand(UInt8, 3, 6, 5))
+
+    # A filter Cesium has no name for would silently draw the layer the other way round.
+    @test_throws "coverage.magnification is one of (:linear, :nearest)" Raster(
+        :coverage; extent = EXTENT, rgba = grid, magnification = :smooth)
 
     @test_throws "W × H of longitude then latitude" rgba_grid(GRAY, [1.0, 2.0, 3.0])
     @test_throws "heatmap_index: an extent runs west to east" heatmap_index(

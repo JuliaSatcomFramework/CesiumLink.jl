@@ -4,6 +4,13 @@ All notable changes to CesiumLink are in this file.
 
 ## [Unreleased]
 
+### Added
+
+- `magnification`, a keyword of `Raster`, is what the viewer does where one texel covers many
+  pixels: `:linear` blends between texels and `:nearest` draws each as a flat block. A field of
+  classes wants `:nearest`, whose boundaries then land where the data puts them rather than
+  smearing across a texel. The default is `:linear`, which is what was drawn before.
+
 ## [0.2.1] - 2026-09-03
 
 A style for node labels, in #42. A faster page boot, in #44.

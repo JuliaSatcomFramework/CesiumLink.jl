@@ -26,6 +26,8 @@ interface HeatmapSpec {
   extent: number[] | NdArray;
   /** `[H, W, 4]` u8, or `[K, H, W, 4]` for one grid per keyframe. */
   rgba: unknown;
+  /** How a texel covering many pixels is drawn: `"linear"` blends, `"nearest"` draws the block. */
+  magnification?: string;
 }
 
 /** What a window carries for this module: the rasters to drape, in the order they stack. */
@@ -96,11 +98,15 @@ async function redraw(index: number): Promise<void> {
   }));
   if (token !== epoch) return;
   clear(scene.imageryLayers);
-  shown = want.map(({ spec, grid }, i) => ({
-    spec,
-    offset: grid.rgba.byteOffset,
-    layer: scene.imageryLayers.addImageryProvider(providers[i]),
-  }));
+  shown = want.map(({ spec, grid }, i) => {
+    const layer = scene.imageryLayers.addImageryProvider(providers[i]);
+    // Cesium reads the filter when it first builds the texture, which is after the layer is added
+    // and before anything is drawn. Set any later and the layer keeps the one it loaded with.
+    layer.magnificationFilter = spec.magnification === "nearest"
+      ? Cesium.TextureMagnificationFilter.NEAREST
+      : Cesium.TextureMagnificationFilter.LINEAR;
+    return { spec, offset: grid.rgba.byteOffset, layer };
+  });
 }
 
 const draw = (index: number): void => {

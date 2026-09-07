@@ -27,4 +27,5 @@ heatmap_index
 ```@docs
 Raster
 heatmap_payload
+CesiumLink.Heatmap.MAGNIFICATIONS
 ```

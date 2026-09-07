@@ -86,6 +86,24 @@ If you leave `range` out, it covers the finite values of the whole array. One mi
 does not move the colours of the others. Every value missing raises, because there is then
 no range to compute.
 
+## Draw classes as classes, not as a gradient
+
+A texel nearly always covers many pixels: a 1° grid stretched over a continent is one texel
+every hundred kilometres. The viewer blends between texels by default, which is what a
+continuous field wants and what a field of classes does not — a stepped colormap then reads
+as a ramp a degree wide that no legend accounts for, and every class boundary is soft.
+
+State `magnification = :nearest` for such a field. Each texel draws as a flat block, so a
+boundary lands where the data puts it.
+
+```julia
+Raster(:classes; extent, rgba = rgba_grid(STEPS, classes), magnification = :nearest)
+```
+
+The choice follows what you baked, not how coarse the grid is: a continuous ramp wants the
+default `:linear`, and classes want `:nearest`. Upsampling the grid to sharpen the edges
+instead sends many times the bytes for a blur you can simply turn off.
+
 ## Stack a fine field over a coarse one
 
 One raster covers one box. Pass several to [`heatmap_payload`](@ref) in the order they

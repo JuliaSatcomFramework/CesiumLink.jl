@@ -33,9 +33,10 @@ interface FakeImage {
 const { gridAt } = await import("./grid.ts");
 const { default: heatmap } = await import("./index.ts");
 
-/** A layer as the fake collection makes one: the provider it draws, and nothing else. */
+/** A layer as the fake collection makes one: the provider it draws, and the filter it was set. */
 interface FakeLayer {
   provider: { url: string; rectangle: unknown };
+  magnificationFilter?: string;
 }
 
 /** An encoded u8 array as the codec decodes one. */
@@ -66,6 +67,7 @@ function fakeViewer() {
         fromUrl: async (url: string, opts: { rectangle: unknown }) =>
           ({ url, rectangle: opts.rectangle }),
       },
+      TextureMagnificationFilter: { LINEAR: "LINEAR", NEAREST: "NEAREST" },
     },
     scene: {
       imageryLayers: {
@@ -192,6 +194,29 @@ test("a crossing swaps the image, and a window naming a kind again replaces its 
   v.deliver({ heatmaps: [] }, { startFrame: 0, count: 1 });
   await settled();
   assert.deepEqual(v.stack, [v.base]);
+
+  v.teardown();
+});
+
+test("a raster is drawn with the magnification it declares", async () => {
+  const v = fakeViewer();
+  v.ctx.frame = { index: 0, alpha: 0 };
+  v.deliver({ heatmaps: [{ kind: "field", extent: EXTENT, rgba: nd(GRID, 3, 2, 4),
+                           magnification: "linear" },
+                         { kind: "classes", extent: EXTENT, rgba: nd(GRID, 3, 2, 4),
+                           magnification: "nearest" }] },
+            { startFrame: 0, count: 1 });
+  await settled();
+
+  assert.equal(v.stack[1].magnificationFilter, "LINEAR");
+  assert.equal(v.stack[2].magnificationFilter, "NEAREST",
+               "a field of classes keeps its boundaries where the data put them");
+
+  // A raster that says nothing is a continuous field, which is what blending is for.
+  v.deliver({ heatmaps: [{ kind: "field", extent: EXTENT, rgba: nd(GRID, 3, 2, 4) }] },
+            { startFrame: 0, count: 1 });
+  await settled();
+  assert.equal(v.stack[1].magnificationFilter, "LINEAR");
 
   v.teardown();
 });
