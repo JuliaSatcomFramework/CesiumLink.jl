@@ -2,6 +2,7 @@ const Family = Union{Nodes,Edges,Areas}
 
 """
     primitives_payload(families...) -> NamedTuple
+    primitives_payload(families::AbstractVector) -> NamedTuple
 
 The `primitives` module's payload for one window, out of any mix of [`Nodes`](@ref), [`Edges`](@ref)
 and [`CesiumLink.Primitives.Areas`](@ref) families. Pass it to [`CesiumLink.push_window`](@ref) addressed to `:primitives`; the
@@ -15,8 +16,11 @@ push_window(server, Dict(:primitives => primitives_payload(
                 Edges(:link; from = :user, to = :sat, pairs = links, width = 1.5)));
             start_frame = 1, count = 2, dt_seconds = 60, total_frames = 240)
 ```
+
+Both forms cost the same. A scene whose family count follows a knob the reader moves is free to
+splat, since neither form recompiles for the number of families it is handed.
 """
-function primitives_payload(families::Family...)
+function primitives_payload(families::AbstractVector)
     kinds = Dict{DataType,Set{String}}()
     for f in families
         seen = get!(Set{String}, kinds, typeof(f))
@@ -34,6 +38,13 @@ function primitives_payload(families::Family...)
     isempty(areas) || (payload = (; payload..., areas))
     return payload
 end
+
+# The families as arguments, over the method above. `@nospecialize` is what holds this to one method
+# instance: a vararg otherwise compiles afresh for every argument count and every mix of family
+# types it is called with, so a scene whose families follow a reader's knob pays a compilation every
+# time the knob moves.
+primitives_payload(@nospecialize(families::Family...)) =
+    primitives_payload(collect(Family, families))
 
 """
     endpoint_count(f) -> Union{Nothing,Int}

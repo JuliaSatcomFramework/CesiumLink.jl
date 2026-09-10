@@ -240,6 +240,16 @@ Cesium builds its ruler as a bottom bar, and the **group**, which travels whole
 into one region the declaration names. _Avoid_: chrome (that is the `ui` panel's
 border), widget (that is the `ui` module's), decoration.
 
+**Graticule**:
+The meridians and parallels the Core draws over the globe, at a spacing the server
+declares. It is neither a **basemap** nor an **annotation layer**: it carries no
+imagery and no data, only the grid a reader reads a position off. It hides its own
+far half — the viewer keeps the runs of each line on the camera's side of the Earth
+and hides a label the same way — so it needs no scene-wide depth setting and shows
+through no globe. **Off is a state**: a session that declares no graticule and one
+that declares the graticule off differ, because the second is retained and replayed.
+_Avoid_: grid (means a heatmap's texel grid here), lat-lon lines, gridlines.
+
 **Float**:
 A box of server-authored content at a point on screen rather than in an overlay
 region, with an identity of its own, an anchor, and a lifetime the server

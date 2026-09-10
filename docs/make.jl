@@ -450,6 +450,7 @@ makedocs(;
                 "Heatmap vocabulary" => "reference/heatmap.md",
                 "Models vocabulary" => "reference/models.md",
                 "Furniture and regions" => "reference/furniture.md",
+                "The globe" => "reference/globe.md",
                 "The camera" => "reference/camera.md",
                 "Colours" => "reference/colormap.md",
                 "Coordinates" => "reference/geodesy.md",

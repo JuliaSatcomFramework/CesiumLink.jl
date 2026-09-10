@@ -175,11 +175,15 @@ Raster(kind; extent, rgba, magnification = :linear) = Raster(kind, extent, rgba,
 
 """
     heatmap_payload(rasters...) -> NamedTuple
+    heatmap_payload(rasters::AbstractVector{<:Raster}) -> NamedTuple
 
 The `heatmap` module's payload for one window, out of any number of [`Raster`](@ref)s. Pass it to
 [`CesiumLink.push_window`](@ref) addressed to `:heatmap`; the keyframe count travels with the window, not with
 the payload, because the transport does not interpret a payload and so cannot count the frames in
 one.
+
+Both forms cost the same. A scene whose raster count follows a knob the reader moves is free to
+splat, since neither form recompiles for the number of rasters it is handed.
 
 ```julia
 push_window(server, Dict(:heatmap => heatmap_payload(
@@ -187,7 +191,7 @@ push_window(server, Dict(:heatmap => heatmap_payload(
             start_frame = 1, count = 2, dt_seconds = 60, total_frames = 240)
 ```
 """
-function heatmap_payload(rasters::Raster...)
+function heatmap_payload(rasters::AbstractVector{<:Raster})
     seen = Set{String}()
     for r in rasters
         r.kind in seen &&
@@ -196,6 +200,11 @@ function heatmap_payload(rasters::Raster...)
     end
     return (; heatmaps = [lower(r) for r in rasters])
 end
+
+# The rasters as arguments, over the method above. `@nospecialize` is what holds this to one method
+# instance: a vararg otherwise compiles afresh for every argument count it is called with, so a
+# scene whose raster count follows a reader's knob pays a compilation every time the knob moves.
+heatmap_payload(@nospecialize(rasters::Raster...)) = heatmap_payload(collect(Raster, rasters))
 
 # The extent stays a tuple: the module reads four plain numbers there, not an encoded array. The
 # magnification travels as its name, which is the string the module compares.

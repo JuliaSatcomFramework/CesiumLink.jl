@@ -307,7 +307,7 @@ Everything else. A batch of addressed commands, applied in order (ADR-0010).
   that cares about staleness compares it against the last event it saw. The Core never drops a stale
   batch.
 - The pseudo-module id `"core"` addresses the Core itself. Its topics are `subscribe`, `furniture`,
-  `regions`, `camera` and `dropped`.
+  `regions`, `graticule`, `globe-depth`, `camera` and `dropped`.
 - `ui/tooltip` takes two fields. `bare` is a boolean: it drops the `ui` module's own chrome, so one
   contributor owns the whole box. An empty `html`, or `"html": null`, hides the box.
 - `ui/tooltip`'s `html` is a **list of fragments**, one per contributing listener, in chain order.
@@ -322,7 +322,7 @@ Everything else. A batch of addressed commands, applied in order (ADR-0010).
 
 The server retains **the last command per `(module, topic)`**, in recency order, and replays them on
 `ready`. A declaration-shaped topic (`ui/declare`, `core/subscribe`, `ui/subscribe`, `core/furniture`,
-`core/regions`) is therefore restored on reconnect. An event-shaped one (`ui/tooltip`) is harmless to
+`core/regions`, `core/graticule`, `core/globe-depth`) is therefore restored on reconnect. An event-shaped one (`ui/tooltip`) is harmless to
 replay, because the next pointer move overwrites it.
 
 Retention holds **one** message per `(module, topic)`, so every declaration states its whole set and
@@ -473,6 +473,55 @@ that property only; the rest of the bag still applies.
 ```
 overlay: region top-right may not set 'top' — the Core owns placement (ADR-0004)
 ```
+
+### `core/graticule`
+
+The **graticule** over the globe: meridians and parallels at a stated spacing, labelled along two
+axes. Whole set as well — a field the payload does not carry takes the viewer's default rather than
+whatever an earlier declaration said about it.
+
+```json
+{ "module": "core", "topic": "graticule",
+  "payload": { "lon": 20, "lat": 10, "color": "#33333340", "width": 1, "labels": true,
+               "labelColor": "#222222d0", "labelFont": "12px system-ui", "altitudeM": 30000 }}
+```
+
+`lon` and `lat` are degrees. **A null `lon` or `lat` is the graticule switched off**, which is a
+state rather than an absence: the declaration is retained, so a browser connecting after a reader
+took the lines off comes back to a globe with none.
+
+```json
+{ "module": "core", "topic": "graticule", "payload": { "lon": null, "lat": null }}
+```
+
+Each line is cut at 3° of arc along its own circle, scaled by the square root of that circle's
+radius, so a parallel near a pole spends fewer vertices than the equator for the same chord error.
+A meridian is labelled where it crosses the equator and a parallel where it crosses the prime
+meridian; one label serves both at 0°, 0°.
+
+The viewer keeps only the runs of each line on the camera's own side of the Earth, and hides a
+label the same way, so nothing is drawn through the globe whatever `core/globe-depth` says. Only a
+globe has a far side: 2-D and Columbus view draw the whole graticule.
+
+A colour the browser cannot read draws the default and warns once.
+
+### `core/globe-depth`
+
+Whether the globe stands in the depth buffer in front of what is drawn over it — Cesium's
+`Globe.depthTestAgainstTerrain`, which Cesium leaves off.
+
+```json
+{ "module": "core", "topic": "globe-depth", "payload": { "on": true }}
+```
+
+The viewer asserts the flag again before each frame, because Cesium's own terrain picker writes it
+whenever a terrain provider is chosen and a scene morph rebuilds enough of the scene to be worth
+distrusting. It reports the first heal to the console and says nothing after it.
+
+`"on": false` restores the value the widget was built with. Two things follow from Cesium's own
+drawing and belong in any scene's reckoning: 2-D clears the globe depth whatever this says, and with
+the setting on Cesium draws no depth plane, so a line over a tile that has not loaded shows through
+until it arrives.
 
 ### `core/camera`
 

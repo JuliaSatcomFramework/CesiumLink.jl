@@ -10,6 +10,24 @@ All notable changes to CesiumLink are in this file.
   pixels: `:linear` blends between texels and `:nearest` draws each as a flat block. A field of
   classes wants `:nearest`, whose boundaries then land where the data puts them rather than
   smearing across a texel. The default is `:linear`, which is what was drawn before.
+- `heatmap_payload` and `primitives_payload` each take a vector as well as their arguments, so a
+  scene that assembles its rasters or families in a list hands the list over whole.
+- `declare_graticule` draws meridians and parallels over the globe, at a spacing stated as one
+  number or as `(lon, lat)`, labelled along two axes. `spacing = nothing` is the graticule off,
+  which is a retained state rather than an absence. The viewer keeps only the runs of each line on
+  the camera's own side of the Earth and hides a label the same way, so a graticule is never drawn
+  through the globe and needs no scene-wide depth setting. Both names are exported.
+- `declare_globe_depth` puts the globe in the depth buffer in front of what is drawn over it —
+  Cesium's `depthTestAgainstTerrain`, which it leaves off — so the far half of a network is hidden
+  by the Earth rather than drawn through it. The Core re-asserts the flag each frame, since Cesium's
+  terrain picker and a scene morph both clear it.
+
+### Fixed
+
+- `heatmap_payload` and `primitives_payload` compile once, not once per argument count. Both were
+  varargs, so a scene whose raster or family count follows a knob the reader moves paid a fresh
+  compilation — up to a second for a hundred rasters, and several for as many families — every time
+  the knob reached a count it had not been at before.
 
 ## [0.2.1] - 2026-09-03
 
