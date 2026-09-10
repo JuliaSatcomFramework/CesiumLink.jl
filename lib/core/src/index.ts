@@ -2,6 +2,7 @@ import * as Cesium from "@cesium/engine";
 import { SceneMode, type CesiumWidget } from "@cesium/engine";
 import { annotationsOf } from "./annotations";
 import { buildFurniture } from "./clock-ui";
+import { addGlobeDepth, addGraticule, type GraticuleDeclaration } from "./globe";
 import { FURNITURE_DEFAULTS, type FurnitureDeclaration } from "./furniture";
 import { basemapSet, createScene, type SceneOptions } from "./scene";
 import {
@@ -25,6 +26,8 @@ export { blockAt, decodeArrays, isNdArray } from "./codec";
 export type { Block, Dtype, NdArray, WireArray } from "./codec";
 export { annotationsOf } from "./annotations";
 export type { Annotations } from "./annotations";
+export { addGlobeDepth, addGraticule } from "./globe";
+export type { GlobeDepth, Graticule, GraticuleDeclaration } from "./globe";
 export { loadImagery } from "./scene";
 export type { ImagerySpec, SceneOptions } from "./scene";
 export type { AssetBase, AssetMounts } from "./assets";
@@ -134,6 +137,11 @@ export async function createViewer(
     annotationsOf(widget));
   const onResize = () => furniture.resize();
   window.addEventListener("resize", onResize);
+
+  // The two things the Core draws on the globe itself. Neither puts anything on screen until the
+  // server declares it, so a session that declares neither pays for neither.
+  const graticule = addGraticule(widget);
+  const globeDepth = addGlobeDepth(widget);
 
   // 2D fills the viewport with the flat map, so resolving MSAA over the whole screen every frame
   // costs ~2.5× what 3D does (the globe there covers far fewer pixels) — measured 23→52 fps on this
@@ -402,10 +410,10 @@ export async function createViewer(
         camera.windowDelivered();
       });
       // Everything that is not a window: a batch of addressed commands, applied in order. The
-      // pseudo-module id "core" addresses the Core itself, with six topics: the pointer-event
+      // pseudo-module id "core" addresses the Core itself, with eight topics: the pointer-event
       // subscription the server derives from its registered listeners, the two declarations of what
-      // the Core puts on screen, the camera track, the count of frames the server dropped for
-      // this client, and the request for a picture of the canvas.
+      // the Core puts on screen, the two of what it draws on the globe, the camera track, the count
+      // of frames the server dropped for this client, and the request for a picture of the canvas.
       t.on("commands", (params, bytes) => {
         const region = bytes ?? NO_BYTES;
         const batch = (params ?? {}) as { seq?: number | null; commands?: Command[] };
@@ -422,6 +430,10 @@ export async function createViewer(
             if (c.topic === "subscribe") pointer.subscribe(payload);
             else if (c.topic === "furniture") declareFurniture(payload);
             else if (c.topic === "regions") declareRegions(payload);
+            else if (c.topic === "graticule") graticule.declare((payload ?? {}) as GraticuleDeclaration);
+            else if (c.topic === "globe-depth") {
+              globeDepth.declare(((payload ?? {}) as { on?: boolean }).on !== false);
+            }
             else if (c.topic === "camera") camera.declare(payload);
             else if (c.topic === "dropped") askReplay(payload);
             else if (c.topic === "capture") answerCapture(payload);
@@ -434,6 +446,8 @@ export async function createViewer(
     },
     destroy() {
       host.unloadAll();
+      graticule.destroy();
+      globeDepth.destroy();
       windows.dispose();
       pointer.destroy();
       camera.destroy();

@@ -45,6 +45,7 @@ include("imagery.jl")
 include("geodesy.jl")
 include("recorder.jl")
 include("furniture.jl")
+include("globe.jl")
 include("camera.jl")
 include("capture.jl")
 include("ui.jl")
@@ -66,6 +67,7 @@ export Imagery, KNOWN_EARTH_BASEMAPS
 export viewer_url, bound_port, discovery_dir
 export send_command, send_reply, push_window
 export declare_furniture, declare_regions
+export declare_graticule, declare_globe_depth
 export Viewpoint, declare_camera, declare_follow
 export on_event, on_pointer, on_ui_pointer, off_event, command!, tooltip!, Command, Reply
 export serve_scene!, install_scene!
