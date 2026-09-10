@@ -10,6 +10,15 @@ All notable changes to CesiumLink are in this file.
   pixels: `:linear` blends between texels and `:nearest` draws each as a flat block. A field of
   classes wants `:nearest`, whose boundaries then land where the data puts them rather than
   smearing across a texel. The default is `:linear`, which is what was drawn before.
+- `heatmap_payload` and `primitives_payload` each take a vector as well as their arguments, so a
+  scene that assembles its rasters or families in a list hands the list over whole.
+
+### Fixed
+
+- `heatmap_payload` and `primitives_payload` compile once, not once per argument count. Both were
+  varargs, so a scene whose raster or family count follows a knob the reader moves paid a fresh
+  compilation — up to a second for a hundred rasters, and several for as many families — every time
+  the knob reached a count it had not been at before.
 
 ## [0.2.1] - 2026-09-03
 

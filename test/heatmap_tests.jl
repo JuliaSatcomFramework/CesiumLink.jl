@@ -139,3 +139,25 @@ end
         Raster(:coverage; extent = EXTENT, rgba = grid),
         Raster(:coverage; extent = EXTENT, rgba = grid))
 end
+
+@testitem "a heatmap payload is one method instance whatever it is handed" begin
+    using CesiumLink: Raster, heatmap_payload
+
+    grid = fill(0x40, 4, 3, 2)
+    rasters(n) = [Raster("r$i"; extent = (-10, -5, 10, 5), rgba = grid) for i in 1:n]
+
+    # A vector and the same rasters splatted describe one window.
+    @test heatmap_payload(rasters(3)) == heatmap_payload(rasters(3)...)
+
+    # A vararg that specializes compiles afresh for every argument count it is called with, and a
+    # scene whose raster count follows a knob pays that compilation each time the reader moves it.
+    # What holds it to one instance is `@nospecialize`, and this is what shows it: the instances the
+    # method holds do not grow with the counts it has been called at.
+    va = only(m for m in methods(heatmap_payload) if occursin("Vararg", string(m.sig)))
+    heatmap_payload(rasters(4)...)
+    held = length(Base.specializations(va))
+    for n in 5:9
+        heatmap_payload(rasters(n)...)
+    end
+    @test length(Base.specializations(va)) == held
+end

@@ -400,3 +400,25 @@ end
     end
     @test_throws "no vendored module" vendored(:nosuchmodule)
 end
+
+@testitem "a primitives payload is one method instance whatever it is handed" begin
+    using CesiumLink: Nodes, primitives_payload
+
+    families(n) = [Nodes("n$i"; position = fill(Float64(i), 3, 2)) for i in 1:n]
+
+    # A vector and the same families splatted describe one window.
+    @test primitives_payload(families(3)) == primitives_payload(families(3)...)
+
+    # A vararg that specializes compiles afresh for every argument count — and, over a union of
+    # three family types, every mix of them — that it is called with, and a scene whose families
+    # follow a knob pays that compilation each time the reader moves it. What holds it to one
+    # instance is `@nospecialize`, and this is what shows it: the instances the method holds do not
+    # grow with the counts it has been called at.
+    va = only(m for m in methods(primitives_payload) if occursin("Vararg", string(m.sig)))
+    primitives_payload(families(4)...)
+    held = length(Base.specializations(va))
+    for n in 5:9
+        primitives_payload(families(n)...)
+    end
+    @test length(Base.specializations(va)) == held
+end
