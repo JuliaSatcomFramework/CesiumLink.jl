@@ -72,7 +72,7 @@ and the graticule costs what its shortest circles are worth rather than a budget
 side of the Earth, and hides a label the same way, so nothing is drawn through the globe. This is
 the graticule's own doing and owes nothing to [`declare_globe_depth`](@ref): it is exact the moment
 the camera moves, and it does not wait for a tile to load. A view with no far side — 2-D and
-Columbus view — draws the whole graticule, which is what a flat map should show.
+Columbus view — draws the whole graticule, which is what a flat map should show. See ADR-0037.
 
 `labels` writes the longitude of a meridian where it crosses the equator and the latitude of a
 parallel where it crosses the prime meridian, so the numbers stand along two axes through the middle

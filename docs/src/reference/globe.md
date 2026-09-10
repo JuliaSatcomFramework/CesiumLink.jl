@@ -32,7 +32,7 @@ parallels apart. `nothing` is the graticule switched off, which is a state and n
 The graticule hides its own far half: the viewer keeps only the runs of each line on the camera's
 own side of the Earth, and hides a label the same way. That is exact the moment the camera moves and
 owes nothing to the depth setting below. A view with no far side — 2-D and Columbus view — draws the
-whole graticule.
+whole graticule. See ADR-0037 for why the occlusion is the graticule's own.
 
 ```@docs
 declare_graticule
