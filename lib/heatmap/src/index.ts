@@ -100,11 +100,17 @@ async function redraw(index: number): Promise<void> {
   clear(scene.imageryLayers);
   shown = want.map(({ spec, grid }, i) => {
     const layer = scene.imageryLayers.addImageryProvider(providers[i]);
-    // Cesium reads the filter when it first builds the texture, which is after the layer is added
-    // and before anything is drawn. Set any later and the layer keeps the one it loaded with.
-    layer.magnificationFilter = spec.magnification === "nearest"
+    // Cesium reads the filters when it first builds the texture, which is after the layer is added
+    // and before anything is drawn. Set any later and the layer keeps the ones it loaded with.
+    // Both ends of the zoom take the same filter: a layer that blended only once the camera pulled
+    // back would change what it says about the data with the camera distance.
+    const nearest = spec.magnification === "nearest";
+    layer.magnificationFilter = nearest
       ? Cesium.TextureMagnificationFilter.NEAREST
       : Cesium.TextureMagnificationFilter.LINEAR;
+    layer.minificationFilter = nearest
+      ? Cesium.TextureMinificationFilter.NEAREST
+      : Cesium.TextureMinificationFilter.LINEAR;
     return { spec, offset: grid.rgba.byteOffset, layer };
   });
 }

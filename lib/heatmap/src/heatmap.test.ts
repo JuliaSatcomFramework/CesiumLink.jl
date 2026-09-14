@@ -37,6 +37,7 @@ const { default: heatmap } = await import("./index.ts");
 interface FakeLayer {
   provider: { url: string; rectangle: unknown };
   magnificationFilter?: string;
+  minificationFilter?: string;
 }
 
 /** An encoded u8 array as the codec decodes one. */
@@ -68,6 +69,7 @@ function fakeViewer() {
           ({ url, rectangle: opts.rectangle }),
       },
       TextureMagnificationFilter: { LINEAR: "LINEAR", NEAREST: "NEAREST" },
+      TextureMinificationFilter: { LINEAR: "LINEAR", NEAREST: "NEAREST" },
     },
     scene: {
       imageryLayers: {
@@ -211,12 +213,16 @@ test("a raster is drawn with the magnification it declares", async () => {
   assert.equal(v.stack[1].magnificationFilter, "LINEAR");
   assert.equal(v.stack[2].magnificationFilter, "NEAREST",
                "a field of classes keeps its boundaries where the data put them");
+  // Both ends of the zoom, so a raster does not read differently once the camera pulls back.
+  assert.equal(v.stack[1].minificationFilter, "LINEAR");
+  assert.equal(v.stack[2].minificationFilter, "NEAREST");
 
   // A raster that says nothing is a continuous field, which is what blending is for.
   v.deliver({ heatmaps: [{ kind: "field", extent: EXTENT, rgba: nd(GRID, 3, 2, 4) }] },
             { startFrame: 0, count: 1 });
   await settled();
   assert.equal(v.stack[1].magnificationFilter, "LINEAR");
+  assert.equal(v.stack[1].minificationFilter, "LINEAR");
 
   v.teardown();
 });

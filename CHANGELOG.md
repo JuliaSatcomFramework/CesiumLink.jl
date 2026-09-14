@@ -2,6 +2,13 @@
 
 All notable changes to CesiumLink are in this file.
 
+## [Unreleased]
+
+### Fixed
+
+- `magnification = :nearest` now also holds where a texel covers less than a pixel, so a raster of
+  classes reads the same at every camera distance rather than blending once the camera pulls back.
+
 ## [0.3.0] - 2026-09-10
 
 ### Added
