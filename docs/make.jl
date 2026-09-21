@@ -304,9 +304,10 @@ function record_examples()
 
     # The controls of a played recording reach nobody, so the recording carries the answers a
     # session gave: the spacing closes in, then the labels go off and come back. Each one is the
-    # function the listener calls, so the frames on the wire are the ones a click makes.
+    # function the listener calls, so the frames on the wire are the ones a click makes. All three
+    # land before the camera leaves the whole-grid view, where both label axes are in sight.
     record_example("graticule.jsonl"; after = (server, state) -> begin
-                       sleep(9)
+                       sleep(5)
                        state[] = GRATICULE.declare_scene!(server; spacing = 10)
                        sleep(5)
                        state[] = GRATICULE.declare_scene!(server; spacing = 10, labels = false)

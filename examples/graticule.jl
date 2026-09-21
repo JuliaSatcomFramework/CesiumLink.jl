@@ -50,12 +50,12 @@ function install_graticule_scene!(server)
     register_module!(server, vendored(:ui))
     declare_furniture(server; timeline = false, animation = false, keyframe = false)
 
-    # Two stops. The first shows the whole grid; the second stands over the pole, where the
-    # parallels close in and the meridians meet, and where the globe hides the far half of every
-    # line that runs round the back.
+    # Two stops. The first shows the whole grid, with both label axes in view; the second stands
+    # over the pole, where the parallels close in and the meridians meet, and where the globe hides
+    # the far half of every line that runs round the back.
     declare_camera(server,
         Viewpoint(; lon = 10, lat = 25, height = 22_000_000, label = "The whole grid"),
-        Viewpoint(; lon = 0, lat = 88, height = 9_000_000, after = 8, duration = 6,
+        Viewpoint(; lon = 0, lat = 88, height = 9_000_000, after = 20, duration = 6,
                   label = "Over the pole"))
 
     state = Ref(declare_scene!(server))
