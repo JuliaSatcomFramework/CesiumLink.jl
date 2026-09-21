@@ -12,7 +12,7 @@ scene it draws: see
 | [`Constellation/`](Constellation/run.jl) | forty satellites, their ground cells, gateways and links | a package with a scene type and a `serve_scene!` method |
 | [`RegionCount/`](RegionCount/run.jl) | satellites over Europe and Africa, and a chart beside the globe | the same, plus a viewer module and its JavaScript |
 | [`PulseEdges/`](PulseEdges/run.jl) | a ring of satellites joined by links a bright band travels along | a module that adds one line material to the vendored renderer |
-| [`graticule.jl`](graticule.jl) | a bare globe with meridians and parallels over it, and two controls that re-declare them | `declare_graticule`, answered from a `control` listener |
+| [`graticule.jl`](graticule.jl) | a bare globe with meridians and parallels over it, and no module registered | `declare_graticule`, and nothing else |
 
 ## Run one from a session
 

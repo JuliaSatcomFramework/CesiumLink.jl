@@ -19,8 +19,8 @@ The four examples form a ladder. The rung is which part of the API the author re
 Two more examples stand beside the ladder rather than on it. Both are small.
 [A line material of your own](pulse-edges.md) shows the one thing the four rungs do not: a module
 that adds to what a vendored module draws, instead of drawing something of its own.
-[The graticule](graticule.md) draws no entity at all: a bare globe, the meridians and parallels the
-Core draws over it, and two controls that re-declare them.
+[The graticule](graticule.md) draws no entity at all and registers no module: a bare globe, and
+the meridians and parallels the Core draws over it.
 
 The code of each one is on its page, and in the package under `examples/`. Every example runs during
 the documentation build, and the scene on each page is a recording of that run, played in the

@@ -302,24 +302,12 @@ function record_examples()
         return scene
     end
 
-    # The controls of a played recording reach nobody, so the recording carries the answers a
-    # session gave: the spacing closes in, then the labels go off and come back. Each one is the
-    # function the listener calls, so the frames on the wire are the ones a click makes. All three
-    # land before the camera leaves the whole-grid view, where both label axes are in sight.
-    record_example("graticule.jsonl"; after = (server, state) -> begin
-                       sleep(5)
-                       state[] = GRATICULE.declare_scene!(server; spacing = 10)
-                       sleep(5)
-                       state[] = GRATICULE.declare_scene!(server; spacing = 10, labels = false)
-                       sleep(4)
-                       state[] = GRATICULE.declare_scene!(server; spacing = 10)
-                   end) do server
-        state = GRATICULE.install_graticule_scene!(server)
-        @assert state[].spacing == 20
+    record_example("graticule.jsonl") do server
+        GRATICULE.install_graticule_scene!(server)
         # No module draws anything here: the scene is the graticule, and a recording that has lost
         # the declaration is a recording of a bare globe, which every other check passes.
         @assert any(p -> first(p) == CesiumLink.CORE_GRATICULE, server.retained)
-        return state
+        return nothing
     end
 
     return nothing

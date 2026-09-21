@@ -6,10 +6,8 @@
 #
 #     include(joinpath(pkgdir(CesiumLink), "examples", "graticule.jl"))
 #
-# The scene draws nothing of its own: no satellite, no cell, no raster. The Core draws the graticule
-# with no module loaded, and this program is there to show it, so the only module it registers is
-# the one that draws the two controls in the corner. A dropdown sets the spacing and a checkbox
-# turns the labels on and off; each click is answered with one `declare_graticule` call.
+# The scene draws nothing of its own: no satellite, no cell, no raster, and no module is registered.
+# The Core draws the graticule with no module loaded, and this program is there to show it.
 #
 # Nothing here has a time, so the scene declares no time furniture and pushes no window at all.
 
@@ -19,56 +17,29 @@ AUTORUN && activate_example(REPO_ROOT)   # hide
 
 using CesiumLink
 
-const SPACINGS = [10 => "10°", 15 => "15°", 20 => "20°", 30 => "30°", 45 => "45°"]
-const LINE_COLOR = "#1c2b4acc"        # darker and less transparent than the default, so the lines read on any basemap
-const LABEL_COLOR = "#0d1626e0"
-
 """
-    declare_scene!(server; spacing = 20, labels = true)
+    install_graticule_scene!(server)
 
-Declare the graticule and the overlay that shows its settings. Both are full statements, so this
-one function is what a click is answered with and what the scene opens with.
-"""
-function declare_scene!(server; spacing = 20, labels = true)
-    declare_graticule(server; spacing, labels, color = LINE_COLOR, width = 1.5,
-                      label_color = LABEL_COLOR, label_font = "13px system-ui")
-    declare_overlay(server, [
-        Title("The graticule"; region = :top_left),
-        Group([Select("spacing", "Spacing", spacing, SPACINGS),
-               Toggle("labels", "Labels", labels)]; region = :bottom_right),
-    ])
-    return (; spacing, labels)
-end
-
-"""
-    install_graticule_scene!(server) -> Ref
-
-Build the scene on `server`: the graticule, the two controls and the listener that answers them.
-Returns the settings the scene is in, which the listener updates.
+Declare the scene on `server`: the graticule, the furniture and the camera tour.
 """
 function install_graticule_scene!(server)
-    register_module!(server, vendored(:ui))
     declare_furniture(server; timeline = false, animation = false, keyframe = false)
 
-    # Two stops. The first shows the whole grid, with both label axes in view; the second stands
+    # Darker and less transparent than the default, so the lines read on any basemap.
+    declare_graticule(server; spacing = (20, 10), color = "#1c2b4acc", width = 1.5,
+                      label_color = "#0d1626e0", label_font = "13px system-ui")
+
+    # Three stops. The first shows the whole grid, with both label axes in view. The second stands
     # over the pole, where the parallels close in and the meridians meet, and where the globe hides
-    # the far half of every line that runs round the back.
+    # the far half of every line that runs round the back. The third comes close enough to see the
+    # lines sit on the coastlines under them.
     declare_camera(server,
         Viewpoint(; lon = 10, lat = 25, height = 22_000_000, label = "The whole grid"),
-        Viewpoint(; lon = 0, lat = 88, height = 9_000_000, after = 20, duration = 6,
-                  label = "Over the pole"))
-
-    state = Ref(declare_scene!(server))
-    on_event(server, "ui", "control") do ev, _
-        id, value = ev.payload.id, ev.payload.value
-        if id == "spacing"
-            state[] = declare_scene!(server; spacing = value, state[].labels)
-        elseif id == "labels"
-            state[] = declare_scene!(server; state[].spacing, labels = value)
-        end
-        return nothing
-    end
-    return state
+        Viewpoint(; lon = 0, lat = 88, height = 9_000_000, after = 8, duration = 6,
+                  label = "Over the pole"),
+        Viewpoint(; west = -12, south = 34, east = 22, north = 60, after = 20, duration = 6,
+                  label = "Close over Europe"))
+    return nothing
 end
 
 """
