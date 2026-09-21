@@ -9,6 +9,11 @@ All notable changes to CesiumLink are in this file.
 - `examples/graticule.jl`, a sixth example: a bare globe with the graticule over it and two
   controls that re-declare it, with a page of its own on the documentation site.
 
+### Fixed
+
+- A graticule label stands beside the crossing it names rather than on it, so no line runs
+  through the numbers.
+
 ## [0.3.1] - 2026-09-14
 
 ### Fixed

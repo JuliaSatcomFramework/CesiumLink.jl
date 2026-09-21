@@ -8,6 +8,7 @@
 // same limb test the place names use answers all three at once, and answers them per line.
 
 import {
+  Cartesian2,
   Cartesian3,
   type CesiumWidget,
   Color,
@@ -50,6 +51,10 @@ export interface Graticule {
 const DEFAULT_COLOR = "#33333340";
 const DEFAULT_LABEL_COLOR = "#222222d0";
 const DEFAULT_LABEL_FONT = "12px system-ui";
+// A label is anchored on the crossing of its line with the axis it stands along, and the text is
+// kept off both lines: its top-left corner hangs this far below and to the right of the anchor, so
+// neither line runs through the numbers.
+const LABEL_OFFSET_PX = 4;
 const DEFAULT_WIDTH = 1;
 const DEFAULT_ALTITUDE_M = 30_000;
 
@@ -353,8 +358,9 @@ export function addGraticule(widget: CesiumWidget): Graticule {
           font: decl.labelFont ?? DEFAULT_LABEL_FONT,
           fillColor: labelColor,
           style: LabelStyle.FILL,
-          horizontalOrigin: HorizontalOrigin.CENTER,
-          verticalOrigin: VerticalOrigin.CENTER,
+          horizontalOrigin: HorizontalOrigin.LEFT,
+          verticalOrigin: VerticalOrigin.TOP,
+          pixelOffset: new Cartesian2(LABEL_OFFSET_PX, LABEL_OFFSET_PX),
         });
       }
       // Cut for wherever the camera stands now, rather than waiting for it to move.
