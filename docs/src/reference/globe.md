@@ -34,6 +34,9 @@ own side of the Earth, and hides a label the same way. That is exact the moment 
 owes nothing to the depth setting below. A view with no far side — 2-D and Columbus view — draws the
 whole graticule. See ADR-0037 for why the occlusion is the graticule's own.
 
+[The graticule](../examples/graticule.md) is an example of nothing but this: a bare globe, and two
+controls that re-declare the lines over it.
+
 ```@docs
 declare_graticule
 ```

@@ -1,6 +1,6 @@
 # Examples
 
-Five whole runnable programs. Each one shows everything a working scene needs, and nothing it does
+Six whole runnable programs. Each one shows everything a working scene needs, and nothing it does
 not. The documentation site gives every example a page, with the code on it and a recording of the
 scene it draws: see
 [Examples](https://juliasatcomframework.github.io/CesiumLink.jl/dev/examples/).
@@ -12,6 +12,7 @@ scene it draws: see
 | [`Constellation/`](Constellation/run.jl) | forty satellites, their ground cells, gateways and links | a package with a scene type and a `serve_scene!` method |
 | [`RegionCount/`](RegionCount/run.jl) | satellites over Europe and Africa, and a chart beside the globe | the same, plus a viewer module and its JavaScript |
 | [`PulseEdges/`](PulseEdges/run.jl) | a ring of satellites joined by links a bright band travels along | a module that adds one line material to the vendored renderer |
+| [`graticule.jl`](graticule.jl) | a bare globe with meridians and parallels over it, and two controls that re-declare them | `declare_graticule`, answered from a `control` listener |
 
 ## Run one from a session
 
@@ -30,13 +31,14 @@ Open the address it prints. Stop the server when you finish:
 stop_server(server)
 ```
 
-The other four examples take the same line with their own path:
+The other five examples take the same line with their own path:
 
 ```julia
 include(joinpath(pkgdir(CesiumLink), "examples", "solar_elevation.jl"))
 include(joinpath(pkgdir(CesiumLink), "examples", "Constellation", "run.jl"))
 include(joinpath(pkgdir(CesiumLink), "examples", "RegionCount", "run.jl"))
 include(joinpath(pkgdir(CesiumLink), "examples", "PulseEdges", "run.jl"))
+include(joinpath(pkgdir(CesiumLink), "examples", "graticule.jl"))
 ```
 
 Two things to know. The include makes the environment of the example the active one, so activate

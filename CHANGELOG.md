@@ -2,6 +2,13 @@
 
 All notable changes to CesiumLink are in this file.
 
+## [Unreleased]
+
+### Added
+
+- `examples/graticule.jl`, a sixth example: a bare globe with the graticule over it and two
+  controls that re-declare it, with a page of its own on the documentation site.
+
 ## [0.3.1] - 2026-09-14
 
 ### Fixed

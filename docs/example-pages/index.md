@@ -16,9 +16,11 @@ The four examples form a ladder. The rung is which part of the API the author re
 | 3 | a package with a scene type and a [`serve_scene!`](@ref) method | [Constellation](constellation.md) |
 | 4 | the same, plus a viewer module and its JavaScript | [Satellites over a region](region-count.md) |
 
-A fifth example stands beside the ladder rather than on it.
-[A line material of your own](pulse-edges.md) is small, and it shows the one thing the four rungs do
-not: a module that adds to what a vendored module draws, instead of drawing something of its own.
+Two more examples stand beside the ladder rather than on it. Both are small.
+[A line material of your own](pulse-edges.md) shows the one thing the four rungs do not: a module
+that adds to what a vendored module draws, instead of drawing something of its own.
+[The graticule](graticule.md) draws no entity at all: a bare globe, the meridians and parallels the
+Core draws over it, and two controls that re-declare them.
 
 The code of each one is on its page, and in the package under `examples/`. Every example runs during
 the documentation build, and the scene on each page is a recording of that run, played in the
@@ -42,8 +44,9 @@ Open the address it prints. Stop the server when you finish:
 stop_server(server)
 ```
 
-The other four take the same line with their own path: `examples/solar_elevation.jl`,
-`examples/Constellation/run.jl`, `examples/RegionCount/run.jl` and `examples/PulseEdges/run.jl`.
+The other five take the same line with their own path: `examples/solar_elevation.jl`,
+`examples/Constellation/run.jl`, `examples/RegionCount/run.jl`, `examples/PulseEdges/run.jl` and
+`examples/graticule.jl`.
 
 Run one as a program instead, and it waits for Enter and then stops the server itself:
 
