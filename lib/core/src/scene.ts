@@ -413,6 +413,9 @@ export async function createScene(
     skyBox: opts.stars ? undefined : false,
     skyAtmosphere: false,
     creditContainer: credits,
+    // Render at the device's own pixel density: the recommended-resolution default draws a HiDPI
+    // or zoomed page at CSS-pixel density, which blurs every label and marker.
+    useBrowserRecommendedResolution: false,
   });
   separateDrawingBuffer(widget);
   warmGeometryWorkers(widget);
