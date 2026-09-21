@@ -6,8 +6,14 @@ All notable changes to CesiumLink are in this file.
 
 ### Added
 
-- `examples/graticule.jl`, a sixth example: a bare globe with the graticule over it and two
-  controls that re-declare it, with a page of its own on the documentation site.
+- `examples/graticule.jl`, a sixth example: a bare globe with the graticule over it and no module
+  registered, with a page of its own on the documentation site.
+
+### Changed
+
+- `declare_graticule` draws the lines on the ellipsoid: `altitude_m` now defaults to `0` rather
+  than `30_000`. A lifted graticule drifts against the imagery under it as the camera moves, and
+  the lift only ever served a session that turns `declare_globe_depth` on, which now asks for it.
 
 ### Fixed
 

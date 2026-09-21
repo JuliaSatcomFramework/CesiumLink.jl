@@ -56,7 +56,7 @@ const DEFAULT_LABEL_FONT = "12px system-ui";
 // neither line runs through the numbers.
 const LABEL_OFFSET_PX = 4;
 const DEFAULT_WIDTH = 1;
-const DEFAULT_ALTITUDE_M = 30_000;
+const DEFAULT_ALTITUDE_M = 0;
 
 /**
  * The longest a segment may span, as degrees of arc along its own line.
