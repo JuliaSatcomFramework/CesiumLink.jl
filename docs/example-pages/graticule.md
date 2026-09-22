@@ -75,10 +75,9 @@ kilometres. This one does not turn the depth test on, so it leaves the lines whe
 ## The globe hides the far half
 
 Watch the second stop of the camera tour, over the pole. The meridians meet there, the parallels
-come closer together, and every line stops at the horizon. The graticule keeps only the runs
-of each line on the camera's own side of the Earth and hides labels the same way. The graticule
-hides its far side without [`declare_globe_depth`](@ref), so this program never calls it. See
-ADR-0037 in `docs/decisions/` for why the occlusion belongs to the graticule.
+come closer together, and every line stops at the horizon. Cesium hides the far half of each
+line, and the viewer hides each label that stands behind the globe. This works without
+[`declare_globe_depth`](@ref), so this program never calls it. See ADR-0037 in `docs/decisions/`.
 
 ## Full source
 

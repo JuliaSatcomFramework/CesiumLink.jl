@@ -2,10 +2,9 @@
 // to any module: the graticule over it, and whether the globe stands in the depth buffer in front of
 // what is drawn above it.
 //
-// The graticule hides its own far half rather than leaning on the depth setting. A line drawn
-// through the Earth is what the setting exists to stop, but the setting is scene-wide, it is
-// bypassed in 2-D, and with it on the occlusion comes from the tiles that happen to have loaded. The
-// same limb test the place names use answers all three at once, and answers them per line.
+// The lines of the graticule are drawn whole. In 3-D, with the depth setting off, Cesium's depth
+// plane hides the far half of every line. A label is a billboard, and the part of it that stands
+// past the limb misses the depth plane, so the labels take the limb test the place names use.
 
 import {
   Cartesian2,
@@ -63,20 +62,9 @@ const DEFAULT_ALTITUDE_M = 0;
  *
  * The viewer joins two vertices with a straight chord, so this is what decides how far a drawn line
  * departs from the circle it stands for: three degrees sits about 2.2 km inside the sphere at the
- * middle of a segment. It is also what a graticule costs to draw, since it sets how many vertices
- * the limb test walks.
+ * middle of a segment.
  */
 const CUT_DEG = 3;
-
-/**
- * How much the camera must move before the limb is worked out again: a quarter degree of rotation,
- * or a hundredth of the range.
- *
- * Finer buys nothing a reader can see, and the test runs once per frame either way — what the
- * threshold governs is how often the lines are cut and handed to the GPU again.
- */
-const SETTLED_COS = Math.cos((0.25 * Math.PI) / 180);
-const SETTLED_RANGE = 0.01;
 
 /**
  * How many segments a line spanning `spanDeg` is cut into. `radius` is the radius of the circle it
@@ -175,39 +163,6 @@ export function graticuleGeometry(
 }
 
 /**
- * The runs of a line the camera can see, as index ranges `[first, last]` into its vertices.
- *
- * `visible` reports whether each vertex is on the camera's own side of the Earth. A run stops at the
- * last vertex before one that is not, so a line reaches the limb from inside rather than overshooting
- * it into space — the same direction of error the place names take, and the one a reader does not
- * notice.
- */
-export function visibleRuns(visible: readonly boolean[]): [number, number][] {
-  const runs: [number, number][] = [];
-  let start = -1;
-  for (let i = 0; i <= visible.length; i++) {
-    if (i < visible.length && visible[i]) {
-      if (start < 0) start = i;
-    } else if (start >= 0) {
-      // A run of one vertex is a point, and a point is not a line.
-      if (i - start >= 2) runs.push([start, i - 1]);
-      start = -1;
-    }
-  }
-  return runs;
-}
-
-/** What a declaration was resolved to, kept so a camera move can cut the lines again. */
-interface Drawn {
-  lines: GraticuleLine[];
-  /** The vertices of each line as world positions, in the same order. */
-  positions: Cartesian3[][];
-  labels: GraticuleLabel[];
-  color: Color;
-  width: number;
-}
-
-/**
  * Add the graticule to a widget, and answer the handle the server's declarations reach it through.
  *
  * Nothing is on the globe until a declaration asks for one. The collections are built on the first
@@ -218,16 +173,8 @@ export function addGraticule(widget: CesiumWidget): Graticule {
   const scene = widget.scene;
   let lines: PolylineCollection | null = null;
   let labels: LabelCollection | null = null;
-  let drawn: Drawn | null = null;
+  let anchors: GraticuleLabel[] = [];
   const sayBadColour = sayOnce((message: string) => console.warn(message));
-
-  // The camera the lines were last cut for: its direction, its range, and the scene mode. A mode
-  // has no far side unless it is 3-D, and then the whole graticule is drawn and cut once.
-  const lastEye = new Cartesian3();
-  let haveEye = false;
-  let lastMode: SceneMode | null = null;
-  const direction = new Cartesian3();
-  const lastDirection = new Cartesian3();
 
   const colourOf = (css: string | undefined, fallback: string): Color => {
     const named = css === undefined ? undefined : Color.fromCssColorString(css);
@@ -241,84 +188,18 @@ export function addGraticule(widget: CesiumWidget): Graticule {
     return named ?? Color.fromCssColorString(fallback);
   };
 
-  // Cut the lines to the runs this camera can see, and hide the labels it cannot. `eye` is the
-  // camera's world position, or undefined for a view with no far side, which draws everything.
-  //
-  // The polylines already in the collection are written over rather than replaced. A `Polyline`
-  // destroys its own material as it leaves the collection, so a cut that cleared the collection
-  // could not share one material between lines — and giving every run a material of its own, every
-  // time the camera moves, is what this reuse costs instead. The pool keeps whatever the widest
-  // view needed and hides the surplus.
-  const cut = (eye: Cartesian3 | undefined) => {
-    const at = drawn;
-    const pl = lines;
-    if (!at || !pl) return;
-    let used = 0;
-    for (let i = 0; i < at.lines.length; i++) {
-      const line = at.lines[i];
-      const positions = at.positions[i];
-      const visible = eye
-        ? line.lon.map((lon, k) => !behindGlobe(lon, line.lat[k], eye))
-        : line.lon.map(() => true);
-      for (const [first, last] of visibleRuns(visible)) {
-        const run = positions.slice(first, last + 1);
-        if (used < pl.length) {
-          const drawnLine = pl.get(used);
-          drawnLine.positions = run;
-          drawnLine.width = at.width;
-          drawnLine.show = true;
-          drawnLine.material.uniforms.color = at.color;
-        } else {
-          pl.add({
-            positions: run,
-            width: at.width,
-            material: Material.fromType("Color", { color: at.color }),
-          });
-        }
-        used++;
-      }
-    }
-    for (let i = used; i < pl.length; i++) pl.get(i).show = false;
-    for (let i = 0; labels && i < at.labels.length; i++) {
-      const anchor = at.labels[i];
-      labels.get(i).show = !eye || !behindGlobe(anchor.lon, anchor.lat, eye);
-    }
-    scene.requestRender?.();
-  };
-
-  // One frame's worth of work: the direction and range the camera stands at, against the ones the
-  // lines were cut for. The test is two dot products and a subtraction; the cut behind it is what
-  // the threshold is protecting.
+  // Hide each label the globe stands in front of. Only a globe has a far side, so 2-D and Columbus
+  // view show every label. A few dozen dot products, so it runs on every frame drawn.
   const onPreRender = () => {
-    if (!drawn) return;
-    const mode = scene.mode;
-    if (mode !== SceneMode.SCENE3D) {
-      if (mode === lastMode) return;
-      lastMode = mode;
-      haveEye = false;
-      cut(undefined);
-      return;
+    if (!labels) return;
+    const eye = scene.mode === SceneMode.SCENE3D ? scene.camera.positionWC : undefined;
+    for (let i = 0; i < anchors.length; i++) {
+      labels.get(i).show = !eye || !behindGlobe(anchors[i].lon, anchors[i].lat, eye);
     }
-    const eye = scene.camera.positionWC;
-    const range = Cartesian3.magnitude(eye);
-    if (mode === lastMode && haveEye) {
-      Cartesian3.normalize(eye, direction);
-      Cartesian3.normalize(lastEye, lastDirection);
-      const turned = Cartesian3.dot(direction, lastDirection) < SETTLED_COS;
-      const moved = Math.abs(range - Cartesian3.magnitude(lastEye)) >
-        SETTLED_RANGE * Cartesian3.magnitude(lastEye);
-      if (!turned && !moved) return;
-    }
-    lastMode = mode;
-    haveEye = true;
-    Cartesian3.clone(eye, lastEye);
-    cut(eye);
   };
 
   const clear = () => {
-    drawn = null;
-    haveEye = false;
-    lastMode = null;
+    anchors = [];
     lines?.removeAll();
     labels?.removeAll();
     scene.requestRender?.();
@@ -341,17 +222,19 @@ export function addGraticule(widget: CesiumWidget): Graticule {
 
       const altitude = decl.altitudeM ?? DEFAULT_ALTITUDE_M;
       const geometry = graticuleGeometry(lonSpacing, latSpacing);
-      drawn = {
-        lines: geometry.lines,
-        positions: geometry.lines.map((line) =>
-          line.lon.map((lon, k) => Cartesian3.fromDegrees(lon, line.lat[k], altitude))
-        ),
-        labels: decl.labels === false ? [] : geometry.labels,
-        color: colourOf(decl.color, DEFAULT_COLOR),
-        width: decl.width ?? DEFAULT_WIDTH,
-      };
+      const color = colourOf(decl.color, DEFAULT_COLOR);
+      const width = decl.width ?? DEFAULT_WIDTH;
+      // A `Polyline` destroys its material as it leaves the collection, so each line owns one.
+      for (const line of geometry.lines) {
+        lines.add({
+          positions: line.lon.map((lon, k) => Cartesian3.fromDegrees(lon, line.lat[k], altitude)),
+          width,
+          material: Material.fromType("Color", { color }),
+        });
+      }
+      anchors = decl.labels === false ? [] : geometry.labels;
       const labelColor = colourOf(decl.labelColor, DEFAULT_LABEL_COLOR);
-      for (const at of drawn.labels) {
+      for (const at of anchors) {
         labels.add({
           position: Cartesian3.fromDegrees(at.lon, at.lat, altitude),
           text: at.text,
@@ -363,10 +246,8 @@ export function addGraticule(widget: CesiumWidget): Graticule {
           pixelOffset: new Cartesian2(LABEL_OFFSET_PX, LABEL_OFFSET_PX),
         });
       }
-      // Cut for wherever the camera stands now, rather than waiting for it to move.
-      haveEye = false;
-      lastMode = null;
       onPreRender();
+      scene.requestRender?.();
     },
     destroy() {
       stopPreRender();

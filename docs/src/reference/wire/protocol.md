@@ -499,9 +499,10 @@ radius, so a parallel near a pole spends fewer vertices than the equator for the
 A meridian is labelled where it crosses the equator and a parallel where it crosses the prime
 meridian; one label serves both at 0°, 0°.
 
-The viewer keeps only the runs of each line on the camera's own side of the Earth, and hides a
-label the same way, so nothing is drawn through the globe whatever `core/globe-depth` says. Only a
-globe has a far side: 2-D and Columbus view draw the whole graticule.
+The viewer draws each line whole and leaves its far half to the globe: in 3-D, Cesium's depth plane
+hides it with `core/globe-depth` off, and the globe's tiles hide it with the setting on. The viewer
+hides a label that stands behind the globe itself. Only a globe has a far side: 2-D and Columbus
+view show every label.
 
 A colour the browser cannot read draws the default and warns once.
 

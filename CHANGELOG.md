@@ -15,6 +15,9 @@ All notable changes to CesiumLink are in this file.
   than `30_000`. A lifted graticule drifts against the imagery under it as the camera moves, and
   the lift only ever served a session that turns `declare_globe_depth` on, which now asks for it.
 - A graticule line is 0.75 px wide by default rather than 1 px.
+- The viewer draws each graticule line whole and lets Cesium's depth plane hide the far half,
+  rather than cutting the lines again on each camera move. Only the labels still take the limb
+  test, because the depth plane does not hide the part of a label past the limb.
 
 ### Fixed
 

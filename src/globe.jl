@@ -65,14 +65,13 @@ any other. Each call is a full statement, so a keyword this call does not name t
 rather than whatever an earlier call said about it.
 
 Every line is cut for its own length. The chord error of a segment grows with the radius of the
-circle it is cut from, so a parallel at 80° takes fewer segments than the equator for the same error
-and the graticule costs what its shortest circles are worth rather than a budget shared out evenly.
+circle it is cut from, so a parallel at 80° takes fewer segments than the equator for the same error.
 
-**The globe hides the far half.** The viewer keeps only the runs of each line on the camera's own
-side of the Earth, and hides a label the same way, so nothing is drawn through the globe. This is
-the graticule's own doing and owes nothing to [`declare_globe_depth`](@ref): it is exact the moment
-the camera moves, and it does not wait for a tile to load. A view with no far side — 2-D and
-Columbus view — draws the whole graticule, which is what a flat map should show. See ADR-0037.
+**The globe hides the far half.** The viewer draws each line whole, and in 3-D the globe hides the
+half behind it: Cesium's depth plane does this with [`declare_globe_depth`](@ref) off, and the
+globe's own tiles do it with the setting on. A label that stands behind the globe is hidden by the
+viewer itself, because the depth plane does not reach the part of a label that sticks out past the
+limb. A view with no far side — 2-D and Columbus view — shows every label. See ADR-0037.
 
 `labels` writes the longitude of a meridian where it crosses the equator and the latitude of a
 parallel where it crosses the prime meridian, so the numbers stand along two axes through the middle
@@ -124,8 +123,8 @@ The Core also re-asserts the setting before each frame, at the cost of one boole
 own terrain picker writes it whenever a terrain provider is chosen, and a morph rebuilds enough of
 the scene to be worth distrusting.
 
-The graticule of [`declare_graticule`](@ref) needs none of this — it hides its own far half — so a
-scene that draws only a graticule over the globe can leave this alone.
+The graticule of [`declare_graticule`](@ref) needs none of this: its far half is hidden either
+way, so a scene that draws only a graticule over the globe can leave this alone.
 """
 declare_globe_depth(server::Server, on::Bool = true) =
     send_command(server, CORE_GLOBE_DEPTH..., (; on))
