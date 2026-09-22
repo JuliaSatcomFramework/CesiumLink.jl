@@ -6,7 +6,7 @@ Meridians and parallels over a bare globe, and nothing else on it.
 julia examples/graticule.jl
 ```
 
-Or start it from a session that already has CesiumLink — see [Run an example](@ref "Run an example"):
+Start it from a session that already has CesiumLink as shown in [Run an example](@ref "Run an example"):
 
 ```julia
 server = include(joinpath(pkgdir(CesiumLink), "examples", "graticule.jl"))
@@ -41,6 +41,8 @@ The globe, the basemap picker and the corner buttons are all there without a win
 
 ## One call, the whole statement
 
+The example declares the graticule in one call:
+
 ```julia
 declare_graticule(server; spacing = (20, 10), color = "#1c2b4acc",
                   label_color = "#0d1626e0", label_font = "13px system-ui")
@@ -49,17 +51,15 @@ declare_graticule(server; spacing = (20, 10), color = "#1c2b4acc",
 `spacing` is degrees, one number for both families or `(lon, lat)` for the meridians and the
 parallels apart. This scene puts the meridians twenty degrees apart and the parallels ten.
 
-[`declare_graticule`](@ref) takes the whole set of keywords every time. A keyword a call does not
-name takes its default, not what an earlier call said, so a session that wants a finer grid says so
-in one call and repeats nothing:
+[`declare_graticule`](@ref) takes the whole set of keywords every time. Omitted keywords use their
+defaults. A session that wants a finer graticule declares it in one call:
 
 ```julia
 declare_graticule(server; spacing = 10)
 ```
 
-That call draws the default colour and font, not the ones above. The declaration is retained, so a
-browser connecting later gets the grid that was declared last. `spacing = nothing` takes the lines
-off, and that too is a retained state rather than an absence.
+That call uses the default colour and font. The server retains the declaration for browsers that
+connect later. `spacing = nothing` switches the lines off, and the server retains that state too.
 
 ## The lines sit on the ellipsoid
 
@@ -75,10 +75,10 @@ kilometres. This one does not turn the depth test on, so it leaves the lines whe
 ## The globe hides the far half
 
 Watch the second stop of the camera tour, over the pole. The meridians meet there, the parallels
-close in, and every line stops at the horizon: the graticule keeps only the runs of each line on the
-camera's own side of the Earth, and the labels the same way. That is the graticule's own doing. It
-needs no [`declare_globe_depth`](@ref), which is why this program never calls it. See ADR-0037 in
-`docs/decisions/` for why the occlusion belongs to the graticule.
+come closer together, and every line stops at the horizon. The graticule keeps only the runs
+of each line on the camera's own side of the Earth and hides labels the same way. The graticule
+hides its far side without [`declare_globe_depth`](@ref), so this program never calls it. See
+ADR-0037 in `docs/decisions/` for why the occlusion belongs to the graticule.
 
 ## Full source
 

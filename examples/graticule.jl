@@ -6,8 +6,7 @@
 #
 #     include(joinpath(pkgdir(CesiumLink), "examples", "graticule.jl"))
 #
-# The scene draws nothing of its own: no satellite, no cell, no raster, and no module is registered.
-# The Core draws the graticule with no module loaded, and this program is there to show it.
+# The Core draws the graticule. This program registers no module and sends no module data.
 #
 # Nothing here has a time, so the scene declares no time furniture and pushes no window at all.
 
@@ -29,12 +28,12 @@ function install_graticule_scene!(server)
     declare_graticule(server; spacing = (20, 10), color = "#1c2b4acc",
                       label_color = "#0d1626e0", label_font = "13px system-ui")
 
-    # Three stops. The first shows the whole grid, with both label axes in view. The second stands
-    # over the pole, where the parallels close in and the meridians meet, and where the globe hides
-    # the far half of every line that runs round the back. The third comes close enough to see the
-    # lines sit on the coastlines under them.
+    # Three stops. The first shows the whole graticule, with both label axes in view.
+    # The second stands over the pole. The parallels come closer together, and the meridians meet.
+    # The globe hides the far half of every line that runs round the back. The third comes close
+    # enough to see the lines sit on the coastlines under them.
     declare_camera(server,
-        Viewpoint(; lon = 10, lat = 25, height = 22_000_000, label = "The whole grid"),
+        Viewpoint(; lon = 10, lat = 25, height = 22_000_000, label = "The whole graticule"),
         Viewpoint(; lon = 0, lat = 88, height = 9_000_000, after = 8, duration = 6,
                   label = "Over the pole"),
         Viewpoint(; west = -12, south = 34, east = 22, north = 60, after = 20, duration = 6,
