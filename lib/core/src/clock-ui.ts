@@ -246,12 +246,16 @@ function basemapPicker(
   // cell, and the overlay clips the viewer. Each click that opens it fits it to the room left under
   // it in the canvas, so a short viewer scrolls the list inside the drop-down, which already
   // carries `overflow:auto`. The drop-down is hidden with `visibility`, so it has a position to
-  // measure while closed. 20 px is its 12 px of padding, its border and a gap above the edge.
+  // measure while closed. Closed, Cesium also shifts it up by a fifth of its height with a
+  // transform, so its top is read from `offsetTop`, which ignores the transform: the bounding box
+  // puts it about 100 px too high. 20 px is its 12 px of padding, its border and a gap above the
+  // edge.
   const dropDown = el.querySelector<HTMLElement>(".cesium-baseLayerPicker-dropDown");
   if (dropDown) {
     el.addEventListener("click", () => {
-      const room = scene.canvas.getBoundingClientRect().bottom -
-        dropDown.getBoundingClientRect().top - 20;
+      const parent = dropDown.offsetParent ?? el;
+      const top = parent.getBoundingClientRect().top + dropDown.offsetTop;
+      const room = scene.canvas.getBoundingClientRect().bottom - top - 20;
       dropDown.style.maxHeight = `${Math.max(0, Math.min(500, room))}px`;
     }, true);
   }
