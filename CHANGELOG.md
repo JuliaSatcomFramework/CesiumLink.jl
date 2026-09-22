@@ -23,6 +23,12 @@ All notable changes to CesiumLink are in this file.
 
 - A graticule label stands beside the crossing it names rather than on it, so no line runs
   through the numbers.
+- A viewer in a frame shorter than about 520 px shows no scrollbar. The hidden basemap drop-down
+  stayed in the layout and made the page taller than the frame. An open drop-down now scrolls
+  inside itself when the frame is short.
+- The satellite trails example draws on Blue Marble, because its CARTO basemap now asks for an
+  API key. The solar elevation example draws no country borders: the heatmap hides the coastlines,
+  so a border over it stops at no visible edge.
 
 ## [0.3.1] - 2026-09-14
 
