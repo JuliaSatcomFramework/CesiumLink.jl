@@ -29,10 +29,10 @@ parallels apart. `nothing` is the graticule switched off, which is a state and n
 | `label_font` | `"12px system-ui"` | the CSS font of the text |
 | `altitude_m` | `0` | metres above the ellipsoid the lines stand at |
 
-The graticule hides its own far half: the viewer keeps only the runs of each line on the camera's
-own side of the Earth, and hides a label the same way. That is exact the moment the camera moves and
-owes nothing to the depth setting below. A view with no far side — 2-D and Columbus view — draws the
-whole graticule. See ADR-0037 for why the occlusion is the graticule's own.
+The globe hides the far half of the graticule with or without the depth setting below: the viewer
+draws each line whole, and Cesium hides what stands behind the globe. The viewer hides a label that
+stands behind the globe itself. A view with no far side — 2-D and Columbus view — shows every label.
+See ADR-0037.
 
 [The graticule](../examples/graticule.md) is an example of nothing but this: a bare globe with the
 lines over it, and no module registered.

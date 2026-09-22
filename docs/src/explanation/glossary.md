@@ -243,10 +243,9 @@ border), widget (that is the `ui` module's), decoration.
 **Graticule**:
 The meridians and parallels the Core draws over the globe, at a spacing the server
 declares. It is neither a **basemap** nor an **annotation layer**: it carries no
-imagery and no data, only the grid a reader reads a position off. It hides its own
-far half — the viewer keeps the runs of each line on the camera's side of the Earth
-and hides a label the same way — so it needs no scene-wide depth setting and shows
-through no globe. **Off is a state**: a session that declares no graticule and one
+imagery and no data, only the grid a reader reads a position off. The globe hides
+its far half with or without a scene-wide depth setting, and the viewer hides a
+label that stands behind the globe. **Off is a state**: a session that declares no graticule and one
 that declares the graticule off differ, because the second is retained and replayed.
 _Avoid_: grid (means a heatmap's texel grid here), lat-lon lines, gridlines.
 
