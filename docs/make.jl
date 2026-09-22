@@ -226,7 +226,8 @@ function record_examples()
     end
     mkpath(joinpath(SRC, "public", "recordings"))
 
-    record_example("solar-elevation.jsonl") do server
+    # The same server `run_example` starts: the heatmap hides the coastlines, so no borders.
+    record_example("solar-elevation.jsonl"; country_borders = false) do server
         scene = SOLAR.install_solar_scene!(server)
         @assert size(scene.values) == (180, 90)
         @assert length(scene.regions) == 5

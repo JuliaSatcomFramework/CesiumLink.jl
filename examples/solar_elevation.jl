@@ -126,7 +126,8 @@ Start a server for this scene and print the address of the viewer. A session get
 to stop with `stop_server`.
 """
 function run_example()
-    server = start_server()
+    # The heatmap hides the coastlines, so a country border on it is a line that stops at random.
+    server = start_server(; country_borders = false)
     install_solar_scene!(server)
     return hold(server)
 end

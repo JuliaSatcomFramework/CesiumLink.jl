@@ -101,6 +101,9 @@ export function scrubRegionStyle(
 
 /** Create the overlay over `container` (the viewer's DOM parent). Regions are created on first use. */
 export function createOverlay(container: HTMLElement): Overlay {
+  // A hidden drop-down still takes up layout. Without the clip, one that reaches below the viewer
+  // gives the host page a scrollbar.
+  container.style.overflow = "hidden";
   const regions = new Map<OverlayRegion, HTMLElement>();
   const declared = new Map<OverlayRegion, Record<string, string>>();
   let bottomInset = DEFAULT_BOTTOM_INSET;
