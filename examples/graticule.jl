@@ -26,7 +26,7 @@ function install_graticule_scene!(server)
     declare_furniture(server; timeline = false, animation = false, keyframe = false)
 
     # Darker and less transparent than the default, so the lines read on any basemap.
-    declare_graticule(server; spacing = (20, 10), color = "#1c2b4acc", width = 1.5,
+    declare_graticule(server; spacing = (20, 10), color = "#1c2b4acc",
                       label_color = "#0d1626e0", label_font = "13px system-ui")
 
     # Three stops. The first shows the whole grid, with both label axes in view. The second stands

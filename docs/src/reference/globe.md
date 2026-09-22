@@ -23,7 +23,7 @@ parallels apart. `nothing` is the graticule switched off, which is a state and n
 |---|---|---|
 | `spacing` | `20` | degrees between meridians and parallels, or `nothing` for none |
 | `color` | `"#33333340"` | the CSS colour of the lines |
-| `width` | `1` | the width of a line, in pixels |
+| `width` | `0.75` | the width of a line, in pixels |
 | `labels` | `true` | write the longitude and latitude of each line |
 | `label_color` | `"#222222d0"` | the CSS colour of the text |
 | `label_font` | `"12px system-ui"` | the CSS font of the text |

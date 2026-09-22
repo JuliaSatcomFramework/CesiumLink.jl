@@ -51,7 +51,7 @@ function graticule_payload(; spacing, color, width, labels, label_color, label_f
 end
 
 """
-    declare_graticule(server::Server; spacing=20, color="#33333340", width=1, labels=true,
+    declare_graticule(server::Server; spacing=20, color="#33333340", width=0.75, labels=true,
                       label_color="#222222d0", label_font="12px system-ui",
                       altitude_m=0) -> Int
 
@@ -93,7 +93,7 @@ declare_graticule(server; spacing = (20, 10))
 declare_graticule(server; spacing = nothing)          # off, and retained as off
 ```
 """
-declare_graticule(server::Server; spacing = 20, color = "#33333340", width = 1, labels = true,
+declare_graticule(server::Server; spacing = 20, color = "#33333340", width = 0.75, labels = true,
                   label_color = "#222222d0", label_font = "12px system-ui",
                   altitude_m = 0) =
     send_command(server, CORE_GRATICULE...,

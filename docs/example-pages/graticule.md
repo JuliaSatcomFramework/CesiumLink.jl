@@ -42,7 +42,7 @@ The globe, the basemap picker and the corner buttons are all there without a win
 ## One call, the whole statement
 
 ```julia
-declare_graticule(server; spacing = (20, 10), color = "#1c2b4acc", width = 1.5,
+declare_graticule(server; spacing = (20, 10), color = "#1c2b4acc",
                   label_color = "#0d1626e0", label_font = "13px system-ui")
 ```
 
@@ -57,7 +57,7 @@ in one call and repeats nothing:
 declare_graticule(server; spacing = 10)
 ```
 
-That call draws the default colour and width, not the ones above. The declaration is retained, so a
+That call draws the default colour and font, not the ones above. The declaration is retained, so a
 browser connecting later gets the grid that was declared last. `spacing = nothing` takes the lines
 off, and that too is a retained state rather than an absence.
 

@@ -14,6 +14,7 @@ All notable changes to CesiumLink are in this file.
 - `declare_graticule` draws the lines on the ellipsoid: `altitude_m` now defaults to `0` rather
   than `30_000`. A lifted graticule drifts against the imagery under it as the camera moves, and
   the lift only ever served a session that turns `declare_globe_depth` on, which now asks for it.
+- A graticule line is 0.75 px wide by default rather than 1 px.
 
 ### Fixed
 

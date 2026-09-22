@@ -55,7 +55,7 @@ const DEFAULT_LABEL_FONT = "12px system-ui";
 // kept off both lines: its top-left corner hangs this far below and to the right of the anchor, so
 // neither line runs through the numbers.
 const LABEL_OFFSET_PX = 4;
-const DEFAULT_WIDTH = 1;
+const DEFAULT_WIDTH = 0.75;
 const DEFAULT_ALTITUDE_M = 0;
 
 /**
