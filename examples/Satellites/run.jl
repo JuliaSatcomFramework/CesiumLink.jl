@@ -59,8 +59,7 @@ const TRAIL_COLOR = "#00e5ff80"
 # nine seconds of playback, which is time enough to read the whole sky before the camera leaves it.
 const RIDE_SAT = 1
 const RIDE_FRAME = 12
-const IMAGERY = Imagery("https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png";
-                        max_level = 18, credit = "© OpenStreetMap · © CARTO")
+const IMAGERY = KNOWN_EARTH_BASEMAPS.blue_marble
 
 """
     SatelliteScene(; tle_file = TLE_FILE)

@@ -16,7 +16,7 @@ server = include(joinpath(pkgdir(CesiumLink), "examples", "Satellites", "run.jl"
 The scene below is a recording of that program, played in the browser.
 
 ```@raw html
-<!-- The basemap tiles come from CARTO's CDN, which nothing here controls. A globe wearing Earth's
+<!-- The basemap tiles come from NASA GIBS, which nothing here controls. A globe wearing Earth's
      bundled texture means that host is unreachable, not that the viewer is broken. -->
 <iframe src="../viewer/player.html?rec=../recordings/satellites.jsonl&modules=modules"
         title="Sixty satellites dragging glowing trails over a lit globe, played in the browser"
