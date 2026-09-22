@@ -73,6 +73,8 @@ const SATELLITES = Module(:Satellites)
 Base.include(SATELLITES, joinpath(EXAMPLES, "Satellites", "run.jl"))
 const PULSE = Module(:PulseEdges)
 Base.include(PULSE, joinpath(EXAMPLES, "PulseEdges", "run.jl"))
+const GRATICULE = Module(:Graticule)
+Base.include(GRATICULE, joinpath(EXAMPLES, "graticule.jl"))
 using Constellation
 import RegionCount
 
@@ -130,7 +132,8 @@ const EXAMPLE_SOURCE = Dict("solar-elevation.md" => "solar_elevation.jl",
                             "satellites.md" => "Satellites",
                             "constellation.md" => "Constellation",
                             "region-count.md" => "RegionCount",
-                            "pulse-edges.md" => "PulseEdges")
+                            "pulse-edges.md" => "PulseEdges",
+                            "graticule.md" => "graticule.jl")
 const FENCE = Dict("jl" => "julia", "js" => "js", "md" => "markdown", "toml" => "toml")
 
 function stage_examples()
@@ -297,6 +300,14 @@ function record_examples()
         cp(joinpath(EXAMPLES, "PulseEdges", "assets"),
            joinpath(SRC, "public", "viewer", "modules", PULSE.MODULE_ID); force = true)
         return scene
+    end
+
+    record_example("graticule.jsonl") do server
+        GRATICULE.install_graticule_scene!(server)
+        # No module draws anything here: the scene is the graticule, and a recording that has lost
+        # the declaration is a recording of a bare globe, which every other check passes.
+        @assert any(p -> first(p) == CesiumLink.CORE_GRATICULE, server.retained)
+        return nothing
     end
 
     return nothing
@@ -478,6 +489,7 @@ makedocs(;
             "3 · Constellation" => "examples/constellation.md",
             "4 · Satellites over a region" => "examples/region-count.md",
             "5 · A line material of your own" => "examples/pulse-edges.md",
+            "6 · The graticule" => "examples/graticule.md",
         ],
     ],
 )

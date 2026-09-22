@@ -51,9 +51,9 @@ function graticule_payload(; spacing, color, width, labels, label_color, label_f
 end
 
 """
-    declare_graticule(server::Server; spacing=20, color="#33333340", width=1, labels=true,
+    declare_graticule(server::Server; spacing=20, color="#33333340", width=0.75, labels=true,
                       label_color="#222222d0", label_font="12px system-ui",
-                      altitude_m=30_000) -> Int
+                      altitude_m=0) -> Int
 
 Declare the graticule the Core draws over the globe: meridians and parallels at `spacing`, labelled
 along two axes. Returns the number of clients it was queued for.
@@ -78,10 +78,12 @@ Columbus view — draws the whole graticule, which is what a flat map should sho
 parallel where it crosses the prime meridian, so the numbers stand along two axes through the middle
 of the map rather than repeating across it. One label serves both at 0°, 0°.
 
-`altitude_m` lifts the lines and their labels off the ellipsoid. It matters only to a session that
-also turns [`declare_globe_depth`](@ref) on: the viewer joins two vertices with a straight chord,
-which sags some 2 km inside the sphere at the cut this graticule uses, and a line below its own sag
-sinks into a globe that is depth-testing against it.
+`altitude_m` lifts the lines and their labels off the ellipsoid. The default draws them on it, which
+is where the imagery is, so a line and the coast under it stay together however close the camera
+comes. A session that also turns [`declare_globe_depth`](@ref) on is the one that wants a lift: the
+viewer joins two vertices with a straight chord, which sags some 2 km inside the sphere at the cut
+this graticule uses, and a line below its own sag sinks into a globe that is depth-testing against
+it. Some tens of kilometres clears that.
 
 `color` and `label_color` are CSS colours; one the browser cannot read draws the default instead and
 says so once in the console.
@@ -91,9 +93,9 @@ declare_graticule(server; spacing = (20, 10))
 declare_graticule(server; spacing = nothing)          # off, and retained as off
 ```
 """
-declare_graticule(server::Server; spacing = 20, color = "#33333340", width = 1, labels = true,
+declare_graticule(server::Server; spacing = 20, color = "#33333340", width = 0.75, labels = true,
                   label_color = "#222222d0", label_font = "12px system-ui",
-                  altitude_m = 30_000) =
+                  altitude_m = 0) =
     send_command(server, CORE_GRATICULE...,
                  graticule_payload(; spacing, color, width, labels, label_color, label_font,
                                    altitude_m))
