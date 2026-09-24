@@ -177,8 +177,8 @@ The session declaration. Sent once per connection, before anything else, and ret
   - `name` is the label the picker shows. `credit` is the attribution drawn over the globe while
     this entry is the one on screen. It is HTML, and the viewer sanitizes it before it draws it.
   - `key` names the catalogue basemap the entry is, such as `"blue_marble"`. The viewer draws its
-    picker icon from that and never from the label. A basemap an author declared themselves carries
-    no `key`.
+    picker icon from that and never from the label. A basemap whose tile source is not a catalogue
+    one carries no `key`.
   - `backing` draws the viewer's own bundled Earth texture under this entry, so a source that
     returns no tiles leaves a globe instead of a hole. The backing belongs to one entry, and the set
     never holds it as an entry of its own. The reader cannot pick it, and it draws no credit.

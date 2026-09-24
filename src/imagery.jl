@@ -312,9 +312,12 @@ end
 # as an entry a reader can pick, and once under an entry that asked for a backing.
 bundled_declaration(im::Imagery) = with_common((; bundled = true), im)
 
-# The catalogue name of a basemap, or `nothing` for one an author built. It is what the picker looks
-# an icon and a category up by, so a renamed label cannot change what the drop-down draws.
-catalogue_key(im::Imagery) = findfirst(==(im), KNOWN_EARTH_BASEMAPS)
+# The catalogue name of a basemap whose tile source is a catalogue one, or `nothing` for a basemap
+# from any other source. The source alone decides it, so a new label or border style keeps the icon
+# and the group.
+function catalogue_key(im::Imagery)
+    return findfirst(e -> (e.url, e.bundled) == (im.url, im.bundled), KNOWN_EARTH_BASEMAPS)
+end
 
 # The fields every kind of basemap carries. `key` names the catalogue entry this is, and `name`
 # labels the entry in the picker. A set of one draws no picker, so a lone basemap without one

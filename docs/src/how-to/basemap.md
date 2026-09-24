@@ -99,9 +99,9 @@ serves the tiles. Relief holds the maps somebody drew, and Imagery holds the pho
 | Relief | `aster_colour_relief`, `aster_grey_relief` and `emodnet_baselayer` |
 | Imagery | `blue_marble` and `blue_marble_relief` |
 
-EMODnet sits under Relief with the two ASTER maps although another host serves it. A basemap you
-name yourself carries no catalogue key, so the picker draws it with the Natural Earth icon and puts
-it under Imagery.
+EMODnet sits under Relief with the two ASTER maps although another host serves it. A catalogue
+basemap you restyle or rename keeps its icon and its group, because the picker knows a basemap by
+its tile source. Only a basemap from another source gets the Natural Earth icon under Imagery.
 
 The recording carries the set and not the pick. Reload the page and the globe wears entry 1 again.
 
