@@ -21,6 +21,9 @@ All notable changes to CesiumLink are in this file.
 
 ### Fixed
 
+- A catalogue basemap rebuilt with another label, border style, depth or backing keeps its picker
+  icon and group. Only an exact copy kept them before, so a restyled default set drew every entry
+  with the Natural Earth icon under Imagery.
 - A graticule label stands beside the crossing it names rather than on it, so no line runs
   through the numbers.
 - A viewer in a frame shorter than about 520 px shows no scrollbar. The hidden basemap drop-down

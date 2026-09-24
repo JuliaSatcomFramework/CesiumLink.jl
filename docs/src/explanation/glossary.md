@@ -123,6 +123,13 @@ body. A reader who picks another one never sees a globe that disagrees with the
 coordinates drawn on it. A set of one draws no picker.
 _Avoid_: layer stack, basemap list.
 
+**Catalogue basemap**:
+A **basemap** whose tile source is one that CesiumLink ships a ready-made value for. The
+source alone makes it one. A new label, **border style**, credit, depth or **basemap
+backing** leaves it the same catalogue basemap, and the picker still draws its icon and
+its group. A basemap from any other source is the author's own.
+_Avoid_: known basemap, preset.
+
 **Basemap backing**:
 A second basemap drawn under a declared one, so that a source which returns no tiles
 leaves a globe instead of a hole. The backing belongs to one basemap, and the **basemap

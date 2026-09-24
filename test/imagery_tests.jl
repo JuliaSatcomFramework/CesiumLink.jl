@@ -78,6 +78,8 @@ end
 
 @testitem "the basemaps this package knows are ready to declare" begin
     @test length(collect(KNOWN_EARTH_BASEMAPS)) == 7
+    # A basemap is found by its tile source, so each catalogue source must be its own.
+    @test allunique((im.url, im.bundled) for im in KNOWN_EARTH_BASEMAPS)
     # A name this package ships carries its attribution, so a source that asks for one has it.
     @test all(!isempty, (KNOWN_EARTH_BASEMAPS.aster_colour_relief.credit,
                          KNOWN_EARTH_BASEMAPS.aster_grey_relief.credit,
@@ -146,6 +148,33 @@ end
     @test by_key["blue_marble_relief"] == "#ffffff8c"
     @test by_key["city_lights"] == "#ffffff8c"
     @test by_key["aster_grey_relief"] == "#0000008c"
+end
+
+@testitem "a restyled catalogue basemap keeps its key" begin
+    # The viewer reads the icon and the drop-down category off `key`. A catalogue basemap with a
+    # new label, border style, credit, depth or backing has the same tile source. It keeps its key.
+    # A caller can fade the border of every entry of the default set, as the first entry does.
+    faded = Imagery(KNOWN_EARTH_BASEMAPS.blue_marble.url;
+                    name = "Blue Marble", tiling = :gibs_geographic, max_level = 7,
+                    credit = "NASA EOSDIS GIBS", backing = true, bundled = false,
+                    border_color = "#ffffff1a", border_width = 2.0)
+    # A new label does not change what the tiles are.
+    renamed = Imagery(KNOWN_EARTH_BASEMAPS.aster_grey_relief.url;
+                      name = "Relief, Grey", tiling = :gibs_geographic, max_level = 11,
+                      credit = "NASA EOSDIS GIBS", backing = true, bundled = false,
+                      border_color = "#0000008c", border_width = 2.0)
+    # A shallower pyramid with no backing is still the same tile source.
+    shallow = Imagery(KNOWN_EARTH_BASEMAPS.emodnet_baselayer.url;
+                      name = "EMODnet Baselayer", tiling = :geographic, max_level = 8,
+                      credit = "EMODnet Bathymetry (CC BY 4.0)", backing = false,
+                      bundled = false, border_color = "#3a3a3ab3", border_width = 2.0)
+    # A URL that no catalogue entry uses is a basemap from another source, so it has no key.
+    outside = Imagery("https://example.org/tiles/{z}/{x}/{y}.png")
+
+    d, _ = CesiumLink.resolve_imagery([faded, renamed, shallow, outside])
+    found = [get(e, :key, nothing) for e in d]
+    @test found == ["blue_marble", "aster_grey_relief", "emodnet_baselayer", nothing]
+    @test [e.borderColor for e in d] == ["#ffffff1a", "#0000008c", "#3a3a3ab3", "#ffffff8c"]
 end
 
 @testitem "a basemap set is refused when the viewer could not draw it" setup=[Pyramid] begin
