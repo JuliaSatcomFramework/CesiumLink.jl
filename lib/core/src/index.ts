@@ -77,8 +77,8 @@ export interface ViewerOptions extends SceneOptions {
   /**
    * How this host makes the view fill the screen. Supply it only for a page that has no fullscreen
    * API of its own: the full-screen button then calls this instead of the browser's request, which
-   * such a page renders dead. A host that leaves it out keeps Cesium's own button, and a page with
-   * no fullscreen API shows no button at all.
+   * such a page renders dead. A host that leaves it out gets a button that puts the container full
+   * screen, and a page with no fullscreen API shows no button at all.
    */
   expand?(): void;
 }
