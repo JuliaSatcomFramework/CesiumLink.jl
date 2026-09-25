@@ -14,7 +14,7 @@
 import { JulianDate, type Clock, type Ellipsoid, type Scene } from "@cesium/engine";
 import {
   Animation, AnimationViewModel, BaseLayerPicker, CesiumInspector, ClockViewModel,
-  FullscreenButton, HomeButton, NavigationHelpButton, ProjectionPicker, ProviderViewModel,
+  HomeButton, NavigationHelpButton, ProjectionPicker, ProviderViewModel,
   SceneModePicker, Timeline,
 } from "@cesium/widgets";
 import type { Annotations } from "./annotations";
@@ -73,7 +73,7 @@ type GroupId = (typeof GROUP_ORDER)[number];
 // set. No `z-index`: the region host already carries one, and inheriting it is the point.
 const GROUP_STYLE = "display:flex;flex-direction:column;gap:6px;pointer-events:auto";
 
-/** Cesium's own "enter full screen" icon, so a host's substitute button reads as the same control. */
+/** Cesium's own full-screen icons, so this button reads as the control a Cesium page shows. */
 const ENTER_FULLSCREEN_PATH =
   "M 83.96875 17.5625 L 83.96875 17.59375 L 76.65625 24.875 L 97.09375 24.96875 L 76.09375 " +
   "45.96875 L 81.9375 51.8125 L 102.78125 30.9375 L 102.875 51.15625 L 110.15625 43.875 L " +
@@ -84,13 +84,32 @@ const ENTER_FULLSCREEN_PATH =
   "51.875 81.875 L 46.0625 76.03125 z M 82 76.15625 L 76.15625 82 L 97.15625 103 L 76.71875 " +
   "103.0625 L 84.03125 110.375 L 110.25 110.34375 L 110.21875 84.0625 L 102.9375 76.8125 L " +
   "102.84375 97 L 82 76.15625 z";
+const EXIT_FULLSCREEN_PATH =
+  "M 104.34375 17.5625 L 83.5 38.4375 L 83.40625 18.21875 L 76.125 25.5 L 76.09375 51.78125 L " +
+  "102.3125 51.8125 L 102.3125 51.78125 L 109.625 44.5 L 89.1875 44.40625 L 110.1875 23.40625 L " +
+  "104.34375 17.5625 z M 23.75 17.59375 L 17.90625 23.4375 L 38.90625 44.4375 L 18.5 44.53125 L " +
+  "25.78125 51.8125 L 52 51.78125 L 51.96875 25.53125 L 44.6875 18.25 L 44.625 38.46875 L 23.75 " +
+  "17.59375 z M 25.6875 76.03125 L 18.375 83.3125 L 38.78125 83.40625 L 17.8125 104.40625 L " +
+  "23.625 110.25 L 44.5 89.375 L 44.59375 109.59375 L 51.875 102.3125 L 51.875 76.0625 L 25.6875 " +
+  "76.03125 z M 102.375 76.15625 L 76.15625 76.1875 L 76.1875 102.4375 L 83.46875 109.71875 L " +
+  "83.5625 89.53125 L 104.40625 110.375 L 110.25 104.53125 L 89.25 83.53125 L 109.6875 83.46875 L " +
+  "102.375 76.15625 z";
 
 /**
- * The full-screen cell for a host that goes full screen its own way. It wears Cesium's button
- * chrome and icon, and it holds no state: the host owns whether the view is expanded, and a
- * webview is not told when the reader leaves that state by another route.
+ * The full-screen cell. It wears Cesium's button chrome and icons.
+ *
+ * Cesium's `FullscreenButton` is not used, because it reads any full-screen element as its own. On a
+ * page that already shows an ancestor full screen, a slide deck for example, it shows "exit", and
+ * a click takes the whole page out of full screen. This button reads only `container`. A click on
+ * it puts `container` full screen inside the full-screen ancestor, and the next click gives the
+ * screen back to that ancestor.
+ *
+ * A host that goes full screen its own way supplies `expand`. The button then holds no state: the
+ * host owns whether the view is expanded, and a webview is not told when the reader leaves that
+ * state by another route.
  */
-function expandButton(el: HTMLElement, expand: () => void): { destroy(): void } {
+function fullscreenButton(el: HTMLElement, container: HTMLElement, expand?: () => void):
+  { destroy(): void } {
   const button = document.createElement("button");
   button.type = "button";
   button.className = "cesium-button cesium-fullscreenButton";
@@ -103,9 +122,31 @@ function expandButton(el: HTMLElement, expand: () => void): { destroy(): void } 
   path.setAttribute("d", ENTER_FULLSCREEN_PATH);
   svg.appendChild(path);
   button.appendChild(svg);
-  button.addEventListener("click", expand);
   el.appendChild(button);
-  return { destroy: () => button.remove() };
+  if (expand) {
+    button.addEventListener("click", expand);
+    return { destroy: () => button.remove() };
+  }
+  const sync = () => {
+    const on = document.fullscreenElement === container;
+    path.setAttribute("d", on ? EXIT_FULLSCREEN_PATH : ENTER_FULLSCREEN_PATH);
+    button.title = on ? "Exit full screen" : "Full screen";
+  };
+  button.addEventListener("click", () => {
+    // A refused request, for example with no user gesture, changes nothing on screen.
+    const done = document.fullscreenElement === container
+      ? document.exitFullscreen()
+      : container.requestFullscreen();
+    done.catch(() => {});
+  });
+  document.addEventListener("fullscreenchange", sync);
+  sync();
+  return {
+    destroy() {
+      document.removeEventListener("fullscreenchange", sync);
+      button.remove();
+    },
+  };
 }
 
 /** What the basemap picker needs to build one entry of the declared set into a globe layer. */
@@ -430,8 +471,7 @@ export function buildFurniture(
     basemap: (el) => basemapPicker(el, scene, basemaps!, overlay, annotations),
     annotations: (el) => annotationsCell(el, annotations!),
     navHelp: (el) => new NavigationHelpButton({ container: el }),
-    fullscreen: (el) =>
-      expand ? expandButton(el, expand) : new FullscreenButton(el, container),
+    fullscreen: (el) => fullscreenButton(el, container, expand),
     // The capture cell is built outside this file, because it reads the widget rather than the
     // scene: a scaled picture goes through `resolutionScale`, which the widget owns.
     canvasCapture: (el) => captureCell!(el),
@@ -446,10 +486,9 @@ export function buildFurniture(
    * Whether this page can show `id` at all. The server declares the furniture and does not know
    * what its client is, so the capability decides and the declaration cannot override it.
    *
-   * A page with no fullscreen API — a VSCode webview, a sandboxed frame — renders `FullscreenButton`
-   * dead: the widget binds its enable flag to `document.fullscreenEnabled`, and the setter ANDs with
-   * the real capability, so the button cannot be forced on and a click on it does nothing. Such a
-   * host supplies `expand` instead, and then the cell is a substitute button that calls it.
+   * A page with no fullscreen API — a VSCode webview, a sandboxed frame — cannot put the container
+   * full screen, so a click on the button would do nothing. Such a host supplies `expand` instead,
+   * and then the button calls it.
    *
    * The capture cell has the same shape: only a caller that handed one over can show it. So does
    * the basemap picker, which needs a set of two or more to pick within, and the annotations cell,
@@ -513,8 +552,8 @@ export function buildFurniture(
     const el = document.createElement("div");
     // Each button keeps a fixed cell with overflow visible. SceneModePicker and NavigationHelpButton
     // grow their drop-downs out of the cell, so an unsized cell would reflow the whole column every
-    // time one opens, and FullscreenButton sizes itself to 100% of its container. The inspector is a
-    // panel that carries its own width.
+    // time one opens, and `.cesium-fullscreenButton` sizes itself to 100% of its container. The
+    // inspector is a panel that carries its own width.
     if (id !== "inspector") el.style.cssText = "width:32px;height:32px";
     // The order is fixed, so a new cell goes before the first later item already on screen.
     const after = GROUP_ORDER.slice(rank + 1)
@@ -524,9 +563,9 @@ export function buildFurniture(
     const widget = build[id](el);
     // The cell owns where the button sits, and the group's gap owns the space between two of them.
     // So clear the offset the widget brought: `.cesium-button` carries `margin:2px 3px`, each picker
-    // overrides it differently, and FullscreenButton zeroes it — three widgets, three corners, and
-    // an icon column out of step with the even cells behind it. Only the leading edges go; a
-    // trailing margin still spaces the parts a picker stacks below its own button.
+    // overrides it differently, and `.cesium-fullscreenButton` zeroes it — three widgets, three
+    // corners, and an icon column out of step with the even cells behind it. Only the leading edges
+    // go; a trailing margin still spaces the parts a picker stacks below its own button.
     if (id !== "inspector") {
       for (let part = el.firstElementChild; part; part = part.firstElementChild) {
         (part as HTMLElement).style.marginTop = "0";
@@ -751,8 +790,11 @@ export function buildFurniture(
       showFollow();
     },
     resize() {
-      // A hidden element measures 0, so re-laying out to it would only have to be undone on the
-      // next reveal, which re-lays it out anyway.
+      // A hidden element measures 0. A lay-out to 0 draws the clock face at its intrinsic size and
+      // drops the dates from the ruler, and nothing lays them out again when the element shows.
+      // So a hidden container keeps its last lay-out, and the call that comes when it shows lays
+      // it out. A hidden item gets the same rule: its reveal re-lays it out.
+      if (container.clientWidth === 0) return;
       if (items.animation) animation.resize();
       if (items.timeline) timeline.resize();
     },
