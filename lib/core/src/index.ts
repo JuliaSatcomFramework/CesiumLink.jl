@@ -77,8 +77,8 @@ export interface ViewerOptions extends SceneOptions {
   /**
    * How this host makes the view fill the screen. Supply it only for a page that has no fullscreen
    * API of its own: the full-screen button then calls this instead of the browser's request, which
-   * such a page renders dead. A host that leaves it out keeps Cesium's own button, and a page with
-   * no fullscreen API shows no button at all.
+   * such a page renders dead. A host that leaves it out gets a button that puts the container full
+   * screen, and a page with no fullscreen API shows no button at all.
    */
   expand?(): void;
 }
@@ -135,8 +135,10 @@ export async function createViewer(
     // The two annotation layers `createScene` added, which the map-annotations cell switches. The
     // cell reads its two boxes off this handle, so what it shows is what the session declared.
     annotationsOf(widget));
-  const onResize = () => furniture.resize();
-  window.addEventListener("resize", onResize);
+  // The container, not the window: a host can hide the container and show it again with no
+  // window resize. A Slate slide deck does that, when it moves a cell from the notebook onto a slide.
+  const sizeWatch = new ResizeObserver(() => furniture.resize());
+  sizeWatch.observe(container);
 
   // The two things the Core draws on the globe itself. Neither puts anything on screen until the
   // server declares it, so a session that declares neither pays for neither.
@@ -453,7 +455,7 @@ export async function createViewer(
       camera.destroy();
       overlay.destroy();
       scene.morphComplete.removeEventListener(tuneForMode);
-      window.removeEventListener("resize", onResize);
+      sizeWatch.disconnect();
       furniture.destroy();
       widget.destroy();
     },
