@@ -14,6 +14,9 @@ All notable changes to CesiumLink are in this file.
 - The timeline and the clock lay out again when their viewer comes into view. A viewer on a hidden
   slide lost the ruler labels, and its clock was drawn at the wrong size, when the deck went to full
   screen.
+- With two viewers on one page, the speed pointer on the clock of each viewer shows again. Every
+  clock painted with the gradients of the first one, so the pointer of every other viewer
+  disappeared while the first clock was hidden: a timeless scene, or a slide that a deck hides.
 
 ## [0.3.2] - 2026-09-24
 

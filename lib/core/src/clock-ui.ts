@@ -149,6 +149,54 @@ function fullscreenButton(el: HTMLElement, container: HTMLElement, expand?: () =
   };
 }
 
+let animationScopes = 0;
+
+/**
+ * Give one `Animation` widget its own gradient ids and its own paint rules, and give back the call
+ * that removes the rules.
+ *
+ * Cesium names the gradients of each widget with the same fixed ids, and its paint rules read
+ * `url(#animation_…)`. That url goes to the first element with the id in the document. With two
+ * viewers on one page, each widget thus paints with the gradients of the first one. When the clock of
+ * that viewer is hidden, because its furniture is off or a slide deck hides its slide, Chrome paints
+ * nothing from those gradients, and the shuttle ring pointer of every other viewer disappears.
+ *
+ * Call it at once after `new Animation`, which adds the rules of the widget to `<head>`. The scope
+ * goes in `:where()`, so each rule keeps the specificity that Cesium gave it: the `:active` fill of a
+ * clock button in Cesium's stylesheet ties with the `:hover` rule, and wins by coming later.
+ *
+ * Without unscoped rules to take, the widget keeps Cesium's shared paint: a lost pointer is not a
+ * reason to stop the viewer.
+ */
+function scopeAnimationPaint(el: HTMLElement, animation: Animation): () => void {
+  const scope = `cesiumlink-animation-${++animationScopes}`;
+  const style = [...document.head.querySelectorAll("style")].find((s) =>
+    s.textContent?.includes("url(#animation_") && !s.textContent.includes("cesiumlink-animation-"));
+  if (!style) {
+    console.warn("CesiumLink: no unscoped Animation paint rules in <head>, " +
+      "so the clock keeps Cesium's shared gradients");
+    return () => {};
+  }
+  el.classList.add(scope);
+  const own = (text: string) => text.replace(/url\(#(animation_\w+)\)/g, `url(#$1-${scope})`);
+  style.textContent = style.textContent!.replace(/([^{}]+)\{([^}]*)\}/g,
+    (_, selector: string, body: string) => `:where(.${scope}) ${selector.trim()} {${own(body)}}`);
+  const rename = () => {
+    for (const def of el.querySelectorAll('defs [id^="animation_"]')) {
+      if (!def.id.endsWith(scope)) def.id += `-${scope}`;
+    }
+  };
+  rename();
+  // Cesium builds the gradients again on each theme change, and waits for the page to hold the
+  // widget before the first build. Rename each new set.
+  const apply = animation.applyThemeChanges.bind(animation);
+  animation.applyThemeChanges = () => {
+    apply();
+    rename();
+  };
+  return () => style.remove();
+}
+
 /** What the basemap picker needs to build one entry of the declared set into a globe layer. */
 export interface Basemaps {
   /** The declared set, in wire order. Entry 0 is what the globe wears at startup. */
@@ -453,6 +501,7 @@ export function buildFurniture(
   const clockViewModel = new ClockViewModel(clock);
   const animationViewModel = new AnimationViewModel(clockViewModel);
   const animation = new Animation(animEl, animationViewModel);
+  const unscopeAnimation = scopeAnimationPaint(animEl, animation);
   const timeline = new Timeline(timeEl, clock);
 
   // The group is mounted once, at build time, so it is the region's first child: `top-right` is a
@@ -808,6 +857,7 @@ export function buildFurniture(
       // detached element does nothing, which is what this needs.
       unmountGroup();
       animation.destroy();
+      unscopeAnimation();
       timeline.destroy();
       clockViewModel.destroy();
       for (const el of [animEl, timeEl, readoutEl, followEl]) el.remove();
