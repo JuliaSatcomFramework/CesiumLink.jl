@@ -790,11 +790,8 @@ export function buildFurniture(
       showFollow();
     },
     resize() {
-      // A hidden element measures 0. A lay-out to 0 draws the clock face at its intrinsic size and
-      // drops the dates from the ruler, and nothing lays them out again when the element shows.
-      // So a hidden container keeps its last lay-out, and the call that comes when it shows lays
-      // it out. A hidden item gets the same rule: its reveal re-lays it out.
-      if (container.clientWidth === 0) return;
+      // A hidden element measures 0, so re-laying out to it would only have to be undone on the
+      // next reveal, which re-lays it out anyway.
       if (items.animation) animation.resize();
       if (items.timeline) timeline.resize();
     },
