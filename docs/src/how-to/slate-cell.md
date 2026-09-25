@@ -67,6 +67,16 @@ client that connects in mid-session.
 **A worker that restarts needs one re-run.** A new worker marks every cell stale. Run the cell
 again, and it mounts the viewer again.
 
+## 4. In a slide deck
+
+**The audience window draws the scene.** Slate's presenter window, the page that opens at
+`?present=1`, shows a line of text in place of each viewer. A viewer there would be a second client
+on the same channel, and the scene in the audience window would stutter.
+
+**The full-screen button fills the screen with the viewer.** With the deck in full screen, a click
+puts the viewer in full screen above the deck. A second click goes back to the deck, and the deck
+stays in full screen. Esc leaves full screen altogether, for the deck too.
+
 ## When nothing appears
 
 **A line of text, which names another cell.** That cell holds this server. Read section 2.

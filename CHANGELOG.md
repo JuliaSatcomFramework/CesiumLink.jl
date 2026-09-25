@@ -2,6 +2,19 @@
 
 All notable changes to CesiumLink are in this file.
 
+## [Unreleased]
+
+### Fixed
+
+- The Slate presenter window, at `?present=1`, shows a line of text in place of each viewer. Its
+  viewers were second clients on the channels of the audience window, so the scenes there stuttered.
+- The full-screen button reads only its own viewer. With a slide deck in full screen, it showed
+  "exit", and a click took the deck out of full screen. A click now puts the viewer in full screen
+  above the deck, and the next click goes back to the deck.
+- The timeline and the clock lay out again when their viewer comes into view. A viewer on a hidden
+  slide lost the ruler labels, and its clock was drawn at the wrong size, when the deck went to full
+  screen.
+
 ## [0.3.2] - 2026-09-24
 
 ### Added
