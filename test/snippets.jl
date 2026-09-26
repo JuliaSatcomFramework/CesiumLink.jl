@@ -80,32 +80,27 @@ end
     end
 end
 
-# `setup=[Joining]` brings `first_window` into scope: the `params` of the first window a client that
-# has just connected is sent, or `nothing` if none arrives. Reading on a task and waiting on a
-# deadline rather than blocking on `receive` is what makes "this client was sent no window at all" a
-# failure instead of a hang.
-@testsnippet Joining begin
-    using CesiumLink, HTTP, JSON
+# `setup=[FirstWindow]` brings `first_window` into scope: the `params` of the first window that a
+# client joining `server` now is sent, or `nothing` if it is sent none. The client has no socket and
+# no drain task, so every frame the server sends it stays in its queue, and this reads them there.
+# `handle_msg` runs the listeners that answer the `ready` before it returns, so the queue holds the
+# whole answer when the read starts.
+@testsnippet FirstWindow begin
+    using CesiumLink, JSON
 
-    function first_window(port; timeout = 10.0)
-        got = Ref{Any}(nothing)
-        HTTP.WebSockets.open("ws://[::1]:$port/ws") do ws
-            reader = @async try
-                for msg in ws
-                    m = JSON.parse(CesiumLink.unpack(msg).header)
-                    if get(m, "method", nothing) == "window"
-                        got[] = m["params"]
-                        break
-                    end
-                end
-            catch
-                # The socket closing under the reader is how this task ends when nothing arrives.
-            end
-            HTTP.WebSockets.send(ws, JSON.json((; method = "ready",
-                                                params = (; protocol = CesiumLink.PROTOCOL_VERSION))))
-            timedwait(() -> got[] !== nothing, timeout)
+    function first_window(server)
+        client = CesiumLink.Client(nothing)
+        # In the client set before its `ready`, as a socket client is, so a window the scene
+        # broadcasts to answer that `ready` reaches this queue too.
+        lock(server.clients_lock) do; push!(server.clients, client); end
+        CesiumLink.handle_msg(server, client,
+                              JSON.json((; method = "ready",
+                                         params = (; protocol = CesiumLink.PROTOCOL_VERSION))))
+        while isready(client.out)
+            m = JSON.parse(CesiumLink.unpack(take!(client.out)).header)
+            get(m, "method", nothing) == "window" && return m["params"]
         end
-        return got[]
+        return nothing
     end
 end
 

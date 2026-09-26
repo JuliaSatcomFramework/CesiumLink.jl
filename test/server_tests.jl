@@ -190,10 +190,8 @@ end
     end
 end
 
-@testitem "the window rebuilt for a joining client carries the identity every client then names" setup=[DemoWindow, Joining, FreePort] begin
-
-    port = freeport()
-    server = start_server(; host = "::1", port)
+@testitem "the window rebuilt for a joining client carries the identity every client then names" setup=[DemoWindow, FirstWindow] begin
+    server = start_server(; dist_dir = nothing, listen = false)
     try
         on_event(server, "core", "need") do ev, reply
             push_window(server, demo_payloads(ev.count; title = "$(ev.mode) from $(ev.start_frame)");
@@ -206,7 +204,7 @@ end
                     total_frames = 10, mode = :append)
 
         # The append on screen extends a replace this client never saw, so it is not what it gets.
-        p = first_window(port)
+        p = first_window(server)
         @test p["mode"] == "replace"
         @test p["startFrame"] == 2                              # the append's frames, 0-based
         @test p["count"] == 1
@@ -218,10 +216,8 @@ end
     end
 end
 
-@testitem "a client joining an appended scene is answered by a core/need listener" setup=[DemoWindow, Joining, FreePort] begin
-
-    port = freeport()
-    server = start_server(; host = "::1", port)
+@testitem "a client joining an appended scene is answered by a core/need listener" setup=[DemoWindow, FirstWindow] begin
+    server = start_server(; dist_dir = nothing, listen = false)
     try
         # The other way a scene answers for keyframes: a listener rather than the handler. The mode
         # the request names is the one it pushes, so a scene written this way rebuilds too.
@@ -235,7 +231,7 @@ end
         push_window(server, demo_payloads(); start_frame = 3, count = 2, dt_seconds = 240,
                     total_frames = 10, mode = :append)
 
-        p = first_window(port)
+        p = first_window(server)
         @test p["mode"] == "replace"
         @test p["startFrame"] == 2
         @test p["payloads"]["tracks"]["title"] == "replace from 3"
@@ -244,10 +240,8 @@ end
     end
 end
 
-@testitem "a throwing core/need listener leaves the joining client the window the server holds" setup=[DemoWindow, Joining, FreePort] begin
-
-    port = freeport()
-    server = start_server(; host = "::1", port)
+@testitem "a throwing core/need listener leaves the joining client the window the server holds" setup=[DemoWindow, FirstWindow] begin
+    server = start_server(; dist_dir = nothing, listen = false)
     try
         # A listener that throws costs a warning rather than the session, so the rebuild yields no
         # window. Left at that this client would hold nothing and have nothing to raise a request
@@ -258,7 +252,7 @@ end
         push_window(server, demo_payloads(); start_frame = 3, count = 2, dt_seconds = 240,
                     total_frames = 10, mode = :append)
 
-        p = first_window(port)
+        p = first_window(server)
         @test p !== nothing                     # not left with no window at all
         @test p["mode"] == "append"             # what the server holds, since nothing replaced it
         @test p["startFrame"] == 2
@@ -267,10 +261,8 @@ end
     end
 end
 
-@testitem "a core/need listener that pushes nothing leaves the joining client the window the server holds" setup=[DemoWindow, Joining, FreePort] begin
-
-    port = freeport()
-    server = start_server(; host = "::1", port)
+@testitem "a core/need listener that pushes nothing leaves the joining client the window the server holds" setup=[DemoWindow, FirstWindow] begin
+    server = start_server(; dist_dir = nothing, listen = false)
     try
         # Returning without pushing is the quieter way to produce no window, and comes to the same
         # thing for the client.
@@ -280,7 +272,7 @@ end
         push_window(server, demo_payloads(); start_frame = 3, count = 2, dt_seconds = 240,
                     total_frames = 10, mode = :append)
 
-        p = first_window(port)
+        p = first_window(server)
         @test p !== nothing
         @test p["mode"] == "append"
         @test p["startFrame"] == 2
@@ -343,11 +335,10 @@ end
     end
 end
 
-@testitem "a listener's replacement window becomes the scene a reconnecting client replays" setup=[DemoWindow, FreePort, WsOpen] begin
-    using HTTP, JSON
+@testitem "a listener's replacement window becomes the scene a reconnecting client replays" setup=[DemoWindow, FirstWindow] begin
+    using JSON
 
-    port = freeport()
-    server = start_server(; host = "::1", port)
+    server = start_server(; dist_dir = nothing, listen = false)
     try
         push_window(server, demo_payloads(); start_frame = 1, count = 2, dt_seconds = 240,
                     total_frames = 10)
@@ -359,31 +350,13 @@ end
                         mode = :replace)
             return nothing
         end
+        CesiumLink.handle_msg(server, CesiumLink.Client(nothing), JSON.json((; method = "event",
+            params = Dict("module" => "ui", "topic" => "control", "frame" => 3,
+                          "payload" => Dict("id" => "user", "value" => false)))))
 
-        ws_open("ws://[::1]:$port/ws") do ws
-            HTTP.WebSockets.send(ws, JSON.json((; method = "event",
-                params = Dict("module" => "ui", "topic" => "control", "frame" => 3,
-                              "payload" => Dict("id" => "user", "value" => false)))))
-        end
-
-        # What a reconnecting client is replayed is the observable here. The chain runs on the
-        # listener task, so poll a fresh connection's replay until it shows the control's window —
-        # bounded, so a listener that never ran fails rather than hangs.
-        # The listener's own subscription is retained alongside the window and replayed with it, so
-        # the window is picked out of the replay by method rather than by position.
-        replay() = ws_open("ws://[::1]:$port/ws") do ws
-            HTTP.WebSockets.send(ws, JSON.json((; method = "ready",
-                                                params = (; protocol = CesiumLink.PROTOCOL_VERSION))))
-            HTTP.WebSockets.receive(ws)             # the `modules` declaration, discarded
-            frames = [JSON.parse(CesiumLink.unpack(HTTP.WebSockets.receive(ws)).header) for _ in 1:2]
-            only(m["params"] for m in frames if m["method"] == "window")
-        end
-        p = replay()
-        deadline = time() + 10
-        while p["startFrame"] != 3 && time() < deadline
-            sleep(0.05)
-            p = replay()
-        end
+        # What a reconnecting client is replayed is the observable here. `handle_msg` runs the
+        # listener chain before it returns, so the control's window is already the scene.
+        p = first_window(server)
         @test p["startFrame"] == 3               # the window the control produced, not the original
         @test p["mode"] == "replace"
         @test p["payloads"]["tracks"]["title"] == "filtered=false"
