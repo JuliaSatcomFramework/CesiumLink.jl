@@ -10,7 +10,9 @@
 // extension host runs on the remote. That is a per-message floor, not a bandwidth limit: a
 // window-sized payload adds about 4 ms to it. It is why nothing here batches or chunks.
 
-import { NO_BYTES, packFrame, splitFrame, type Transport } from "../core/src/transport.ts";
+import {
+  createHeldDelivery, NO_BYTES, packFrame, splitFrame, type Transport,
+} from "../core/src/transport.ts";
 import { vsApi } from "./api.ts";
 
 /** What the extension sends down. */
@@ -24,12 +26,7 @@ export class VsCodeTransport implements Transport {
   onClose: (() => void) | null = null;
   readonly ready: Promise<void>;
   private api = vsApi();
-  private handlers = new Map<string, (params: unknown, bytes?: Uint8Array) => void>();
-  // Copied from WsTransport rather than shared: two implementations of a four-method interface do
-  // not pay for a base class, and the queue is the part of a transport most likely to diverge.
-  // What it is for: the scene state the server replays follows its declaration immediately, while a
-  // host that builds from that declaration has nothing to receive it with yet.
-  private queued: { method: string; params: unknown; bytes: Uint8Array }[] = [];
+  private delivery = createHeldDelivery();
 
   constructor(timeoutMs = 10000) {
     this.ready = new Promise((resolve, reject) => {
@@ -76,12 +73,7 @@ export class VsCodeTransport implements Transport {
       console.warn("transport: ignoring an unreadable frame", e);
       return;
     }
-    if (msg.method) this.deliver(msg.method, msg.params, region);
-  }
-
-  private deliver(method: string, params: unknown, bytes: Uint8Array): void {
-    const handler = this.handlers.get(method);
-    handler ? handler(params, bytes) : this.queued.push({ method, params, bytes });
+    if (msg.method) this.delivery.deliver(msg.method, msg.params, region);
   }
 
   notify(method: string, params?: unknown, bytes?: Uint8Array): void {
@@ -90,14 +82,7 @@ export class VsCodeTransport implements Transport {
   }
 
   on(method: string, handler: (params: unknown, bytes?: Uint8Array) => void): void {
-    this.handlers.set(method, handler);
-    // Handlers are registered as a batch, so the queue is drained after the batch rather than
-    // during it: one message per method at a time would replay them out of arrival order.
-    queueMicrotask(() => {
-      const held = this.queued;
-      this.queued = [];
-      for (const m of held) this.deliver(m.method, m.params, m.bytes);
-    });
+    this.delivery.on(method, handler);
   }
 
   close(): void {

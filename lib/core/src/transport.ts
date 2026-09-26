@@ -84,6 +84,33 @@ export function firstDeclaration(t: Transport, timeoutMs: number): Promise<Decla
   });
 }
 
+/**
+ * Delivery for one transport. Each method has one handler. A frame that arrives before its handler
+ * is held, in arrival order, with its region: a window without its region loses every array it
+ * carries. The server replays the scene state immediately after its declaration, and a host that
+ * builds from that declaration has no handler for the state yet.
+ *
+ * The Core registers its handlers as a batch, so the held frames drain after the batch and not
+ * during it. A drain for each method would replay them out of arrival order.
+ */
+export function createHeldDelivery() {
+  const handlers = new Map<string, (params: unknown, bytes?: Uint8Array) => void>();
+  let queued: { method: string; params: unknown; bytes: Uint8Array }[] = [];
+  const deliver = (method: string, params: unknown, bytes: Uint8Array): void => {
+    const handler = handlers.get(method);
+    handler ? handler(params, bytes) : queued.push({ method, params, bytes });
+  };
+  const on: Transport["on"] = (method, handler) => {
+    handlers.set(method, handler);
+    queueMicrotask(() => {
+      const held = queued;
+      queued = [];
+      for (const m of held) deliver(m.method, m.params, m.bytes);
+    });
+  };
+  return { deliver, on };
+}
+
 /** WebSocket transport. Browser host: `ws://host:port`. */
 export class WsTransport implements Transport {
   /**
@@ -95,12 +122,7 @@ export class WsTransport implements Transport {
   onClose: (() => void) | null = null;
   readonly ready: Promise<void>;
   private ws: WebSocket;
-  private handlers = new Map<string, (params: unknown, bytes?: Uint8Array) => void>();
-  // Notifications that arrived before a handler for their method existed, in arrival order. The
-  // scene state the server replays follows its declaration immediately, while a host that builds
-  // from that declaration has nothing to receive it with yet; held here, none of it is lost. The
-  // region travels with its message: a window queued without one loses every array it carries.
-  private queued: { method: string; params: unknown; bytes: Uint8Array }[] = [];
+  private delivery = createHeldDelivery();
 
   constructor(url: string) {
     this.ws = new WebSocket(url);
@@ -124,12 +146,7 @@ export class WsTransport implements Transport {
       console.warn("transport: ignoring an unreadable frame", e);
       return;
     }
-    if (msg.method) this.deliver(msg.method, msg.params, region);
-  }
-
-  private deliver(method: string, params: unknown, bytes: Uint8Array): void {
-    const handler = this.handlers.get(method);
-    handler ? handler(params, bytes) : this.queued.push({ method, params, bytes });
+    if (msg.method) this.delivery.deliver(msg.method, msg.params, region);
   }
 
   notify(method: string, params?: unknown, bytes?: Uint8Array): void {
@@ -137,14 +154,7 @@ export class WsTransport implements Transport {
   }
 
   on(method: string, handler: (params: unknown, bytes?: Uint8Array) => void): void {
-    this.handlers.set(method, handler);
-    // Handlers are registered as a batch, so the queue is drained after the batch rather than
-    // during it: one message per method at a time would replay them out of arrival order.
-    queueMicrotask(() => {
-      const held = this.queued;
-      this.queued = [];
-      for (const m of held) this.deliver(m.method, m.params, m.bytes);
-    });
+    this.delivery.on(method, handler);
   }
 
   close(): void {
