@@ -718,7 +718,8 @@ Core-produced topics:
 - **`core/need`** — `{ "startFrame": 18, "count": 1 }`. The buffer must cover `count` frames from
   this index. `count` is 1 where the window continues the buffer at either end, and 2 where it lands
   somewhere new. The request also names the `mode` wanted, `append` unless stated otherwise. Only the
-  server asks for a `replace`, on the `ready` path above; a viewer never sends `mode`.
+  server asks for a `replace`, when it answers `ready` above or `core/replay` below; a viewer never
+  sends `mode`.
 - **`core/clock`** — `{ "multiplier": -2.0, "playing": true }`. Where the animation is going and how
   fast, sent whenever either changes and once at the start. The sign of `multiplier` is the
   direction and its magnitude is the speed, in mission seconds per real second; a declared range
@@ -750,9 +751,10 @@ Core-produced topics:
 
 - **`core/replay`** — `{}`. Send this client the retained scene again: every retained
   `(module, topic)` in recency order, and the window. A client sends it after a `core/dropped`
-  command, and the server answers it itself; no listener sees the pair. The reply is the same set a
-  client connecting now is replayed. Ask for it as often as needed: a replay changes no server
-  state.
+  command, and the server answers it itself; no listener sees the pair. The server answers it as it
+  answers `ready` above, without the declaration. So the current window is replayed only if it is a
+  `replace`: the dropped frames can include the `replace` that a retained `append` extends. On an
+  append, each replay costs the scene one rebuild, and the replacement is a new window.
 
 - **`core/capture`** — `{ "token": "cap-7", "png": { "$wire": "u8", … }}`, or
   `{ "token": "cap-7", "error": "…" }`. One PNG of the canvas, answering the `core/capture` command

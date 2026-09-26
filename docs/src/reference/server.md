@@ -93,8 +93,9 @@ queue and holds up nothing else: no other client, and no request the same lock g
 task serialises one client's writes (ADR-0030).
 
 A full queue drops the frame and counts it. A `core/dropped` command carrying the count goes before
-the next frame that fits. The client answers with a `core/replay` event, and the server sends the
-retained scene — the same frames a client connecting now receives.
+the next frame that fits. The client answers with a `core/replay` event, and the server catches it up
+by the rule it uses for a client that connects now: the retained scene, where a scene with a
+`core/need` listener rebuilds a retained `:append` as a `:replace`.
 
 `send_frame` is the one function that knows how to write to a client of a given kind. A host that
 reaches its page by another route than a WebSocket adds a method for its own connection type.
