@@ -107,6 +107,15 @@ is deleted, and before a rebuild of the namespace.
   lines in the transport, and the two viewers then stay in step. Rejected: a notebook is not for two
   views of one scene, and one cell for each camera angle is two servers. The refusal is the smaller
   thing to keep correct, and it says what the fan-out would permit in silence.
+- **One record for each document that owns what each viewer takes from its page:** the buffer
+  slots, the paint scopes, the stale banner, the console handle and the Cesium statics. Rejected:
+  what a viewer shares with its page has three scopes. The GPU buffer pool belongs to the browser,
+  and the viewers read it across frames through DOM marks. The Cesium statics belong to one
+  JavaScript realm. A Slate channel belongs to one server. A record for each document fits none of
+  these scopes, and it cannot own the Cesium statics, which are the only shared state that collides
+  in a host that ships. Each collision is fixed where it occurs, in its own scope: `createScene`
+  writes `Ellipsoid.default` on each build. **One notebook page draws one body.** The viewers on a
+  page share one `Ellipsoid.default`, so two live bodies on one page are not supported.
 
 ## Consequences
 
