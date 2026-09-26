@@ -13,6 +13,7 @@ import "@cesium/engine/Source/Widget/CesiumWidget.css";
 import "@cesium/widgets/Source/widgets.css";
 import {
   createViewer,
+  declaredScene,
   fetchRecording,
   loadImagery,
   publish,
@@ -61,19 +62,13 @@ async function start(): Promise<void> {
   // declaration the recording states, with the query string over the top (ADR-0024). A basemap the
   // recorded server mounted is the one thing the file cannot carry: without `?imagery=` naming
   // where those tiles went, the globe wears the widget's bundled Earth texture.
-  const scene = transport.declaration;
+  //
+  // The furniture is in it too, so the page never flashes the default set on its way to the
+  // recorded one. The retained `core/furniture` command arrives behind it and says the same thing.
   const handle = await createViewer(container, {
     baseUrl,
     assetBase,
-    ellipsoid: scene.ellipsoid,
-    imagery: scene.imagery,
-    lighting: scene.lighting,
-    stars: scene.stars,
-    namedPlaces: scene.namedPlaces,
-    countryBorders: scene.countryBorders,
-    // Before the first paint, so the page never flashes the default set on its way to the recorded
-    // one. The retained `core/furniture` command arrives behind it and says the same thing.
-    furniture: scene.furniture,
+    ...declaredScene(transport.declaration),
   });
   publish(handle);
   handle.attachTransport(transport, transport.declaration);

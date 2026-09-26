@@ -423,6 +423,17 @@ coordinate rather than from a picked entity (the heatmap's tooltip). The coordin
 is resolved only when the subscription asked for it. Contrast: entity-ownership
 picking.
 
+**Session declaration**:
+What the server tells a client about the session before it sends any state addressed to a
+module: the modules to load, the shape of the globe, the **basemap set**, each **assets
+mount**, the lighting and the stars, the **annotation layer**, and the **furniture**. The
+viewer builds its globe from it. The server sends it once per connection, and again to the
+connected clients when a module registers after they connected; a viewer loads only the
+modules it does not already hold. No **recording** holds it, so a recording's header
+states the parts of it that outlive the server.
+_Avoid_: handshake (that is the `ready` exchange), modules message (that is only its wire
+method name), manifest.
+
 **Retained state**:
 What the server holds and replays to a client on `ready` — the module set, the
 latest command per `(module, topic)` (the overlay list and the subscription among

@@ -13,9 +13,9 @@
     "esModuleInterop": true,
     "lib": ["ES2022", "DOM", "DOM.Iterable"]
   },
-  // Every package in the tree: the Core, the three hosts, and the vendored modules.
-  "include": ["core/src", "browser", "player", "vscode", "primitives/src", "ui/src", "heatmap/src",
-              "models/src"],
+  // Every package in the tree: the Core, the four hosts, and the vendored modules.
+  "include": ["core/src", "browser", "player", "slate", "vscode", "primitives/src", "ui/src",
+              "heatmap/src", "models/src"],
   // Tests run under `node --test`, which strips the types itself; checking them here would need
   // @types/node, which the browser build has no other use for.
   "exclude": ["**/*.test.ts"]

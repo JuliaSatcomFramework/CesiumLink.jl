@@ -37,7 +37,8 @@ export { firstDeclaration, NO_BYTES, PROTOCOL_VERSION, WsTransport } from "./tra
 export type { Declaration, Transport } from "./transport";
 /** The bootstrap a host runs around the Core: connect, declare, publish, and say when it is stale. */
 export {
-  connectAndDeclare, DECLARATION_TIMEOUT_MS, ignoredByDeclaration, publish, showStale,
+  connectAndDeclare, DECLARATION_TIMEOUT_MS, declaredScene, ignoredByDeclaration, publish,
+  showStale,
 } from "./host";
 export type { Bootstrap } from "./host";
 export {

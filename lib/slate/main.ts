@@ -17,6 +17,7 @@ import {
   connectAndDeclare,
   createViewer,
   DECLARATION_TIMEOUT_MS,
+  declaredScene,
   loadImagery,
   type AssetBase,
   type ViewerModule,
@@ -62,13 +63,7 @@ export async function mount(container: HTMLElement, channel: string): Promise<()
     }
     handle = await createViewer(container, {
       baseUrl: `${DIST}cesium/`,
-      ellipsoid: declaration?.ellipsoid,
-      imagery: declaration?.imagery,
-      lighting: declaration?.lighting,
-      stars: declaration?.stars,
-      namedPlaces: declaration?.namedPlaces,
-      countryBorders: declaration?.countryBorders,
-      furniture: declaration?.furniture,
+      ...declaredScene(declaration),
       importModule,
       assetBase: mountBase,
     });

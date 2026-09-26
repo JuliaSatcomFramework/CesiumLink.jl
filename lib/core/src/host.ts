@@ -49,6 +49,33 @@ export async function connectAndDeclare(
 }
 
 /**
+ * The scene fields of a declaration: every field except the modules and the asset mounts, each
+ * one present, with `undefined` where the declaration does not state it.
+ *
+ * The type maps over the keys, not over `Declaration` itself, so no key keeps its `?`. A field added
+ * to `Declaration` and not added to `declaredScene` is then a type error.
+ */
+export type DeclaredScene = {
+  [K in Exclude<keyof Declaration, "modules" | "assets">]: Declaration[K];
+};
+
+/**
+ * The scene options a host gives `createViewer` from `declaration`. `null` gives every field as
+ * `undefined`. A host that overrules a field puts its own value after the spread.
+ */
+export function declaredScene(declaration: Declaration | null): DeclaredScene {
+  return {
+    ellipsoid: declaration?.ellipsoid,
+    imagery: declaration?.imagery,
+    lighting: declaration?.lighting,
+    stars: declaration?.stars,
+    namedPlaces: declaration?.namedPlaces,
+    countryBorders: declaration?.countryBorders,
+    furniture: declaration?.furniture,
+  };
+}
+
+/**
  * Which of the page's own scene parameters a live server's declaration overrules, by name.
  *
  * A declared basemap beats the address bar: the server owns a session it is present for, and its
