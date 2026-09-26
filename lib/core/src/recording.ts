@@ -12,7 +12,7 @@
 // the furniture — works as it does live.
 
 import type { Transport } from "./transport.ts";
-import { NO_BYTES } from "./transport.ts";
+import { createHeldDelivery, NO_BYTES } from "./transport.ts";
 import type { Declaration } from "./transport.ts";
 import type { ImagerySpec } from "./scene.ts";
 import type { FurnitureDeclaration } from "./furniture.ts";
@@ -175,8 +175,7 @@ export class RecordingTransport implements Transport {
   readonly header: RecordingHeader;
   readonly declaration: Declaration;
 
-  private handlers = new Map<string, (params: unknown, bytes?: Uint8Array) => void>();
-  private queued: { method: string; params: unknown; bytes: Uint8Array }[] = [];
+  private delivery = createHeldDelivery();
   private timers: ReturnType<typeof setTimeout>[] = [];
   private windows: WindowSpan[] = [];
   private warn: (message: string) => void;
@@ -223,12 +222,7 @@ export class RecordingTransport implements Transport {
     if (this.closed) return;
     const method = line.msg?.method;
     if (!method) return;
-    this.deliver(method, line.msg.params, decodeBlobs(line.blobs));
-  }
-
-  private deliver(method: string, params: unknown, bytes: Uint8Array): void {
-    const handler = this.handlers.get(method);
-    handler ? handler(params, bytes) : this.queued.push({ method, params, bytes });
+    this.delivery.deliver(method, line.msg.params, decodeBlobs(line.blobs));
   }
 
   /**
@@ -257,13 +251,7 @@ export class RecordingTransport implements Transport {
   }
 
   on(method: string, handler: (params: unknown, bytes?: Uint8Array) => void): void {
-    this.handlers.set(method, handler);
-    // Drained after the whole batch of registrations, so held frames replay in arrival order.
-    queueMicrotask(() => {
-      const held = this.queued;
-      this.queued = [];
-      for (const m of held) this.deliver(m.method, m.params, m.bytes);
-    });
+    this.delivery.on(method, handler);
   }
 
   close(): void {
