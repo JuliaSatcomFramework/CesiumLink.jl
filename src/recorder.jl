@@ -208,9 +208,8 @@ function replay_frame!(server::Server, f::Frame)
     method = get(msg, "method", nothing)
     params = get(msg, "params", Dict{String,Any}())
     if method == "window"
+        # The server takes on the identity the recording stamped. `send_message` records the span.
         lock(server.clients_lock) do
-            server.window_span = (; start_frame = from_wire_index(Int(params["startFrame"])),
-                                  count = Int(params["count"]), mode = Symbol(params["mode"]))
             id = get(params, "window", nothing)
             id === nothing || (server.window_id = Int(id))
         end

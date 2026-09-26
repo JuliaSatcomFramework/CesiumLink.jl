@@ -942,6 +942,10 @@ caller that holds the frame itself — to measure its size, or to time serializa
 the broadcast. `module_id`/`topic` must describe what `msg` carries, since they are the retain key:
 a window goes under `("core", "window")`, a command under the pair it addresses.
 
+A window must carry `startFrame`, `count` and `mode` in its `params`, and a frame from
+[`window_message`](@ref) carries all three. The server records them, as it does for a pushed window,
+so a client that catches up is rebuilt over the frames of this window.
+
 `msg` is a [`Frame`](@ref), or a JSON string for a message built by hand — which carries no arrays
 and so travels with an empty region.
 """
@@ -949,7 +953,15 @@ send_message(server::Server, module_id::AbstractString, topic::AbstractString,
              msg::AbstractString) = send_message(server, module_id, topic, Frame(msg))
 
 function send_message(server::Server, module_id::AbstractString, topic::AbstractString, msg::Frame)
-    retain!(server, (String(module_id), String(topic)), msg)
+    key = (String(module_id), String(topic))
+    if key == CORE_WINDOW
+        # A window sent as a built frame states its span in its own params and nowhere else.
+        p = JSON.parse(msg.header)["params"]
+        retain_window!(server, msg, (; start_frame = from_wire_index(Int(p["startFrame"])),
+                                     count = Int(p["count"]), mode = Symbol(p["mode"])))
+    else
+        retain!(server, key, msg)
+    end
     return broadcast_all!(server, msg)
 end
 
@@ -960,6 +972,17 @@ function retain!(server::Server, key::Tuple{String,String}, msg::Frame)
         i = findfirst(p -> first(p) == key, server.retained)
         i === nothing || deleteat!(server.retained, i)
         push!(server.retained, key => msg)
+    end
+    return nothing
+end
+
+# Retain the window `msg`, and record `span` as the frames it covers and how it was sent, as
+# `(; start_frame, count, mode)`. This is the one writer of `window_span`. The span and the window
+# change under one lock hold, so `catch_up!` never reads the span of one window with another window.
+function retain_window!(server::Server, msg::Frame, span)
+    lock(server.clients_lock) do
+        server.window_span = span
+        retain!(server, CORE_WINDOW, msg)
     end
     return nothing
 end
@@ -1065,13 +1088,12 @@ push_window(server, Dict(:tracks => track_payload(1, 2));
 function push_window(server::Server, payloads; mode = :replace, kw...)
     window = window_id!(server, mode)
     msg = window_message(payloads; mode, window, kw...)
-    # Retained under one key, so a client connecting later is replayed the window on screen — unless
-    # it is an `:append`, which the span recorded here is what lets `catch_up!` rebuild instead.
-    lock(server.clients_lock) do
-        server.window_span = (; start_frame = Int(kw[:start_frame]),
-                              count = Int(kw[:count]), mode = Symbol(mode))
-    end
-    retain!(server, CORE_WINDOW, msg)
+    # Retained under one key, so a client connecting later is replayed the window on screen. An
+    # `:append` is the exception: the span recorded with it is what lets `catch_up!` rebuild instead.
+    # This call knows the span, so it does not go through `send_message`, which parses the header
+    # to find it.
+    retain_window!(server, msg, (; start_frame = Int(kw[:start_frame]), count = Int(kw[:count]),
+                                 mode = Symbol(mode)))
     return broadcast_all!(server, msg)
 end
 

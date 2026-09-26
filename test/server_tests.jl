@@ -1400,3 +1400,42 @@ end
         stop_server(server)
     end
 end
+
+@testitem "a client catching up is rebuilt over the frames of a window sent through send_message" setup=[DemoWindow] begin
+    using CesiumLink: Client, send_message, unpack, window_id!, window_message
+    using JSON
+
+    server = start_server(; dist_dir = nothing, listen = false)
+    try
+        asked = Tuple{Int,Int,Symbol}[]
+        on_event(server, "core", "need") do ev, reply
+            push!(asked, (ev.start_frame, ev.count, ev.mode))
+            push_window(server, demo_payloads(ev.count); start_frame = ev.start_frame,
+                        count = ev.count, dt_seconds = 240, total_frames = 10, mode = ev.mode)
+        end
+        push_window(server, demo_payloads(); start_frame = 1, count = 2, dt_seconds = 240,
+                    total_frames = 10, mode = :replace)
+        push_window(server, demo_payloads(); start_frame = 3, count = 2, dt_seconds = 240,
+                    total_frames = 10, mode = :append)
+        # The next append, built by hand and sent as a frame: the route a caller takes to measure a
+        # window, or to time its serialisation apart from its broadcast.
+        window = window_id!(server, :append)
+        send_message(server, "core", "window",
+                     window_message(demo_payloads(); start_frame = 5, count = 2, dt_seconds = 240,
+                                    total_frames = 10, mode = :append, window))
+
+        client = Client(nothing)
+        lock(server.clients_lock) do; push!(server.clients, client); end
+        replay = JSON.json((; method = "event",
+                            params = Dict("module" => "core", "topic" => "replay")))
+        CesiumLink.handle_msg(server, client, replay)
+
+        # The scene is asked for the frames that window put on screen, not for the ones before it.
+        @test asked == [(5, 2, :replace)]
+        sent = [JSON.parse(unpack(take!(client.out)).header) for _ in 1:Base.n_avail(client.out)]
+        windows = [m["params"] for m in sent if get(m, "method", nothing) == "window"]
+        @test [(w["mode"], w["startFrame"]) for w in windows] == [("replace", 4)]
+    finally
+        stop_server(server)
+    end
+end
