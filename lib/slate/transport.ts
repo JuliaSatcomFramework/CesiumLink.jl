@@ -19,7 +19,9 @@
 // Events come from the user and are rare, so the cost is one unused promise for each event. The
 // downlink carries the high rate, and it is a push.
 
-import { NO_BYTES, packFrame, splitFrame, type Transport } from "../core/src/transport.ts";
+import {
+  createHeldDelivery, NO_BYTES, packFrame, splitFrame, type Transport,
+} from "../core/src/transport.ts";
 
 /** The functions that Slate puts on the page. They are declared here, because nothing else gives a
  * type to the page. */
@@ -37,12 +39,7 @@ export class SlateTransport implements Transport {
   onClose: (() => void) | null = null;
   /** The Slate socket is open before a cell renders, so there is nothing to wait for. */
   readonly ready = Promise.resolve();
-  private handlers = new Map<string, (params: unknown, bytes?: Uint8Array) => void>();
-  // A copy of the queue in WsTransport, and not a shared one. Two implementations of an interface
-  // with four methods do not need a base class, and the queue is the part of a transport that
-  // changes most. Its purpose: the server sends the scene state immediately after its declaration,
-  // but a host that builds the viewer from that declaration cannot receive the state yet.
-  private queued: { method: string; params: unknown; bytes: Uint8Array }[] = [];
+  private delivery = createHeldDelivery();
 
   private readonly channel: string;
 
@@ -64,12 +61,7 @@ export class SlateTransport implements Transport {
       console.warn("transport: ignoring an unreadable frame", e);
       return;
     }
-    if (msg.method) this.deliver(msg.method, msg.params, region);
-  }
-
-  private deliver(method: string, params: unknown, bytes: Uint8Array): void {
-    const handler = this.handlers.get(method);
-    handler ? handler(params, bytes) : this.queued.push({ method, params, bytes });
+    if (msg.method) this.delivery.deliver(msg.method, msg.params, region);
   }
 
   notify(method: string, params?: unknown, bytes?: Uint8Array): void {
@@ -82,14 +74,7 @@ export class SlateTransport implements Transport {
   }
 
   on(method: string, handler: (params: unknown, bytes?: Uint8Array) => void): void {
-    this.handlers.set(method, handler);
-    // The host registers the handlers as a batch, so the queue drains after the batch and not
-    // during it. A drain for each method sends the held messages in the wrong order.
-    queueMicrotask(() => {
-      const held = this.queued;
-      this.queued = [];
-      for (const m of held) this.deliver(m.method, m.params, m.bytes);
-    });
+    this.delivery.on(method, handler);
   }
 
   close(): void {
