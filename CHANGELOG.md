@@ -6,6 +6,8 @@ All notable changes to CesiumLink are in this file.
 
 ### Fixed
 
+- A handler that throws on a frame held for it loses only that frame. The error goes to the
+  console, and the frames held behind it still arrive. Those frames were lost.
 - The Slate presenter window, at `?present=1`, shows a line of text in place of each viewer. Its
   viewers were second clients on the channels of the audience window, so the scenes there stuttered.
 - The full-screen button reads only its own viewer. With a slide deck in full screen, it showed
