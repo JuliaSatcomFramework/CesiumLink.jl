@@ -1,7 +1,7 @@
 [viewer]
-git-tree-sha1 = "0370114411845c72110218715399a1e71589b0b1"
+git-tree-sha1 = "1ca4e61a2b5f3d687eb132fae8b98526493744bd"
 lazy = true
 
     [[viewer.download]]
-    sha256 = "f9b22e7ae569ae1c49536bf8f9962198454d1c2fad452df5979bf70fb0c3e058"
-    url = "https://github.com/JuliaSatcomFramework/CesiumLink.jl/releases/download/viewer-02a9fd3/viewer.tar.gz"
+    sha256 = "9bbb81bee48d30d124440c14603d0b4cd4ad0d1836ce13d1ac91ff57e798d999"
+    url = "https://github.com/JuliaSatcomFramework/CesiumLink.jl/releases/download/viewer-44e8d87/viewer.tar.gz"
