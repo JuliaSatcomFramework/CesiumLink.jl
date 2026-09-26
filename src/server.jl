@@ -705,11 +705,7 @@ function handle_msg(server::Server, client, frame)
             # The furniture rides the declaration as well as the replay below: the viewer builds the
             # declared set before its first paint, and the replayed command that follows says the
             # same thing, which the viewer applies as a no-op.
-            modules_message(server.modules; server.ellipsoid, server.imagery, server.lighting,
-                            server.stars, named_places = server.named_places,
-                            country_borders = server.country_borders,
-                            furniture = declared_furniture(server),
-                            assets = declared_assets(server)),
+            session_declaration(server),
             retained_messages(server; skip = rebuild === nothing ? () : (CORE_WINDOW,)), rebuild
         end
         enqueue_frame!(client, pack(decl))
@@ -827,6 +823,15 @@ function request_window(server::Server, start_frame::Integer, count::Integer, mo
     return nothing
 end
 
+# The session declaration for this server: the module set and the scene the viewer builds its globe
+# from. The caller holds `clients_lock`.
+session_declaration(server::Server) =
+    modules_message(server.modules; ellipsoid = server.ellipsoid, imagery = server.imagery,
+                    lighting = server.lighting, stars = server.stars,
+                    named_places = server.named_places,
+                    country_borders = server.country_borders,
+                    furniture = declared_furniture(server), assets = declared_assets(server))
+
 # Declare the module set to the clients already connected, and replay whatever is retained for the
 # module `id` behind it.
 #
@@ -841,11 +846,7 @@ end
 function declare_modules(server::Server, id::AbstractString)
     decl, msgs = lock(server.clients_lock) do
         isempty(server.clients) && return nothing, Frame[]
-        return modules_message(server.modules; server.ellipsoid, server.imagery, server.lighting,
-                               server.stars, named_places = server.named_places,
-                               country_borders = server.country_borders,
-                               furniture = declared_furniture(server),
-                               assets = declared_assets(server)),
+        return session_declaration(server),
                Frame[f for (key, f) in server.retained if first(key) == id]
     end
     decl === nothing && return nothing
