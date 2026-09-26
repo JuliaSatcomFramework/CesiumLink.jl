@@ -92,6 +92,9 @@ export function firstDeclaration(t: Transport, timeoutMs: number): Promise<Decla
  *
  * The Core registers its handlers as a batch, so the held frames drain after the batch and not
  * during it. A drain for each method would replay them out of arrival order.
+ *
+ * A handler that throws during the drain loses only its own frame, as on the live path, where each
+ * frame is a separate event. The error goes to the console, and the drain continues.
  */
 export function createHeldDelivery() {
   const handlers = new Map<string, (params: unknown, bytes?: Uint8Array) => void>();
@@ -105,7 +108,13 @@ export function createHeldDelivery() {
     queueMicrotask(() => {
       const held = queued;
       queued = [];
-      for (const m of held) deliver(m.method, m.params, m.bytes);
+      for (const m of held) {
+        try {
+          deliver(m.method, m.params, m.bytes);
+        } catch (e) {
+          console.error(`transport: the handler for ${m.method} failed on a held frame`, e);
+        }
+      }
     });
   };
   return { deliver, on };
