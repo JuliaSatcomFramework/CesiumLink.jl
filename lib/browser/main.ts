@@ -4,6 +4,7 @@ import {
   connectAndDeclare,
   createViewer,
   DECLARATION_TIMEOUT_MS,
+  declaredScene,
   ignoredByDeclaration,
   loadImagery,
   publish,
@@ -64,13 +65,9 @@ async function start(): Promise<void> {
   }
   const handle = await createViewer(container, {
     baseUrl,
+    ...declaredScene(declaration),
     ellipsoid: declaration?.ellipsoid ?? asked.ellipsoid,
     imagery: declaration?.imagery ?? asked.imagery,
-    lighting: declaration?.lighting,
-    stars: declaration?.stars,
-    namedPlaces: declaration?.namedPlaces,
-    countryBorders: declaration?.countryBorders,
-    furniture: declaration?.furniture,
   });
   publish(handle);
   if (live) {

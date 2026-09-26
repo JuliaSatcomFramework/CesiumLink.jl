@@ -13,6 +13,7 @@ import {
   connectAndDeclare,
   createViewer,
   DECLARATION_TIMEOUT_MS,
+  declaredScene,
   loadImagery,
   publish,
   showStale,
@@ -78,13 +79,8 @@ async function start(): Promise<void> {
   const imagery = declaration?.imagery;
   const handle = await createViewer(container, {
     baseUrl,
-    ellipsoid: declaration?.ellipsoid,
+    ...declaredScene(declaration),
     imagery: imagery ? rebaseImagery(imagery, imageryBase) : imagery,
-    lighting: declaration?.lighting,
-    stars: declaration?.stars,
-    namedPlaces: declaration?.namedPlaces,
-    countryBorders: declaration?.countryBorders,
-    furniture: declaration?.furniture,
     importModule,
     assetBase: mountBase,
     expand,
