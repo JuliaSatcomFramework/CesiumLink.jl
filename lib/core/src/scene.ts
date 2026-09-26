@@ -389,15 +389,16 @@ export async function createScene(
   // not handed an ellipsoid reads — `Cartesian3.fromDegrees` in a module decoding a payload above
   // all — so the globe and the coordinates drawn on it are the same shape only if it is set first.
   // A tiling scheme reads it too, and a Web Mercator projection scales by the semi-major axis, so
-  // a provider built before this line puts Earth's metres on another body's globe.
-  let ellipsoid: Ellipsoid | undefined;
-  if (opts.ellipsoid) {
-    ellipsoid = new Ellipsoid(opts.ellipsoid.a, opts.ellipsoid.a, opts.ellipsoid.b);
-    Ellipsoid.default = ellipsoid;
-  }
+  // a provider built before this line puts Earth's metres on another body's globe. Every build
+  // writes it, because the static outlives a scene: a WGS84 scene built after a Mars scene in the
+  // same realm must not draw on Mars.
+  const ellipsoid = opts.ellipsoid
+    ? new Ellipsoid(opts.ellipsoid.a, opts.ellipsoid.a, opts.ellipsoid.b)
+    : undefined;
+  Ellipsoid.default = ellipsoid ?? Ellipsoid.WGS84;
 
   useBaseUrl(opts.baseUrl);
-  const { layers, declared } = await buildBaseLayers(opts, ellipsoid ?? Ellipsoid.default);
+  const { layers, declared } = await buildBaseLayers(opts, Ellipsoid.default);
 
   // Detached container swallows the ion/Cesium credit chrome. It stays hidden, because showing it
   // brings the Cesium branding credit back with it; the basemap attribution is the overlay's line.

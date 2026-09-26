@@ -9,11 +9,16 @@
 
 import type { OverlayRegion } from "./overlay";
 
+/** The band along the bottom edge. `buildFurniture` places each of these by hand. */
+export type BandId = "timeline" | "animation" | "keyframe" | "cameraFollow";
+
+/** The group, top to bottom. The order is fixed here, not declared. */
+export const GROUP_ORDER = ["home", "sceneMode", "projection", "basemap", "annotations", "navHelp",
+  "fullscreen", "canvasCapture", "inspector"] as const;
+export type GroupId = (typeof GROUP_ORDER)[number];
+
 /** The thirteen items the server can ask for. The wire spells an id in camelCase. */
-export type FurnitureId =
-  | "timeline" | "animation" | "keyframe" | "cameraFollow"
-  | "sceneMode" | "fullscreen" | "home"
-  | "projection" | "basemap" | "annotations" | "navHelp" | "inspector" | "canvasCapture";
+export type FurnitureId = BandId | GroupId;
 
 /**
  * What is on screen when a declaration names nothing. This table is the one place a default lives;

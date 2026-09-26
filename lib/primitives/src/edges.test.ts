@@ -224,3 +224,11 @@ test("a family that names no custom material builds exactly the stock materials"
                    new Set(["Color", "PolylineDash", "PolylineGlow"]));
   assert.equal(made.length, 3, "three appearances, three materials, table or no table");
 });
+
+test("a stock style code names its material by its position on the wire", () => {
+  // The server writes the codes in this order too, so a swap here draws the wrong line.
+  const { family, pl, at } = build({ pairs: nd([0, 1, 1, 2, 2, 3], [3, 2]), style: bytes([0, 1, 2], [3]) }, 1);
+  family.onKeyframe(at(0));
+  assert.deepEqual(pl.lines.map((l) => l.material!.type), ["Color", "PolylineDash", "PolylineGlow"],
+                   "code 0 is solid, 1 is dashed, 2 is glow");
+});

@@ -11,6 +11,9 @@ All notable changes to CesiumLink are in this file.
 - The full-screen button reads only its own viewer. With a slide deck in full screen, it showed
   "exit", and a click took the deck out of full screen. A click now puts the viewer in full screen
   above the deck, and the next click goes back to the deck.
+- A scene that declares no ellipsoid draws on WGS84 when a scene on another body was built before
+  it on the same page. Cesium's default ellipsoid kept the other body, so the second globe took
+  its shape.
 - The timeline and the clock lay out again when their viewer comes into view. A viewer on a hidden
   slide lost the ruler labels, and its clock was drawn at the wrong size, when the deck went to full
   screen.

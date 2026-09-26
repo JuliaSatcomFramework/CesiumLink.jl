@@ -87,6 +87,15 @@ mean "alt held while inside the box". It needs a key listener on the window, a r
 the pointer is in, and a rule for what a `:leave` means when only a key was released. A custom
 widget covers the case that wants it.
 
+**A separate pointer-crossings module in `lib/ui`, beside `floating.ts`.** The module would hold the
+state for each box, inject the subscription and the raise, and let the tests drop the fake viewer.
+The state has one owner, the `setup` of the `ui` module. Its hard rule is that a box built again in
+place keeps its pointer state. That rule depends on each caller watching the new element before it
+drops the old one. A module around the state moves about 80 lines, but the order stays in the
+callers. The rule is still spread over the same call sites, and the tests that guard it must still
+drive the whole `ui` module. Revisit this when the crossing rules change for their own sake, for
+example for a new pointer type or for touch input.
+
 ## Consequences
 
 `PROTOCOL_VERSION` stays 2, and this record is part of what 2 means. ADR-0034 moved the number from

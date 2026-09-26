@@ -51,6 +51,9 @@ other
 
 A cell that only pushes to a server needs no viewer of its own. Do not put the server last in it.
 
+**One notebook page draws one body.** The viewers on a page share one ellipsoid, and the viewer
+that mounts last sets it, so an Earth scene and a Mars scene on one page do not both draw correctly.
+
 ## 3. What a re-run does
 
 The teardown of the cell is the teardown of the viewer. It runs before the cell evaluates again,

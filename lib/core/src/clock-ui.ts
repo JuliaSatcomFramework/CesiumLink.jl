@@ -21,8 +21,8 @@ import type { Annotations } from "./annotations";
 import { BASEMAP_ICONS } from "./basemap-icons";
 import type { CameraAuthority } from "./camera";
 import {
-  bandLayout, basemapPickable, cameraFollowView, countdownText, FURNITURE_DEFAULTS,
-  type FurnitureDeclaration, type FurnitureId, type StopRow,
+  bandLayout, basemapPickable, cameraFollowView, countdownText, FURNITURE_DEFAULTS, GROUP_ORDER,
+  type FurnitureDeclaration, type FurnitureId, type GroupId, type StopRow,
 } from "./furniture";
 import type { Overlay, OverlayRegion } from "./overlay";
 import { basemapProviders, type ImagerySpec } from "./scene";
@@ -62,11 +62,6 @@ const PANEL = "font:12px/18px sans-serif;color:#edffff;background:rgba(38,38,38,
 
 /** Where the group sits when a declaration names no region. */
 const DEFAULT_REGION: OverlayRegion = "top-right";
-
-/** Top to bottom inside the group. The order is fixed here, not declared. */
-const GROUP_ORDER = ["home", "sceneMode", "projection", "basemap", "annotations", "navHelp",
-  "fullscreen", "canvasCapture", "inspector"] as const;
-type GroupId = (typeof GROUP_ORDER)[number];
 
 // The group's own rule; a declared style merges over it. It carries `pointer-events:auto` because
 // the rule is rewritten whole on every declaration, which would otherwise drop what `addControl`

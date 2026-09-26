@@ -86,6 +86,17 @@ so bulk data flowing upward inverts the model rather than using it. The framing 
 the encoder is not built; a browser sends an empty region and refuses a typed array in an event
 payload.
 
+**A golden window that pins the payload vocabularies.** A Julia generator would write one window
+frame with hostile values, and the tests of each vendored module would run its real reader on it.
+Each payload vocabulary has one writer, the Julia submodules of CesiumLink (ADR-0011), and one
+reader, its vendored module. Both are in one repository, and one commit changes both (ADR-0026).
+Each side pins its half of a fact that both sides spell with literal tests, for example the order
+of the stock edge styles in `edges.test.ts` and in the Julia suite. A golden window adds a binary
+that must be generated again, and a reader test for each module that still needs expectations
+written by hand. It guards against a drift that has not occurred. Revisit this if a writer outside
+this repository becomes a supported author of the payload of a vendored module, or if the viewer
+moves to its own repository.
+
 ## What this does not move
 
 ADR-0014 is unaffected. `blockAt` keys off `shape.length`, and the rule for which block a keyframe
