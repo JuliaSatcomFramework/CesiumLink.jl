@@ -16,6 +16,8 @@ const RECORDING_VERSION = 2
 Start writing every frame `server` broadcasts to `path`, and return the server. Whatever the server
 is already retaining is written first, at offset zero, so a recording started mid-session still
 stands on its own: it opens with the scene as it is and continues with everything sent afterwards.
+The exception is a recording started while the scene is on an `:append`. It opens on that append,
+which extends a `:replace` the recording does not hold, so it does not stand on its own.
 
 The modules registered at this moment are named in the recording's header, since the module set is
 declared per connection and so is never itself broadcast. The header carries the scene they were
