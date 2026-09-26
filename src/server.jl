@@ -692,29 +692,17 @@ function handle_msg(server::Server, client, frame)
             return nothing
         end
         # Declare the module set BEFORE the retained scene: the viewer needs to know what to load
-        # before the state addressed to it arrives. Copy both under the lock, then queue them
-        # outside it.
-        decl, msgs, rebuild = lock(server.clients_lock) do
-            span = server.window_span
-            # A retained `:append` is not replayed: it extends a `:replace` this client has never
-            # seen, and anything that rode that replace — an area family's footprint centres above
-            # all — is absent from it. The scene is asked for a replacement over the same frames
-            # instead, which is a window that stands on its own.
-            rebuild = span !== nothing && span.mode === :append && window_producer(server) ?
-                      span : nothing
-            # The furniture rides the declaration as well as the replay below: the viewer builds the
-            # declared set before its first paint, and the replayed command that follows says the
-            # same thing, which the viewer applies as a no-op.
-            session_declaration(server),
-            retained_messages(server; skip = rebuild === nothing ? () : (CORE_WINDOW,)), rebuild
-        end
+        # before the state addressed to it arrives.
+        #
+        # The furniture rides the declaration as well as the replay below: the viewer builds the
+        # declared set before its first paint, and the replayed command that follows says the same
+        # thing, which the viewer applies as a no-op.
+        decl = lock(server.clients_lock) do; session_declaration(server); end
         enqueue_frame!(client, pack(decl))
-        # Replay the retained scene so a mid-session client catches up: every retained topic, in
-        # recency order, so the most recently updated one is applied last.
-        for m in msgs
-            enqueue_frame!(client, pack(m))
-        end
-        rebuild === nothing || rebuild_window(server, client, rebuild)
+        # `catch_up!` takes the lock again. A module that registers between the two lock holds
+        # still reaches this client: the client is in `server.clients` before it sends `ready`, so
+        # `declare_modules` declares the module to it.
+        catch_up!(server, client)
     elseif method == "event"
         # The viewer reports upward as `event {module, topic, seq, frame, window, payload}`, and the
         # listener registry answers it: pointer events, buffer needs and a module's own `notify` are
@@ -724,12 +712,11 @@ function handle_msg(server::Server, client, frame)
         if pair == CORE_ELLIPSOID
             check_reported_ellipsoid(server, get(params, "payload", Dict{String,Any}()))
         elseif pair == CORE_REPLAY
-            # This client heard that its queue dropped frames, and asks for the scene again. It is
-            # sent what a client connecting now is replayed, which is the whole of what the server
-            # holds — so one path answers both, and neither has to know which frames went missing.
-            for m in retained_messages(server)
-                enqueue_frame!(client, pack(m))
-            end
+            # This client heard that its queue dropped frames, and asks for the scene again. The
+            # dropped frames can include the `:replace` that the retained window extends, so this
+            # client catches up as a client that connects now does. Neither has to know which
+            # frames went missing.
+            catch_up!(server, client)
         elseif pair == CORE_CAPTURE
             # A capture answers a request that a task is waiting on, so it goes to that task and not
             # to the listener chain. This event asks for no command, and none is sent back for it.
@@ -783,14 +770,36 @@ window_id!(server::Server, mode) = lock(server.clients_lock) do
     mode === :replace ? (server.window_id += 1) : server.window_id
 end
 
+# Send `client` the retained scene. A client that connects mid-session needs it, and so does a client
+# whose queue dropped frames. Neither knows which frames it lacks, so both get all of it: every
+# retained topic, in recency order, so the most recently updated one is applied last.
+#
+# A retained `:append` is not sent when the scene can produce a window. It extends a `:replace` that
+# this client may not have, and anything that rode that replace is absent from it: an area family's
+# footprint centres above all. The scene is asked for a replacement over the same frames instead,
+# which is a window that stands on its own. That replacement is broadcast like any window.
+function catch_up!(server::Server, client)
+    msgs, rebuild = lock(server.clients_lock) do
+        span = server.window_span
+        rebuild = span !== nothing && span.mode === :append && window_producer(server) ?
+                  span : nothing
+        retained_messages(server; skip = rebuild === nothing ? () : (CORE_WINDOW,)), rebuild
+    end
+    for m in msgs
+        enqueue_frame!(client, pack(m))
+    end
+    rebuild === nothing || rebuild_window(server, client, rebuild)
+    return nothing
+end
+
 # Whether this scene can produce a window on demand: whether a listener is registered for
-# `core/need`. With none, a request would reach nobody and there is nothing to answer a joining
-# client with but what is retained.
+# `core/need`. With none, a request would reach nobody and there is nothing to answer a client
+# catching up with but what is retained.
 window_producer(server::Server) =
     any(l -> (l.module_id, l.topic) == CORE_NEED, server.listeners)
 
-# Ask the scene for a window covering `span`'s frames that a client which has received nothing can
-# draw, and send that client what it is holding if none arrives.
+# Ask the scene for a window covering `span`'s frames that a client catching up can draw, and send
+# that client what the server holds if none arrives.
 #
 # A producer that throws or answers with nothing costs a warning rather than the session everywhere
 # else, and here that would leave this client with no window at all — and nothing to recover it,
@@ -806,7 +815,7 @@ function rebuild_window(server::Server, client::Client, span)
         retained(server, CORE_WINDOW)
     end
     held === nothing && return nothing
-    @warn "the scene produced no replacing window for a joining client; sending the one it holds" span
+    @warn "the scene produced no replacing window for a client catching up; sending the one it holds" span
     enqueue_frame!(client, pack(held))
     return nothing
 end
@@ -1057,7 +1066,7 @@ function push_window(server::Server, payloads; mode = :replace, kw...)
     window = window_id!(server, mode)
     msg = window_message(payloads; mode, window, kw...)
     # Retained under one key, so a client connecting later is replayed the window on screen — unless
-    # it is an `:append`, which the span recorded here is what lets `ready` rebuild instead.
+    # it is an `:append`, which the span recorded here is what lets `catch_up!` rebuild instead.
     lock(server.clients_lock) do
         server.window_span = (; start_frame = Int(kw[:start_frame]),
                               count = Int(kw[:count]), mode = Symbol(mode))

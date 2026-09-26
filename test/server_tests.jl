@@ -1365,3 +1365,38 @@ end
         stop_server(server)
     end
 end
+
+@testitem "a client replayed after dropped frames is not sent an append without its replace" setup=[DemoWindow] begin
+    using CesiumLink: Client, unpack
+    using JSON
+
+    server = start_server(; dist_dir = nothing, listen = false)
+    try
+        asked = Symbol[]
+        on_event(server, "core", "need") do ev, reply
+            push!(asked, ev.mode)
+            push_window(server, demo_payloads(ev.count); start_frame = ev.start_frame,
+                        count = ev.count, dt_seconds = 240, total_frames = 10, mode = ev.mode)
+        end
+        push_window(server, demo_payloads(); start_frame = 1, count = 2, dt_seconds = 240,
+                    total_frames = 10, mode = :replace)
+        push_window(server, demo_payloads(); start_frame = 3, count = 2, dt_seconds = 240,
+                    total_frames = 10, mode = :append)
+
+        # The dropped frames may include the replace, so the retained append cannot stand on its
+        # own here any more than it can for a client that has just connected. The client is
+        # connected, so the replacement the scene broadcasts reaches its queue too.
+        client = Client(nothing)
+        lock(server.clients_lock) do; push!(server.clients, client); end
+        replay = JSON.json((; method = "event",
+                            params = Dict("module" => "core", "topic" => "replay")))
+        CesiumLink.handle_msg(server, client, replay)
+
+        sent = [JSON.parse(unpack(take!(client.out)).header) for _ in 1:Base.n_avail(client.out)]
+        modes = [m["params"]["mode"] for m in sent if get(m, "method", nothing) == "window"]
+        @test modes == ["replace"]
+        @test asked == [:replace]
+    finally
+        stop_server(server)
+    end
+end
