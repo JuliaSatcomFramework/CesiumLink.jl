@@ -65,10 +65,14 @@ async function start(): Promise<void> {
   //
   // The furniture is in it too, so the page never flashes the default set on its way to the
   // recorded one. The retained `core/furniture` command arrives behind it and says the same thing.
+  //
+  // A recording does not answer `ready` a second time, so a viewer that loses its WebGL context
+  // asks for a reload and does not build again.
   const handle = await createViewer(container, {
     baseUrl,
     assetBase,
     ...declaredScene(transport.declaration),
+    recover: false,
   });
   publish(handle);
   handle.attachTransport(transport, transport.declaration);

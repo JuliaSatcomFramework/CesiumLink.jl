@@ -417,6 +417,9 @@ export async function createScene(
     // Render at the device's own pixel density: the recommended-resolution default draws a HiDPI
     // or zoomed page at CSS-pixel density, which blurs every label and marker.
     useBrowserRecommendedResolution: false,
+    // The Core shows this panel itself, for each error that is not a lost WebGL context. A lost
+    // context is not a fault of the scene, and the viewer builds again (see recovery.ts).
+    showRenderLoopErrors: false,
   });
   separateDrawingBuffer(widget);
   warmGeometryWorkers(widget);
@@ -424,6 +427,8 @@ export async function createScene(
   // Error reads as `[object Object]` and `undefined`, which names nothing. This line names it: its
   // class, its keys and its fields, before the panel goes up.
   widget.scene.renderError.addEventListener((_scene: unknown, err: unknown) => {
+    // A lost context is not a fault of the scene, and recovery.ts reports it.
+    if (webglOf(widget)?.isContextLost()) return;
     let fields = "";
     try {
       fields = JSON.stringify(err);
@@ -470,13 +475,19 @@ export async function createScene(
   return widget;
 }
 
+/**
+ * The WebGL context of `widget`, or null when it has none. The canvas holds its context already, so
+ * this reads that context and makes no new one.
+ */
+export function webglOf(widget: CesiumWidget): WebGLRenderingContext | null {
+  return widget.canvas.getContext("webgl2") ?? widget.canvas.getContext("webgl");
+}
+
 function warnIfSoftwareRenderer(widget: CesiumWidget): void {
   try {
-    // scene.context is internal; reach its live WebGL context for the renderer string.
-    const ctx = (widget.scene as unknown as { context: { _gl: WebGLRenderingContext } })
-      .context._gl;
-    const dbg = ctx.getExtension("WEBGL_debug_renderer_info");
-    const r = dbg ? String(ctx.getParameter(dbg.UNMASKED_RENDERER_WEBGL)) : "";
+    const ctx = webglOf(widget);
+    const dbg = ctx?.getExtension("WEBGL_debug_renderer_info");
+    const r = ctx && dbg ? String(ctx.getParameter(dbg.UNMASKED_RENDERER_WEBGL)) : "";
     if (/swiftshader|llvmpipe|software/i.test(r)) {
       console.warn(`CesiumLink: software WebGL renderer (${r}) — expect low FPS. ` +
         `Enable hardware acceleration in the client.`);
