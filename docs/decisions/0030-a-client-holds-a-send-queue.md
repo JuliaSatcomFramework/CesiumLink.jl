@@ -50,17 +50,22 @@ a method and needs nothing else: the queue, the drain task and the policy below 
 every kind. This ADR ships the `HTTP.WebSocket` method only.
 
 **A full queue drops the frame, counts it, and tells the client.** The next frame that fits is
-preceded by a `core/dropped` command carrying the count. A slow client therefore costs its own queue
-and nothing else.
+preceded by a `core/dropped` command carrying the count. A slow client therefore blocks nothing but
+its own queue. The replay it asks for next can cost the scene a rebuild, as described below.
 
 **A slow client is never removed.** The connection recovers on its own once the page drains. A
 client is dropped only when its send throws, which is what a closed connection does — the same rule
 as before.
 
-**A client that hears `core/dropped` asks for `core/replay`, and is answered with
-`retained_messages(server)`.** That is the same set of frames a client connecting mid-session is
-replayed. The server holds the last message per `(module, topic)` plus the window, so whatever a
-drop lost is recoverable in full, and one path answers both callers.
+**A client that hears `core/dropped` asks for `core/replay`, and is caught up as a client connecting
+mid-session is.** One function, `catch_up!`, answers both callers, and neither has to know which
+frames went missing. The server holds the last message per `(module, topic)` plus the window, so
+whatever a drop lost is recoverable in full.
+
+**A retained `:append` is not sent to a client that catches up, when the scene answers
+`core/need`.** The dropped frames can include the `:replace` that the append extends. The scene is
+asked for a replacement over the same frames instead, and that window is broadcast. On an appending
+scene, each drop therefore costs one rebuild and one `:replace` broadcast.
 
 **The queue holds 64 frames.** The count is small because one frame carries a whole window's arrays
 and can therefore be megabytes: a deeper queue would hold a client's memory rather than its backlog.
@@ -88,6 +93,13 @@ it is drawing again a moment later.
 **Retain nothing and re-push on a drop.** The server already retains the last message per pair, for
 the client that connects mid-session. A second recovery path would be a second thing to keep
 correct.
+
+**A retention module.** One module to hold the retention table, the window identity and span, and
+the catch-up rule. The table already has its verbs: `retain!`, `retained`, `declared` and
+`retained_messages`. The catch-up rule is one function, `catch_up!`, and only `handle_msg` calls it.
+`declare_modules` and `record!` also read the table, but they answer different questions: what a
+client already connected lacks when a module registers late, and what a recording opens with. A
+module would only move code, and it would change the `Server` struct.
 
 ## Consequences
 

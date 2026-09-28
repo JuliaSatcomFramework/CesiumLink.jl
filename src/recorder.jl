@@ -16,6 +16,8 @@ const RECORDING_VERSION = 2
 Start writing every frame `server` broadcasts to `path`, and return the server. Whatever the server
 is already retaining is written first, at offset zero, so a recording started mid-session still
 stands on its own: it opens with the scene as it is and continues with everything sent afterwards.
+The exception is a recording started while the scene is on an `:append`. It opens on that append,
+which extends a `:replace` the recording does not hold, so it does not stand on its own.
 
 The modules registered at this moment are named in the recording's header, since the module set is
 declared per connection and so is never itself broadcast. The header carries the scene they were
@@ -208,9 +210,8 @@ function replay_frame!(server::Server, f::Frame)
     method = get(msg, "method", nothing)
     params = get(msg, "params", Dict{String,Any}())
     if method == "window"
+        # The server takes on the identity the recording stamped. `send_message` records the span.
         lock(server.clients_lock) do
-            server.window_span = (; start_frame = from_wire_index(Int(params["startFrame"])),
-                                  count = Int(params["count"]), mode = Symbol(params["mode"]))
             id = get(params, "window", nothing)
             id === nothing || (server.window_id = Int(id))
         end

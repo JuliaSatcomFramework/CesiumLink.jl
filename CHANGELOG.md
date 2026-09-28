@@ -22,6 +22,13 @@ All notable changes to CesiumLink are in this file.
 - With two viewers on one page, the speed pointer on the clock of each viewer shows again. Every
   clock painted with the gradients of the first one, so the pointer of every other viewer
   disappeared while the first clock was hidden: a timeless scene, or a slide that a deck hides.
+- A viewer that asks for `core/replay` after dropped frames is caught up as a viewer that connects
+  now is. On an appending scene with a `core/need` listener, it was sent the retained append, which
+  extends a replace that can be among the dropped frames. The scene is now asked for a replacement
+  window, and that window is broadcast.
+- A window sent through `window_id!`, `window_message` and `send_message` sets the frames that a
+  viewer catching up is rebuilt over. After such a window, that viewer was rebuilt over the frames
+  of the window before it.
 
 ## [0.3.2] - 2026-09-24
 
