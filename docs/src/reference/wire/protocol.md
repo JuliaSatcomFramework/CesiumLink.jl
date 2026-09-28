@@ -655,11 +655,12 @@ This command is never retained and never recorded: it describes one connection a
 { "method": "ready", "params": { "protocol": 2 } }
 ```
 
-The viewer sends this once the socket opens. A version mismatch closes the socket with a reason
-(§ Version policy). The server answers by replaying retained state in order: `modules`, then each
-retained command, then the current window. The furniture therefore arrives twice, in the declaration
-and again as the retained `core/furniture` command, and the viewer applies the second statement as a
-no-op.
+The viewer sends this once the socket opens. It sends it again on the same socket when it builds
+itself again after the browser took its WebGL context (ADR-0038), and the server answers the same
+way. A version mismatch closes the socket with a reason (§ Version policy). The server answers by
+replaying retained state in order: `modules`, then each retained command, then the current window.
+The furniture therefore arrives twice, in the declaration and again as the retained
+`core/furniture` command, and the viewer applies the second statement as a no-op.
 
 **The current window is replayed only if it is a `replace`.** An `append` extends a window this
 client never received, and may omit anything that window established — an area family's footprint
@@ -673,7 +674,7 @@ than the session, and the client gets the retained append rather than nothing.
 
 ## ↑ `event`
 
-The only thing the viewer ever sends after `ready`.
+The only other thing the viewer sends.
 
 ```json
 { "method": "event",

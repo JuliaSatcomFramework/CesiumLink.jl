@@ -2,6 +2,23 @@
 
 All notable changes to CesiumLink are in this file.
 
+## [Unreleased]
+
+### Added
+
+- A viewer that loses its WebGL context builds itself again, on a new canvas and the same
+  connection. A browser keeps 16 contexts for each page and takes the oldest one when a page makes
+  one more, so a figure that leaks contexts stopped every globe on the page. The viewer now shows a
+  note, builds again when it comes into view, and asks the server for the scene with a second
+  `ready`. The camera, the clock and the 2D or 3D mode stay where the reader had them. Past three
+  builds in a minute, a click starts the next one. The recording player asks for a reload instead.
+
+### Fixed
+
+- `destroy` on a viewer gives its WebGL context back to the browser. Cesium kept it until garbage
+  collection, so each Slate re-run left one more context counted against the limit of the page.
+- A render error on a lost WebGL context no longer shows Cesium's "Rendering has stopped" panel.
+
 ## [0.3.3] - 2026-09-28
 
 ### Fixed
