@@ -13,6 +13,12 @@ All notable changes to CesiumLink are in this file.
   `ready`. The camera, the clock and the 2D or 3D mode stay where the reader had them. Past three
   builds in a minute, a click starts the next one. The recording player asks for a reload instead.
 
+### Changed
+
+- The viewer builds against `@cesium/engine` `^26.3.0` and `@cesium/widgets` `^16.2.0`, from
+  Cesium 1.145. The "Data attribution" link and the credit list it opens now work with the
+  keyboard.
+
 ### Fixed
 
 - `destroy` on a viewer gives its WebGL context back to the browser. Cesium kept it until garbage
