@@ -58,7 +58,7 @@ that mounts last sets it, so an Earth scene and a Mars scene on one page do not 
 
 The teardown of the cell is the teardown of the viewer. It runs before the cell evaluates again,
 when you delete the cell, and before Slate rebuilds the namespace. Each time, the client leaves the
-server and the channel is free again.
+server and the channel is free again. The viewer also gives its WebGL context back to the browser.
 
 **Close the viewer and the server keeps serving.** The teardown drops the viewer and nothing else.
 The scene belongs to your worker, and [`stop_server`](@ref) stops it.
@@ -79,6 +79,22 @@ on the same channel, and the scene in the audience window would stutter.
 **The full-screen button fills the screen with the viewer.** With the deck in full screen, a click
 puts the viewer in full screen above the deck. A second click goes back to the deck, and the deck
 stays in full screen. Esc leaves full screen altogether, for the deck too.
+
+## 5. Next to other WebGL figures
+
+A browser keeps a small number of WebGL contexts for each page, 16 in Chrome. When a page makes one
+more, the browser takes the context that the page made first. That is often a globe: a figure that
+makes a new context at each re-run and never frees the old one takes the globe's context after a few
+runs.
+
+**The globe builds again when it is in view.** It shows a note in place of the scene. A globe on
+screen builds again at once, and a globe below the fold builds again when you scroll to it. The
+server sends the scene again, and the camera and the clock stay where you had them. The basemap goes
+back to the first one that the session declares.
+
+**A click restores a globe that loses its context again and again.** Two globes on screen can take
+the context from each other. After three builds in a minute, the note asks for a click. See
+ADR-0038 in `docs/decisions/`.
 
 ## When nothing appears
 

@@ -1,10 +1,10 @@
 import * as Cesium from "@cesium/engine";
-import { SceneMode, type CesiumWidget } from "@cesium/engine";
+import { Cartographic, JulianDate, SceneMode, type CesiumWidget } from "@cesium/engine";
 import { annotationsOf } from "./annotations";
 import { buildFurniture } from "./clock-ui";
 import { addGlobeDepth, addGraticule, type GraticuleDeclaration } from "./globe";
 import { FURNITURE_DEFAULTS, type FurnitureDeclaration } from "./furniture";
-import { basemapSet, createScene, type SceneOptions } from "./scene";
+import { basemapSet, createScene, webglOf, type SceneOptions } from "./scene";
 import {
   createModuleHost,
   type ModuleCapabilities,
@@ -19,7 +19,8 @@ import { blockAt, decodeArrays, encodeU8, isNdArray } from "./codec";
 import { captureCell, takeCapture } from "./capture";
 import { createOverlay, REGIONS, type OverlayRegion } from "./overlay";
 import { createWindows, Timeline } from "./windows";
-import { NO_BYTES } from "./transport";
+import { createRecovery } from "./recovery";
+import { NO_BYTES, PROTOCOL_VERSION } from "./transport";
 import type { Declaration, Transport } from "./transport";
 
 export { blockAt, decodeArrays, isNdArray } from "./codec";
@@ -82,6 +83,13 @@ export interface ViewerOptions extends SceneOptions {
    * screen, and a page with no fullscreen API shows no button at all.
    */
   expand?(): void;
+  /**
+   * Whether the viewer builds again after the browser takes its WebGL context. Defaults to true.
+   * The new viewer sends `ready` again, and the server answers with the declaration and the
+   * retained scene. Set it to false for a transport that cannot answer `ready` a second time. The
+   * viewer then asks the reader to reload the page.
+   */
+  recover?: boolean;
 }
 
 // The module API this Core implements. Unstable — a declaration must match to load (ADR-0009).
@@ -110,10 +118,110 @@ export interface ViewerHandle {
  * host. Which modules exist is the server's decision, arriving as the `modules` declaration on the
  * attached transport; each is loaded through one uniform path and receives every rendering
  * capability via its context — the Core itself renders nothing scene-specific.
+ *
+ * The browser can take the WebGL context of the viewer away (see recovery.ts). The handle then
+ * builds the Core again in the same container, on the same transport, when the container comes into
+ * view or when the reader clicks it. The handle stays the same object, and `widget` gives the
+ * widget of the last build.
  */
 export async function createViewer(
   container: HTMLElement,
   opts: ViewerOptions,
+): Promise<ViewerHandle> {
+  let core = await buildCore(container, opts);
+  let transport: Transport | null = null;
+  // The view of the lost viewer, from the moment its Core is destroyed until a new Core is up. A
+  // build that fails leaves it here, so a retry reuses it and does not read or destroy the dead
+  // Core a second time.
+  let lostView: ViewState | null = null;
+  let destroyed = false;
+  const recovery = createRecovery(container, opts.recover === false ? null : async () => {
+    if (!lostView) {
+      lostView = viewOf(core.widget);
+      core.destroy();
+    }
+    const next = await buildCore(container, opts, lostView);
+    if (destroyed) {
+      next.destroy();
+      return;
+    }
+    core = next;
+    lostView = null;
+    watch(core.widget);
+    if (transport) {
+      // The server answers `ready` with the declaration and the retained scene, which is what a
+      // client that connects now gets. The declaration of the first build can be stale: a module
+      // that registers later reaches the page by a declaration of its own.
+      core.attachTransport(transport, null);
+      transport.notify("ready", { protocol: PROTOCOL_VERSION });
+    }
+  });
+  const watch = (widget: CesiumWidget) =>
+    recovery.watch(widget, () => webglOf(widget)?.isContextLost() ?? true);
+  watch(core.widget);
+  return {
+    get widget() {
+      return core.widget;
+    },
+    attachTransport(t, declaration) {
+      transport = t;
+      core.attachTransport(t, declaration);
+    },
+    destroy() {
+      destroyed = true;
+      recovery.destroy();
+      // During a build, the Core in `core` is already destroyed, and the build destroys its own.
+      if (!lostView) core.destroy();
+    },
+  };
+}
+
+/**
+ * What the reader changed on a viewer and the server does not hold: where the camera is, and where
+ * the clock is and how it runs. A build after a lost context takes this over from the lost viewer.
+ */
+interface ViewState {
+  mode: SceneMode;
+  // The camera in terms that mean the same in 3D, 2D and Columbus view. A world position does not:
+  // in 2D and in Columbus view it is a position on the flat map.
+  position: Cartographic;
+  heading: number;
+  pitch: number;
+  roll: number;
+  time: JulianDate;
+  multiplier: number;
+  playing: boolean;
+}
+
+// The camera and the clock are plain objects, so they are readable after the context is lost.
+function viewOf(widget: CesiumWidget): ViewState {
+  const { camera, mode } = widget.scene;
+  return {
+    mode,
+    position: Cartographic.clone(camera.positionCartographic),
+    heading: camera.heading,
+    pitch: camera.pitch,
+    roll: camera.roll,
+    time: JulianDate.clone(widget.clock.currentTime),
+    multiplier: widget.clock.multiplier,
+    playing: widget.clock.shouldAnimate,
+  };
+}
+
+// A replayed camera track can start a flight, so stop it first.
+function putCamera(widget: CesiumWidget, view: ViewState): void {
+  const { camera, ellipsoid } = widget.scene;
+  camera.cancelFlight();
+  camera.setView({
+    destination: ellipsoid.cartographicToCartesian(view.position),
+    orientation: { heading: view.heading, pitch: view.pitch, roll: view.roll },
+  });
+}
+
+async function buildCore(
+  container: HTMLElement,
+  opts: ViewerOptions,
+  resume?: ViewState,
 ): Promise<ViewerHandle> {
   // One overlay for all modules: the Core owns the positioned regions modules add controls to. It
   // takes the container and nothing else, so it is built first: the scene hands it the credit line
@@ -121,7 +229,17 @@ export async function createViewer(
   // anything else.
   const overlay = createOverlay(container);
   const specs = basemapSet(opts.imagery);
-  const widget = await createScene(container, opts, overlay);
+  // A widget that gets no WebGL context throws after it put its element in the container. Take that
+  // element and the overlay out again, so that a retry does not lay out below a dead widget.
+  const kept = new Set(container.children);
+  let widget: CesiumWidget;
+  try {
+    widget = await createScene(container, opts, overlay);
+  } catch (e) {
+    overlay.destroy();
+    for (const el of [...container.children]) if (!kept.has(el)) el.remove();
+    throw e;
+  }
   const scene = widget.scene;
 
   // The Core's own on-screen items: created once, owned by the Core (single clock/timeline for all
@@ -154,6 +272,16 @@ export async function createViewer(
     scene.msaaSamples = scene.mode === SceneMode.SCENE2D ? 1 : defaultMsaa;
   };
   scene.morphComplete.addEventListener(tuneForMode);
+
+  // A build after a lost context puts back the view of the reader before the first frame.
+  if (resume) {
+    if (resume.mode === SceneMode.SCENE2D) scene.morphTo2D(0);
+    else if (resume.mode === SceneMode.COLUMBUS_VIEW) scene.morphToColumbusView(0);
+    putCamera(widget, resume);
+  }
+  // False after destroy. The transport keeps the handlers of this Core until a new build replaces
+  // them, and a message that arrives in that gap must not reach a destroyed scene.
+  let alive = true;
 
   // Bound lazily: events reach whatever transport is attached, and a viewer with none is silent.
   let transport: Transport | null = null;
@@ -394,7 +522,9 @@ export async function createViewer(
     widget,
     attachTransport(t, declaration) {
       transport = t;
-      t.on("modules", (params) => loadModules(params as Declaration | null));
+      t.on("modules", (params) => {
+        if (alive) loadModules(params as Declaration | null);
+      });
       // The radii the globe was actually built on. The server declared them, so this says nothing
       // it does not already know — which is the point: a disagreement means the declaration did not
       // reach the widget, and only the two numbers side by side can show that.
@@ -405,12 +535,27 @@ export async function createViewer(
       // every module's payload for those frames, so the scene and anything drawn over it cannot
       // disagree about which window they describe.
       t.on("window", (params, bytes) => {
+        if (!alive) return;
         windows.deliver(params, bytes);
         // A window is where a declared range arrives, and the range is the other half of the check.
         checkStranded();
         // It is also where a re-grid becomes visible, and a re-grid moves every keyframe a track
         // names.
         camera.windowDelivered();
+        // The first window of a build after a lost context puts the clock at its start, and a
+        // replayed camera track can move the camera. Put both back where the reader had them. A
+        // time outside the new range means that the scene changed, and then the clock stays.
+        if (resume) {
+          const clock = widget.clock;
+          if (JulianDate.greaterThanOrEquals(resume.time, clock.startTime) &&
+              JulianDate.lessThanOrEquals(resume.time, clock.stopTime)) {
+            clock.currentTime = resume.time;
+            clock.multiplier = resume.multiplier;
+            clock.shouldAnimate = resume.playing;
+          }
+          putCamera(widget, resume);
+          resume = undefined;
+        }
       });
       // Everything that is not a window: a batch of addressed commands, applied in order. The
       // pseudo-module id "core" addresses the Core itself, with eight topics: the pointer-event
@@ -418,6 +563,7 @@ export async function createViewer(
       // the Core puts on screen, the two of what it draws on the globe, the camera track, the count
       // of frames the server dropped for this client, and the request for a picture of the canvas.
       t.on("commands", (params, bytes) => {
+        if (!alive) return;
         const region = bytes ?? NO_BYTES;
         const batch = (params ?? {}) as { seq?: number | null; commands?: Command[] };
         // Present only when the batch answers an event, and then it echoes that event's number.
@@ -448,6 +594,8 @@ export async function createViewer(
       });
     },
     destroy() {
+      alive = false;
+      transport = null;
       host.unloadAll();
       graticule.destroy();
       globeDepth.destroy();
@@ -458,7 +606,12 @@ export async function createViewer(
       scene.morphComplete.removeEventListener(tuneForMode);
       sizeWatch.disconnect();
       furniture.destroy();
+      const gl = webglOf(widget);
       widget.destroy();
+      // Cesium does not free the context, and the browser counts it against its limit until
+      // garbage collection. At the limit, the browser loses the oldest context, which can be the
+      // context of a live viewer. A lost context is already free and has no extension to call.
+      gl?.getExtension("WEBGL_lose_context")?.loseContext();
     },
   };
 }
