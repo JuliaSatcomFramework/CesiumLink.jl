@@ -27,9 +27,9 @@ Write the whole module into one file, `poles.js`:
 ```js
 // poles.js — one vertical pole per site, drawn from the payload the server addresses to this module.
 //
-// Never import "@cesium/engine" here. Two live copies of Cesium cannot share one scene: a primitive
-// built by one is refused by the other, and the failure looks like an empty globe rather than like
-// an error. The Core hands you its own copy as `ctx.Cesium`.
+// Never import "@cesium/engine" or "@cesium/core" here. Two live copies of Cesium cannot share one
+// scene: a primitive built by one is refused by the other, and the failure looks like an empty globe
+// rather than like an error. The Core hands you its own copy of both as `ctx.Cesium`.
 
 export default {
   setup(ctx) {

@@ -64,9 +64,9 @@ nothing about a module differs because a package ships it.
 ```js
 // One vertical pole per site, drawn from the payload the server addresses to this module.
 //
-// Never import "@cesium/engine" here. Two live copies of Cesium cannot share one scene, and the
-// failure looks like an empty globe rather than like an error. The Core hands you its own copy as
-// `ctx.Cesium`.
+// Never import "@cesium/engine" or "@cesium/core" here. Two live copies of Cesium cannot share one
+// scene, and the failure looks like an empty globe rather than like an error. The Core hands you its
+// own copy of both as `ctx.Cesium`.
 
 export default {
   setup(ctx) {
@@ -176,9 +176,9 @@ directory, so the browser finds the source map itself.
 The vendored modules are built the same way, with the same three settings that matter: one entry
 point, `bundle: true`, and `format: "esm"`.
 
-- **`@cesium/engine` needs no `external` entry.** A module never imports it for its values, and a
-  TypeScript module that imports it for its types leaves nothing behind after the build. No copy of
-  Cesium reaches the bundle.
+- **`@cesium/engine` and `@cesium/core` need no `external` entry.** A module never imports them for
+  their values, and a TypeScript module that imports them for their types leaves nothing behind
+  after the build. No copy of Cesium gets into the bundle.
 - **Today the bundle is a copy of one file.** It stops being one as soon as the source grows a
   second file or an npm dependency, and nothing else in the package changes.
 

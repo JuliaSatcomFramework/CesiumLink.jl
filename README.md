@@ -84,10 +84,10 @@ The primitives are generic, but satellite scenes decided what is built on them:
 - The ellipsoid is declarable, because the globe is not always Earth.
 
 The scope is therefore this: what a satellite scene needs is vendored and first-class, and the other
-features of Cesium are reachable but not shipped. A module gets `ctx.Cesium`, which is the full
-`@cesium/engine` namespace and the same instance that built the scene. A module also gets the scene,
-the entity collection of the widget, and its data sources. Almost every feature in the table below is
-one module away, and none of them needs a fork.
+features of Cesium are reachable but not shipped. A module gets `ctx.Cesium`, which holds the full
+`@cesium/engine` and `@cesium/core` namespaces from the same instance that built the scene. A module
+also gets the scene, the entity collection of the widget, and its data sources. Almost every feature
+in the table below is one module away, and none of them needs a fork.
 
 | Cesium feature | Vendored? | What it takes today |
 |---|---|---|
