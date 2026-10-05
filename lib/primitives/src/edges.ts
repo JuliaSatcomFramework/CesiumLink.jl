@@ -13,12 +13,14 @@
 // between keyframes without holding a copy of anything. An endpoint family is a node family or an
 // area family: a node contributes its position, an area its footprint centre.
 
-import type { Cartesian3, Color, Material, PolylineCollection, Scene } from "@cesium/engine";
+import type { Cartesian3, Color } from "@cesium/core";
+import type { Material, PolylineCollection, Scene } from "@cesium/engine";
+import type { CesiumRuntime } from "../../core/src/module-host.ts";
 import { sayOnce } from "../../core/src/once.ts";
 import { sourceOf } from "../../core/src/source.ts";
 import type { WindowInfo } from "../../core/src/windows.ts";
 import { at, knob, type Knob } from "./knobs.ts";
-import { channel, WHITE, type CesiumRuntime } from "./paint.ts";
+import { channel, WHITE } from "./paint.ts";
 import { registry } from "./registry.ts";
 import type { At, Placement, Timeline } from "../../core/src/windows.ts";
 
@@ -197,7 +199,7 @@ export class EdgeFamily {
     w.rebuilds = !!(w.pairs.keyframed || w.color?.keyframed || w.style?.keyframed);
     w.restyles = !!(w.width?.keyframed || w.show?.keyframed);
     if (!this.lines) {
-      this.lines = this.scene.primitives.add(new this.C.PolylineCollection()) as PolylineCollection;
+      this.lines = this.scene.primitives.add(new this.C.PolylineCollection());
     }
     if (win.mode === "replace") this.drawn = null;
     this.timeline.install(w, win);

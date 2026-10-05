@@ -1,10 +1,8 @@
-// What the three families share: the Cesium namespace they are handed, and reading a colour out of
-// a knob without allocating one per entity.
+// What the three families share: reading a colour out of a knob without allocating one per entity.
 
-import type { Color } from "@cesium/engine";
+import type { Color } from "@cesium/core";
+import type { CesiumRuntime } from "../../core/src/module-host.ts";
 import { at, type Slice } from "./knobs.ts";
-
-export type CesiumRuntime = typeof import("@cesium/engine");
 
 /** What an entity is drawn in when its family sent no colour. */
 export const WHITE: readonly number[] = [255, 255, 255, 255];

@@ -15,7 +15,9 @@
 //
 // Cesium-injected (`C`) like the clock service, so the dispatch seam unit-tests without WebGL.
 
-import type { Cartesian2, Cartographic, Scene } from "@cesium/engine";
+import type { Cartesian2, Cartographic } from "@cesium/core";
+import type { Scene } from "@cesium/engine";
+import type { CesiumRuntime } from "./module-host";
 
 /** A resolved pick hit: the module that stamped the primitive, and its kind/index within it. */
 export interface PickEntity {
@@ -112,7 +114,7 @@ const MOD_EVENTS = ["pointerdown", "pointermove", "pointerup", "mousedown", "mou
  */
 export function createPointerDispatch(
   scene: Scene,
-  C: typeof import("@cesium/engine"),
+  C: CesiumRuntime,
   forward: (payload: PointerPayload) => void,
 ): PointerDispatch {
   const local: ((e: PointerEvent) => void)[] = [];

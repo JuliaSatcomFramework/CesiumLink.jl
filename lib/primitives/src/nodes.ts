@@ -5,13 +5,13 @@
 // Positions blend every tick; colour, size and visibility switch at the crossing. That split is the
 // one assumption the vendored renderer makes about meaning, and it is what makes motion smooth.
 
-import type {
-  BillboardCollection, Cartesian3, Color, LabelCollection, NearFarScalar, Scene,
-} from "@cesium/engine";
+import type { Cartesian3, Color, NearFarScalar } from "@cesium/core";
+import type { BillboardCollection, LabelCollection, Scene } from "@cesium/engine";
+import type { CesiumRuntime } from "../../core/src/module-host.ts";
 import { isNdArray, type NdArray } from "../../core/src/codec.ts";
 import type { WindowInfo } from "../../core/src/windows.ts";
 import { at, knob, type Knob, type Slice } from "./knobs.ts";
-import { BLACK, colorOf, WHITE, type CesiumRuntime } from "./paint.ts";
+import { BLACK, colorOf, WHITE } from "./paint.ts";
 import type { Placement, Timeline } from "../../core/src/windows.ts";
 import { markerSprite } from "./sprites.ts";
 
@@ -190,7 +190,7 @@ export class NodeFamily {
     this.destroyPrimitives();
     this.positions.length = 0;
     this.scale = nearFar(C, scaleByDistance);
-    const billboards = scene.primitives.add(new C.BillboardCollection({ scene })) as BillboardCollection;
+    const billboards = scene.primitives.add(new C.BillboardCollection({ scene }));
     const image = markerSprite(marker, this.assetUrl);
     for (let i = 0; i < n; i++) {
       const position = new C.Cartesian3();
@@ -223,7 +223,7 @@ export class NodeFamily {
    */
   private buildLabels(style: LabelSpec, n: number): LabelCollection {
     const { C, scene } = this;
-    const collection = scene.primitives.add(new C.LabelCollection({ scene })) as LabelCollection;
+    const collection = scene.primitives.add(new C.LabelCollection({ scene }));
     const [h, v] = style.align ?? [];
     const offset = style.offset ?? DEFAULT_LABEL_OFFSET;
     const span = style.showBetween;

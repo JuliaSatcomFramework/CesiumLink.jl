@@ -11,7 +11,8 @@
 // here; the only interaction Cesium leaves unwired is Timeline scrubbing, which merely dispatches a
 // `settime` event — so we set the clock time from it below.
 
-import { JulianDate, type Clock, type Ellipsoid, type Scene } from "@cesium/engine";
+import { JulianDate, type Clock, type Ellipsoid } from "@cesium/core";
+import type { Scene } from "@cesium/engine";
 import {
   Animation, AnimationViewModel, BaseLayerPicker, CesiumInspector, ClockViewModel,
   HomeButton, NavigationHelpButton, ProjectionPicker, ProviderViewModel,

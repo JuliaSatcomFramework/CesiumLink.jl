@@ -1,16 +1,18 @@
 import {
   Cartesian3,
-  CesiumWidget,
   Color,
   ColorGeometryInstanceAttribute,
   Ellipsoid,
-  GeographicTilingScheme,
   GeometryInstance,
+  PolylineGeometry,
+} from "@cesium/core";
+import {
+  CesiumWidget,
+  GeographicTilingScheme,
   Ion,
   ImageryLayer,
   type ImageryProvider,
   PolylineColorAppearance,
-  PolylineGeometry,
   Primitive,
   TileMapServiceImageryProvider,
   UrlTemplateImageryProvider,

@@ -1,5 +1,7 @@
-import * as Cesium from "@cesium/engine";
-import { Cartographic, JulianDate, SceneMode, type CesiumWidget } from "@cesium/engine";
+import * as CesiumCore from "@cesium/core";
+import { Cartographic, JulianDate } from "@cesium/core";
+import * as CesiumEngine from "@cesium/engine";
+import { SceneMode, type CesiumWidget } from "@cesium/engine";
 import { annotationsOf } from "./annotations";
 import { buildFurniture } from "./clock-ui";
 import { addGlobeDepth, addGraticule, type GraticuleDeclaration } from "./globe";
@@ -7,6 +9,7 @@ import { FURNITURE_DEFAULTS, type FurnitureDeclaration } from "./furniture";
 import { basemapSet, createScene, webglOf, type SceneOptions } from "./scene";
 import {
   createModuleHost,
+  type CesiumRuntime,
   type ModuleCapabilities,
   type ModuleEntry,
   type TrackDisposable,
@@ -94,6 +97,11 @@ export interface ViewerOptions extends SceneOptions {
 
 // The module API this Core implements. Unstable — a declaration must match to load (ADR-0009).
 const API_VERSION = 1;
+
+// The namespace every module gets as `ctx.Cesium`: all of `@cesium/engine` and `@cesium/core` in one
+// object. `@cesium/engine` also exports the classes of `@cesium/core`, as wrappers that write a
+// deprecation warning on first use. Spread `@cesium/core` last, so that its own classes replace them.
+const Cesium: CesiumRuntime = Object.freeze({ ...CesiumEngine, ...CesiumCore });
 
 /** One addressed command out of a `commands` batch. `"core"` addresses the Core itself. */
 interface Command {

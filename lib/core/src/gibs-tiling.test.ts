@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { Cartographic, Math as CesiumMath } from "@cesium/engine";
+import { Cartographic, Math as CesiumMath } from "@cesium/core";
 import { GibsGeographicTilingScheme } from "./gibs-tiling.ts";
 
 const scheme = new GibsGeographicTilingScheme();

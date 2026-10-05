@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { AreaFamily } from "./areas.ts";
+import type { Scene } from "@cesium/engine";
+import type { CesiumRuntime } from "../../core/src/module-host.ts";
 import { EdgeFamily, type EndpointFamily } from "./edges.ts";
 import { Timeline, type WindowInfo } from "../../core/src/windows.ts";
 
@@ -74,7 +76,7 @@ const C = {
   },
   Material: { fromType: (type: string) => ({ type, destroy() {} }) },
   // The footprint corners are irrelevant to the endpoint; only the centre they are placed about is.
-  Transforms: { eastNorthUpToFixedFrame: (center: FakeCartesian3) => center },
+  FixedFrameTransforms: { eastNorthUpToFixedFrame: (center: FakeCartesian3) => center },
   Matrix4: { multiplyByPoint: (enu: FakeCartesian3) => enu },
   PolygonHierarchy: class {},
   PolygonGeometry: class {},
@@ -86,11 +88,11 @@ const C = {
   Primitive: class {
     ready = false;
   },
-} as unknown as typeof import("@cesium/engine");
+} as unknown as CesiumRuntime;
 
 const scene = {
   primitives: { add: <T>(p: T) => p, remove: () => true },
-} as unknown as import("@cesium/engine").Scene;
+} as unknown as Scene;
 
 const window = (): WindowInfo =>
   ({ startFrame: 0, count: 1, id: 1, mode: "replace", totalFrames: 1, dtSeconds: 60,
@@ -169,7 +171,7 @@ test("one moving end is enough to keep an edge following it", () => {
     const collection: FakePolylineCollection[] = [];
     const scene2 = {
       primitives: { add: (p: FakePolylineCollection) => (collection.push(p), p), remove: () => true },
-    } as unknown as import("@cesium/engine").Scene;
+    } as unknown as Scene;
     const win = window();
     const edges = new EdgeFamily("user", C, scene2,
       (kind) => (kind === "cell" ? areas : to), (kind, idx) => ({ kind, idx }),

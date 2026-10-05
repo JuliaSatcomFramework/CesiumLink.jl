@@ -1,5 +1,5 @@
-import { GeographicTilingScheme, Rectangle } from "@cesium/engine";
-import type { Cartesian2, Cartographic } from "@cesium/engine";
+import { Rectangle, type Cartesian2, type Cartographic } from "@cesium/core";
+import { GeographicTilingScheme } from "@cesium/engine";
 
 /** The pixel width and height of one GIBS EPSG:4326 tile. */
 export const GIBS_TILE_PIXELS = 512;

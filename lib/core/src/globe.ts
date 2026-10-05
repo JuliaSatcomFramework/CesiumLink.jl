@@ -6,11 +6,9 @@
 // plane hides the far half of every line. A label is a billboard, and the part of it that stands
 // past the limb misses the depth plane, so the labels take the limb test the place names use.
 
+import { Cartesian2, Cartesian3, Color } from "@cesium/core";
 import {
-  Cartesian2,
-  Cartesian3,
   type CesiumWidget,
-  Color,
   HorizontalOrigin,
   LabelCollection,
   LabelStyle,
@@ -215,8 +213,8 @@ export function addGraticule(widget: CesiumWidget): Graticule {
         clear();
         return;
       }
-      if (!lines) lines = scene.primitives.add(new PolylineCollection()) as PolylineCollection;
-      if (!labels) labels = scene.primitives.add(new LabelCollection({ scene })) as LabelCollection;
+      if (!lines) lines = scene.primitives.add(new PolylineCollection());
+      if (!labels) labels = scene.primitives.add(new LabelCollection({ scene }));
       lines.removeAll();
       labels.removeAll();
 

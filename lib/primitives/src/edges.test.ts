@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { clearEdgeMaterials, defineEdgeMaterial, EdgeFamily, type EdgeSpec } from "./edges.ts";
+import type { Material, Scene } from "@cesium/engine";
+import type { CesiumRuntime } from "../../core/src/module-host.ts";
 import type { NodeFamily } from "./nodes.ts";
 import { Timeline, type WindowInfo } from "../../core/src/windows.ts";
 
@@ -70,7 +72,7 @@ const C = {
       return m;
     },
   },
-} as unknown as typeof import("@cesium/engine");
+} as unknown as CesiumRuntime;
 
 // Records what a family adds, which is how a test gets hold of the collection it built.
 const added: FakePolylineCollection[] = [];
@@ -79,7 +81,7 @@ const scene = {
     add: (p: FakePolylineCollection) => (added.push(p), p),
     remove: () => true,
   },
-} as unknown as import("@cesium/engine").Scene;
+} as unknown as Scene;
 
 /** A node family of `n` entities standing still, which is all an edge reads of one. */
 const stubNodes = (n: number): NodeFamily =>
@@ -189,7 +191,7 @@ const PIXEL = "data:image/png;base64,iVBORw0KGgo=";
 test("a style table names the material of a code beyond the stock three", () => {
   defineEdgeMaterial("orbits.pulse", (_C, look) =>
     new FakeMaterial("Pulse", { color: look.color, dashLength: look.dashLength }) as unknown as
-      import("@cesium/engine").Material);
+      Material);
 
   // One edge per form: solid, a `data:` URI, an asset path, a registered name, and a name nobody
   // answers for. The three leading nulls keep the stock codes where they are.

@@ -8,10 +8,8 @@
 // the world — it corrects the file's own idea of which way is forward. Cesium takes a model's +X as
 // forward, and most files disagree.
 
-import type { Cartesian3, Matrix3, Matrix4, Quaternion } from "@cesium/engine";
-
-/** The one Cesium instance a module is handed. A module never imports the engine itself. */
-export type CesiumRuntime = typeof import("@cesium/engine");
+import type { Cartesian3, Matrix3, Matrix4, Quaternion } from "@cesium/core";
+import type { CesiumRuntime } from "../../core/src/module-host.ts";
 
 /** The reference frames a model family may name. */
 export type FrameName = "ecef" | "enu" | "nadir" | "velocity";
@@ -52,11 +50,12 @@ export function frameQuaternion(C: CesiumRuntime, frame: FrameName, at: Cartesia
   if (frame === "ecef") return C.Quaternion.clone(C.Quaternion.IDENTITY, result);
   if (frame === "velocity" && step && C.Cartesian3.magnitude(step) > STEP_EPSILON_M) {
     dirScratch = C.Cartesian3.normalize(step, dirScratch ?? new C.Cartesian3());
-    rotScratch = C.Transforms.rotationMatrixFromPositionVelocity(at, dirScratch, undefined,
-                                                                 rotScratch ?? new C.Matrix3());
+    rotScratch = C.FixedFrameTransforms.rotationMatrixFromPositionVelocity(
+      at, dirScratch, undefined, rotScratch ?? new C.Matrix3());
     return C.Quaternion.fromRotationMatrix(rotScratch, result);
   }
-  enuScratch = C.Transforms.eastNorthUpToFixedFrame(at, undefined, enuScratch ?? new C.Matrix4());
+  enuScratch = C.FixedFrameTransforms.eastNorthUpToFixedFrame(at, undefined,
+                                                             enuScratch ?? new C.Matrix4());
   rotScratch = C.Matrix4.getMatrix3(enuScratch, rotScratch ?? new C.Matrix3());
   C.Quaternion.fromRotationMatrix(rotScratch, result);
   // Nadir is that frame turned half a turn about its own east axis: +Z then points at the centre of

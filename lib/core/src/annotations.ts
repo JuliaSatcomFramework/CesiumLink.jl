@@ -9,18 +9,20 @@
 import {
   ArcType,
   Cartesian3,
-  type CesiumWidget,
   Color,
   ColorGeometryInstanceAttribute,
   GeometryInstance,
+  PolylineGeometry,
+  type Rectangle,
+} from "@cesium/core";
+import {
+  type CesiumWidget,
   HeightReference,
   HorizontalOrigin,
   LabelCollection,
   LabelStyle,
   PolylineColorAppearance,
-  PolylineGeometry,
   Primitive,
-  type Rectangle,
   SceneMode,
   SceneTransforms,
   VerticalOrigin,

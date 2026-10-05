@@ -1,7 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { AreaFamily, DEFAULT_RADIUS, DRAPE_SPAN_DEG, spanDegrees } from "./areas.ts";
+import type { Scene } from "@cesium/engine";
 import type { NdArray } from "../../core/src/codec.ts";
+import type { CesiumRuntime } from "../../core/src/module-host.ts";
 import { Timeline, type WindowInfo } from "../../core/src/windows.ts";
 
 /** The store the Core hands a family; each family gets its own. */
@@ -64,7 +66,7 @@ const C = {
       return { r, g, b, a };
     }
   },
-  Transforms: { eastNorthUpToFixedFrame: (center: FakeCartesian3) => center },
+  FixedFrameTransforms: { eastNorthUpToFixedFrame: (center: FakeCartesian3) => center },
   Matrix4: { multiplyByPoint: (enu: FakeCartesian3) => enu },
   PolygonHierarchy: FakePolygonHierarchy,
   PolygonGeometry: FakePolygonGeometry,
@@ -74,14 +76,14 @@ const C = {
   ShowGeometryInstanceAttribute: class {},
   PerInstanceColorAppearance: class {},
   Primitive: FakePrimitive,
-} as unknown as typeof import("@cesium/engine");
+} as unknown as CesiumRuntime;
 
 /** The primitives a family added, in the order it added them, so a rebuild is countable. */
 function stage() {
   const added: FakePrimitive[] = [];
   const scene = {
     primitives: { add: (p: FakePrimitive) => (added.push(p), p), remove: () => true },
-  } as unknown as import("@cesium/engine").Scene;
+  } as unknown as Scene;
   const family = new AreaFamily("region", C, scene, (kind, idx) => ({ kind, idx }), new Timeline());
   return { added, family };
 }

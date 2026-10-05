@@ -9,13 +9,12 @@
 // volumetric shapes, anything needing re-tessellation per frame, and anything whose shape depends on
 // simulated state rather than on a position are what a module of your own is for.
 
-import type { Cartesian3 } from "@cesium/engine";
+import type { Cartesian3 } from "@cesium/core";
 import type { AnchorPosition } from "../../core/src/camera.ts";
-import type { Disposable, ModuleContext } from "../../core/src/module-host.ts";
+import type { CesiumRuntime, Disposable, ModuleContext } from "../../core/src/module-host.ts";
 import { AreaFamily, type AreaSpec } from "./areas.ts";
 import { clearEdgeMaterials, EdgeFamily, type EdgeSpec, type EndpointFamily } from "./edges.ts";
 import { NodeFamily, type NodeSpec } from "./nodes.ts";
-import type { CesiumRuntime } from "./paint.ts";
 import { clearNodeSprites } from "./sprites.ts";
 
 export { defineEdgeMaterial } from "./edges.ts";

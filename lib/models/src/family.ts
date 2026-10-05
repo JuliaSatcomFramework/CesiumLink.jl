@@ -8,13 +8,14 @@
 // all three, and this reads them through the anchor surface `primitives` publishes — every frame,
 // because a window may prune or resize that family under this one. See ADR-0022 and ADR-0023.
 
-import type { Cartesian3, Entity, EntityCollection, Quaternion } from "@cesium/engine";
+import type { Cartesian3, Quaternion } from "@cesium/core";
+import type { Entity, EntityCollection } from "@cesium/engine";
+import type { CesiumRuntime } from "../../core/src/module-host.ts";
 import { numbers, type NdArray } from "../../core/src/codec.ts";
 import { sayOnce } from "../../core/src/once.ts";
 import type { Placement, Timeline, WindowInfo } from "../../core/src/windows.ts";
 import { at, knob, type Knob, type Slice } from "../../primitives/src/knobs.ts";
-import { axesQuaternion, frameNamed, frameQuaternion,
-         type CesiumRuntime, type FrameName } from "./frames.ts";
+import { axesQuaternion, frameNamed, frameQuaternion, type FrameName } from "./frames.ts";
 
 /** A model family as Julia sends it. */
 export interface ModelSpec {
