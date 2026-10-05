@@ -99,9 +99,9 @@ Three more points:
   serves that day.
 - **The CDN must send `Access-Control-Allow-Origin`.** The browser fetches every cross-origin module
   with CORS. jsDelivr and esm.sh send it; a plain file host may not.
-- **Never import `@cesium/engine`, from a CDN or from anywhere else.** Two live copies of Cesium
-  cannot share one scene, and the failure shows an empty globe rather than an error. Use
-  `ctx.Cesium`. See [the module API](../reference/wire/module-api.md).
+- **Never import `@cesium/engine` or `@cesium/core`, from a CDN or from anywhere else.** Two live
+  copies of Cesium cannot share one scene, and the failure shows an empty globe rather than an
+  error. Use `ctx.Cesium`. See [the module API](../reference/wire/module-api.md).
 
 An import that fails unloads that one module. The browser console names it, and the viewer and the
 other modules keep running.

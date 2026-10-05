@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import type { Scene } from "@cesium/engine";
+import type { CesiumRuntime } from "../../core/src/module-host.ts";
 import { Timeline, type WindowInfo } from "../../core/src/windows.ts";
 import { NodeFamily, type NodeSpec } from "./nodes.ts";
 
@@ -81,7 +83,7 @@ const C = {
   VerticalOrigin: { TOP: "TOP", CENTER: "CENTER", BOTTOM: "BOTTOM", BASELINE: "BASELINE" },
   BillboardCollection: FakeCollection,
   LabelCollection: FakeCollection,
-} as unknown as typeof import("@cesium/engine");
+} as unknown as CesiumRuntime;
 
 const window = (): WindowInfo =>
   ({ startFrame: 0, count: 1, id: 1, mode: "replace", totalFrames: 1, dtSeconds: 60,
@@ -94,7 +96,7 @@ function widths(size: unknown): number[] {
   const added: FakeCollection[] = [];
   const scene = {
     primitives: { add: (p: FakeCollection) => (added.push(p), p), remove: () => true },
-  } as unknown as import("@cesium/engine").Scene;
+  } as unknown as Scene;
   const family = new NodeFamily("sat", C, scene, (kind, idx) => ({ kind, idx }), (p) => p,
                                 new Timeline());
   const spec: NodeSpec = {
@@ -124,7 +126,7 @@ function labelsOf(label: NodeSpec["label"]): Record<string, unknown>[] {
   const added: FakeCollection[] = [];
   const scene = {
     primitives: { add: (p: FakeCollection) => (added.push(p), p), remove: () => true },
-  } as unknown as import("@cesium/engine").Scene;
+  } as unknown as Scene;
   const family = new NodeFamily("sat", C, scene, (kind, idx) => ({ kind, idx }), (p) => p,
                                 new Timeline());
   const spec: NodeSpec = {

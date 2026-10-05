@@ -14,7 +14,9 @@
 //
 // Cesium-injected (`C`) like the pointer dispatch, so scheduling and authority unit-test without WebGL.
 
-import type { Cartesian3, JulianDate, Scene } from "@cesium/engine";
+import type { Cartesian3, JulianDate, Matrix4 } from "@cesium/core";
+import type { Scene } from "@cesium/engine";
+import type { CesiumRuntime } from "./module-host";
 import type { WindowInfo } from "./windows";
 
 /** A point on the globe, in degrees. `height` is metres above the ellipsoid and defaults to 0. */
@@ -196,7 +198,7 @@ export interface SceneClock {
 /** Create the Core's camera authority over a scene. */
 export function createCameraAuthority(
   scene: Scene,
-  C: typeof import("@cesium/engine"),
+  C: CesiumRuntime,
   clock: SceneClock,
 ): CameraAuthority {
   // The server holds it at startup, or a viewpoint sent before anyone touches anything never lands
@@ -251,7 +253,7 @@ export function createCameraAuthority(
   // need no constructor. One frame scratch, built on the first mount: a scene that never rides
   // anything never allocates it, and one that does reuses it every tick.
   const pose = { p: v3(), d: v3(), u: v3() };
-  let frameScratch: ReturnType<typeof C.Transforms.eastNorthUpToFixedFrame> | null = null;
+  let frameScratch: Matrix4 | null = null;
   /**
    * The move into a stated seat, while it runs: where the camera sat when it began, where it is
    * going, and the wall-clock span between. Null whenever the camera is not closing on a seat.
@@ -266,7 +268,7 @@ export function createCameraAuthority(
 
   const frameAt = (p: Cartesian3) => {
     frameScratch ??= new C.Matrix4();
-    return C.Transforms.eastNorthUpToFixedFrame(p, scene.ellipsoid, frameScratch);
+    return C.FixedFrameTransforms.eastNorthUpToFixedFrame(p, scene.ellipsoid, frameScratch);
   };
 
   /** Whether a request says where to sit, as against only what to ride. */

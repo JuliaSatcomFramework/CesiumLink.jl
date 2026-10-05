@@ -39,9 +39,9 @@ knows what a satellite is; the vocabulary above them is points, links, footprint
 colour grid because that is what a constellation is made of. What a satellite scene needs is
 vendored, and the rest of what Cesium draws is reachable but not shipped.
 
-Reachable, because a module is handed `ctx.Cesium` — the whole `@cesium/engine` namespace, the same
-instance the Core built the scene with — together with the scene, the widget's entity collection and
-its data sources. Each row below is a module nobody has written yet.
+Reachable, because a module is handed `ctx.Cesium` — the whole `@cesium/engine` and `@cesium/core`
+namespaces, the same instance the Core built the scene with — together with the scene, the widget's
+entity collection and its data sources. Each row below is a module nobody has written yet.
 
 | Cesium feature | Vendored? | What it takes today |
 |---|---|---|

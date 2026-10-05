@@ -23,7 +23,8 @@
 //
 // A static scene is a window of one frame; a window is the only carrier of scene data there is.
 
-import type { Clock, JulianDate } from "@cesium/engine";
+import type { Clock, JulianDate } from "@cesium/core";
+import type { CesiumRuntime } from "./module-host.ts";
 // The extension is spelled out because a module's test imports this file directly, and `node --test`
 // resolves a specifier literally.
 import { decodeArrays } from "./codec.ts";
@@ -145,8 +146,6 @@ const BUFFER_FRAMES = 8;
 // `frames[i+1]`, so a lone frame would leave positions frozen until the next window arrived. One
 // frame is enough only where the window continues a buffer that already holds its neighbour.
 const LANDING_FRAMES = 2;
-
-type CesiumRuntime = typeof import("@cesium/engine");
 
 /**
  * Bracketing keyframe for `elapsed` seconds into an evenly-spaced (`dt`) sequence of `n`

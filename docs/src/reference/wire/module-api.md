@@ -40,13 +40,22 @@ modules still load, and the viewer still runs.
 
 ## The one hard rule: one Cesium
 
-**A module must not `import` `@cesium/engine` at run time.** Import it for types only: the build
-erases the type annotations, so no code survives them. Reach the live namespace through
-`ctx.Cesium`.
+**A module must not `import` `@cesium/engine` or `@cesium/core` at run time.** Import them for types
+only: the build erases the type annotations, so no code survives them. Reach the live namespace
+through `ctx.Cesium`.
+
+`ctx.Cesium` holds both packages in one object. The math, geometry and time classes, such as
+`Cartesian3`, `Color` and `JulianDate`, are in `@cesium/core`. The scene, the primitives and the
+entities are in `@cesium/engine`. Import each type from the package that holds it:
 
 ```ts
-import type { Cartesian3, Scene } from "@cesium/engine";   // erased
-// const C = await import("@cesium/engine");                // never
+import type { Cartesian3 } from "@cesium/core";               // erased
+import type * as CesiumCore from "@cesium/core";              // erased
+import type { Scene } from "@cesium/engine";                  // erased
+import type * as CesiumEngine from "@cesium/engine";          // erased
+// const C = await import("@cesium/engine");                  // never
+
+type CesiumRuntime = typeof CesiumEngine & typeof CesiumCore;  // the type of ctx.Cesium
 ```
 
 Two live copies of Cesium in one page is the dual-package hazard: a primitive built by one cannot be
@@ -64,7 +73,7 @@ One options bag. A module reads only the keys it needs, so adding keys is never 
 
 ```ts
 readonly id: string;                                // this module's declared id
-readonly Cesium: typeof import("@cesium/engine");   // the one shared namespace
+readonly Cesium: CesiumRuntime;                     // the one shared namespace
 readonly viewer: CesiumWidget;
 readonly scene: Scene;
 readonly container: HTMLElement;                    // the element the viewer was created in
@@ -552,8 +561,8 @@ await esbuild.build({
   format: "esm",              // the Core imports it with import()
   sourcemap: true,
   outfile: "assets/heatmap.js",
-  // No `external: ["@cesium/engine"]` is needed: the source imports it for types only,
-  // so nothing of it survives the build.
+  // No `external` entry for `@cesium/engine` or `@cesium/core` is needed: the source imports
+  // them for types only, so nothing of them survives the build.
 });
 ```
 
@@ -769,11 +778,12 @@ Three seams take a registration:
 | `primitives` | `defineEdgeMaterial(name, factory)` | the material an `Edges` appearance is drawn in |
 
 ```ts
-import type { Color, Material } from "@cesium/engine";
+import type { Color } from "@cesium/core";
+import type { Material } from "@cesium/engine";
 
 type SpriteFactory = () => HTMLCanvasElement | string;
 type EdgeMaterialFactory =
-  (C: typeof import("@cesium/engine"), look: { color: Color; dashLength: number }) => Material;
+  (C: CesiumRuntime, look: { color: Color; dashLength: number }) => Material;
 ```
 
 A sprite factory answers a canvas or an image URL, and **answers the same one every call**: Cesium

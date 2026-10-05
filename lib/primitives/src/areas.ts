@@ -12,13 +12,13 @@
 // per streamed keyframe would be the largest avoidable cost on the wire. A family of thousands of
 // hexagons rebuilt per keyframe passes every visual check and destroys the frame budget.
 
-import type {
-  Cartesian3, Color, GeometryInstance, PolygonHierarchy, Primitive, Scene,
-} from "@cesium/engine";
+import type { Cartesian3, Color, GeometryInstance, PolygonHierarchy } from "@cesium/core";
+import type { Primitive, Scene } from "@cesium/engine";
+import type { CesiumRuntime } from "../../core/src/module-host.ts";
 import type { NdArray } from "../../core/src/codec.ts";
 import type { WindowInfo } from "../../core/src/windows.ts";
 import { at, knob, type Knob, type Slice } from "./knobs.ts";
-import { BLACK, colorOf, WHITE, type CesiumRuntime } from "./paint.ts";
+import { BLACK, colorOf, WHITE } from "./paint.ts";
 import type { Placement, Timeline } from "../../core/src/windows.ts";
 
 /** An area family as Julia sends it. The geometry keys ride only a replacing window. */
@@ -352,7 +352,7 @@ export class AreaFamily {
   /** Corners of a regular `sides`-gon of `radius` metres about `center`, in its ENU frame. */
   private footprint(center: Cartesian3, radius: number, sides: number): PolygonHierarchy {
     const { C } = this;
-    const enu = C.Transforms.eastNorthUpToFixedFrame(center);
+    const enu = C.FixedFrameTransforms.eastNorthUpToFixedFrame(center);
     const corners = Array.from({ length: sides }, (_, i) => {
       const a = (2 * Math.PI * i) / sides;
       return C.Matrix4.multiplyByPoint(

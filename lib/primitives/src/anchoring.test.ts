@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { AnchorResolver } from "../../core/src/camera.ts";
-import type { ModuleContext } from "../../core/src/module-host.ts";
+import type { CesiumRuntime, ModuleContext } from "../../core/src/module-host.ts";
 import { windowCoverage } from "../../core/src/testing.ts";
 import { Timeline, type WindowInfo } from "../../core/src/windows.ts";
 
@@ -58,7 +58,7 @@ const C = {
   BillboardCollection: FakeCollection,
   PolylineCollection: FakeCollection,
   // The footprint corners say nothing about where the anchor lands; only the centre does.
-  Transforms: { eastNorthUpToFixedFrame: (center: FakeCartesian3) => center },
+  FixedFrameTransforms: { eastNorthUpToFixedFrame: (center: FakeCartesian3) => center },
   Matrix4: { multiplyByPoint: (enu: FakeCartesian3) => enu },
   PolygonHierarchy: class {},
   PolygonGeometry: class {},
@@ -70,7 +70,7 @@ const C = {
   Primitive: class {
     ready = false;
   },
-} as unknown as typeof import("@cesium/engine");
+} as unknown as CesiumRuntime;
 
 // The marker glyphs are drawn onto a canvas once, which is the only thing here that wants a DOM.
 (globalThis as Record<string, unknown>).document = {

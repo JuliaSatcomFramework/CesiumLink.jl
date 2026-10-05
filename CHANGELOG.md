@@ -2,6 +2,17 @@
 
 All notable changes to CesiumLink are in this file.
 
+## [Unreleased]
+
+### Changed
+
+- The viewer builds against `@cesium/core` `^0.1.0`, `@cesium/engine` `^26.4.0` and
+  `@cesium/widgets` `^16.3.0`, from Cesium 1.146. Cesium 1.146 moves its math, geometry and time
+  classes from `@cesium/engine` to the new `@cesium/core`. `ctx.Cesium` holds both packages, so a
+  module reads `Cesium.Cartesian3` as before and the console shows no deprecation warning. A
+  TypeScript module imports the types of those classes from `@cesium/core`. Cesium 1.150 removes
+  them from `@cesium/engine`.
+
 ## [0.3.4] - 2026-09-29
 
 ### Added

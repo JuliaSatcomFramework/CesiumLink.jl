@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { ModuleContext } from "../../core/src/module-host.ts";
+import type { CesiumRuntime, ModuleContext } from "../../core/src/module-host.ts";
 import { windowCoverage } from "../../core/src/testing.ts";
 import { Timeline, type WindowInfo } from "../../core/src/windows.ts";
 
@@ -133,7 +133,7 @@ const C = {
       this.far = far;
     }
   },
-  Transforms: {
+  FixedFrameTransforms: {
     eastNorthUpToFixedFrame(at: FakeCartesian3, _e: unknown, result: FakeMatrix) {
       result.tag = `enu(${at.x},${at.y},${at.z})`;
       return result;
@@ -144,7 +144,7 @@ const C = {
       return result;
     },
   },
-} as unknown as typeof import("@cesium/engine");
+} as unknown as CesiumRuntime;
 // `Matrix4.getMatrix3` reads the rotation out of the frame; the stub's two matrix kinds are one class.
 (C.Matrix4 as unknown as { getMatrix3: (a: FakeMatrix, b: FakeMatrix) => FakeMatrix }).getMatrix3 =
   (from, result) => {

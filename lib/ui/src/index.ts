@@ -26,7 +26,7 @@
 // position to a screen point, and `floating.ts` is handed the point exactly as the cursor path hands
 // one to `place()`. Everything else stays testable without WebGL.
 
-import type { Cartesian3 } from "@cesium/engine";
+import type { Cartesian3 } from "@cesium/core";
 import type { Disposable, ModuleContext } from "../../core/src/module-host.ts";
 import { blockAt, isNdArray } from "../../core/src/codec.ts";
 import { REGIONS, type OverlayRegion } from "../../core/src/overlay.ts";

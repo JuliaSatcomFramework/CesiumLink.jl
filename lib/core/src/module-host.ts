@@ -4,7 +4,10 @@
 // shared Cesium namespace) arrive through the injected context (makeContext), so this module stays
 // unit-testable without WebGL.
 
-import type { CesiumWidget, Clock, Scene } from "@cesium/engine";
+import type { Clock } from "@cesium/core";
+import type * as CesiumCore from "@cesium/core";
+import type { CesiumWidget, Scene } from "@cesium/engine";
+import type * as CesiumEngine from "@cesium/engine";
 import type { AnchorResolver } from "./camera";
 import type { Block, NdArray } from "./codec";
 import type { PointerEvent } from "./picking";
@@ -12,6 +15,12 @@ import type { OverlayControls } from "./overlay";
 import type { Disposable, Frame, Placement, Timeline, WindowInfo } from "./windows";
 
 export type { Disposable };
+
+/**
+ * The one shared Cesium namespace: all of `@cesium/engine` and `@cesium/core`. The math, geometry
+ * and time classes are in `@cesium/core`, the scene and the primitives in `@cesium/engine`.
+ */
+export type CesiumRuntime = typeof CesiumEngine & typeof CesiumCore;
 
 /**
  * The single options-bag a module's setup() receives. A module reads only the keys it needs, so
@@ -36,7 +45,7 @@ export interface ModuleContext {
    */
   readonly modules: { get(id: string): unknown | undefined };
   /** The one shared Cesium namespace. Modules build primitives/colors from this, not an import. */
-  readonly Cesium: typeof import("@cesium/engine");
+  readonly Cesium: CesiumRuntime;
   readonly viewer: CesiumWidget;
   readonly scene: Scene;
   readonly container: HTMLElement;
