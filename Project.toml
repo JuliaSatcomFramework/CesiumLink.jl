@@ -1,7 +1,7 @@
 name = "CesiumLink"
 uuid = "fe4ddbe3-63a4-4ce0-8a5b-46bb22807cc2"
 authors = ["Alberto Mengali <disberd@gmail.com>"]
-version = "0.3.4"
+version = "0.3.5"
 
 [deps]
 Base64 = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
@@ -22,7 +22,7 @@ CesiumLinkSlateExt = "SlateExtensionsBase"
 
 [compat]
 Base64 = "1"
-SlateExtensionsBase = "0.9.1, 0.10"
+SlateExtensionsBase = "0.9.1, 0.10, 0.11"
 CodecZlib = "0.7"
 ColorTypes = "0.11, 0.12"
 Dates = "1"

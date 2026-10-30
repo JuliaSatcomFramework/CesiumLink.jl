@@ -2,7 +2,7 @@
 
 All notable changes to CesiumLink are in this file.
 
-## [Unreleased]
+## [0.3.5] - 2026-10-30
 
 ### Changed
 
@@ -12,6 +12,7 @@ All notable changes to CesiumLink are in this file.
   module reads `Cesium.Cartesian3` as before and the console shows no deprecation warning. A
   TypeScript module imports the types of those classes from `@cesium/core`. Cesium 1.150 removes
   them from `@cesium/engine`.
+- The package allows SlateExtensionsBase 0.11 beside 0.9.1 and 0.10.
 
 ## [0.3.4] - 2026-09-29
 
